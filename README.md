@@ -1,45 +1,40 @@
-# Arhitectură de Sistem și Design Mecanic: respirAI 
-**Data:** Septembrie 2026 | **Locație:** Timișoara | **Status:** Masterplan Hackathon "Medical Renaissance"
+# Blueprint Mecanic & CAD: Carcasa respirAI
+**Scop:** Manual de proiectare pentru execuția prin printare 3D a dispozitivului medical hibrid.
 
-## 1. Arhitectura de Bază (Creierul)
-S-a renunțat complet la plăcile sclav (Arduino) pentru a salva spațiu, consum și cabluri. Totul rulează pe un singur microcontroller premium.
-* **Microcontroller:** Seeed Studio XIAO ESP32-S3.
-* **Avantaje critice:** Procesor Dual-Core, 8MB PSRAM (pentru Ring Buffer audio), conectivitate Bluetooth integrată, dimensiune minusculă, controller RMT hardware pentru LED-uri.
-* **Management Energie:** Circuit de încărcare LiPo integrat nativ pe pad-urile de pe spatele plăcii (`BAT+` și `BAT-`). 
+## 1. Conceptul Ergonomic Principal
+Carcasa are forma unui "puc" sau a unui "mouse medical" supradimensionat. Se ține în mâna stângă. Baza se sprijină în palmă, degetul arătător se ancorează în laterala cu oximetrul (MAX30102), iar fața superioară luminoasă este orientată către ochii pacientului.
 
-## 2. Bill of Materials (BOM) & Periferice
-| Componentă | Protocol / Conexiune | Rol în Sistem | Observații |
-| :--- | :--- | :--- | :--- |
-| **INMP441** | I2S (3 pini logici) | Captare sunet pulmonar (Microfon MEMS) | Necesită etanșare acustică absolută. |
-| **MAX30102** | I2C (2 pini logici) | Oximetru și senzor de puls | Montat în fanta ergonomică pentru arătător. |
-| **AD8232** | Analog (1-3 pini) | Interfață EKG cu mufă Jack 3.5mm | Fixat pe standoffs cu șuruburi M2/M3. |
-| **Matrice 8x8 WS2812B** | RMT (1 pin TX) | UI vizual (Ghidaj respirație) | Controlată via biblioteca `NeoPixelBus`. |
-| **Baterie LiPo 3.7V** | Pad BAT | Sursă de energie | Cablul roșu secționat obligatoriu de un switch. |
-| **Switch ON/OFF** | Fizic (Mecanic) | Oprirea generală a circuitului | Previne descărcarea completă a bateriei. |
+## 2. Topologia Externă (Zonele Funcționale)
 
-## 3. Arhitectura Mecanică (Carcasa "Puck" Hibridă)
-Dispozitivul este proiectat pentru a fi ținut în mâna stângă ca un joystick medical, în timp ce mâna dreaptă manipulează stetoscopul.
+### 2.1. Fața Superioară (UI & Branding)
+* **Difuzorul LED:** Un decupaj central mare peste care vine montat capacul difuzor (printat la 0.4 - 0.6 mm grosime din filament alb/semitransparent) pentru a ascunde matricea WS2812B.
+* **Branding:** O adâncitură de 0.5 mm cu textul *respirAI*, poziționată sub difuzorul LED. Literele pot fi umplute ulterior cu vopsea sau acoperite de un sticker taiat precis.
 
-### 3.1. Zonele Funcționale ale Carcasei (CAD)
-* **Fața Superioară (Top):** Matricea LED ascunsă sub un difuzor de lumină printat din PLA/PETG (grosime 0.4 - 0.6 mm, max 2 straturi).
-* **Partea Inferioară (Bottom):** Adâncitură perfectă (0.2 mm) pentru aplicarea autocolantului tăiat cu logo-ul plămânilor.
-* **Laterala 1 (Conectivitate EKG):** Orificiu pentru mufa Jack de la placa AD8232. Placa internă necesită cilindri de susținere (standoffs) solizi.
-* **Laterala 2 (Ergonomie MAX30102):** Scobitură tip trăgaci unde cade natural degetul arătător. Senzorul privește direct spre buricul degetului.
-* **Laterala 3 (Date/Încărcare):** Decupaj milimetric pentru portul USB-C al plăcii ESP32-S3 (care este ancorată de podeaua carcasei).
-* **Laterala 4 (Power):** O fantă minusculă (5x2 mm) pentru lamela micro-întrerupătorului slide (ON/OFF).
+### 2.2. Fața Inferioară (Baza)
+* **Punctul de Conexiune Acustică:** Fix în centrul bazei se proiectează ștuțul exterior (barb fitting) pe care se va mufează etanș furtunul tăiat al stetoscopului.
+* **Zona Logo:** O adâncitură de 0.2 mm grosime, de formă pătrată/rotundă, destinată aplicării decalcomaniei cu plămânii, pentru a o proteja de frecarea cu suprafețele.
 
-### 3.2. Ansamblul Acustic (Inovația Hardware)
-Nu se lipește cutia de piept! Sistemul folosește un furtun de stetoscop tăiat.
-* **Ștuțul Acustic (Barb Fitting):** Un tub exterior proiectat pe carcasa principală, pe care se prinde etanș furtunul stetoscopului.
-* **Camera de Compresie:** La interior, ștuțul se îngustează conic (pâlnie inversă) până la dimensiunea orificiului microfonului INMP441.
-* **Etanșarea:** Placa microfonului se lipește sub presiune pe capătul pâlniei interne, folosind o garnitură inelară de silicon. Aerul lovește membrana, nu scapă în carcasă.
+### 2.3. Lateralele (Conectivitate și Senzori)
+* **Laterala Frontală/Dreapta (Trăgaciul):** O scobitură concavă, ergonomică, care ghidează natural degetul arătător. În centrul ei se află un orificiu dreptunghiular unde este expus senzorul MAX30102.
+* **Laterala Stângă (Conectivitate EKG):** Un orificiu circular precis pentru mufa Jack de 3.5mm a plăcii AD8232.
+* **Laterala Spate (Alimentare & Date):** 
+    * Decupajul pentru portul USB-C al plăcii ESP32-S3.
+    * O fantă laterală de 5x2 mm pentru comutatorul culisant (Slide Switch) de ON/OFF al bateriei.
 
-## 4. Arhitectura Software & Execuție
-Se va folosi RTOS (Real-Time Operating System) nativ al ESP32 pentru a paralelizare.
-* **Nucleul 0 (Core 0):** Preia exclusiv sarcina vizuală. Rulează animațiile de respirație pe matricea LED (prin `NeoPixelBus`), fără să întrerupă restul sistemului.
-* **Nucleul 1 (Core 1):** Preia senzorii critici. Funcții: captura audio I2S (DMA continuu), citirea senzorilor (I2C/Analog) și stream-ul Bluetooth (împachetarea în Ring Buffer) către aplicația mobilă.
+## 3. Structurile Interne (Cable Management & Ancorare)
 
-## 5. Branding și Finisaje Industriale
-* **Cod Culori Text:** `respir` (Bleumarin / Navy Blue, font Regular) + `AI` (Cyan Electric Neon, font Extra Bold). Font sugerat: Montserrat / Inter.
-* **Aplicare Logo:** Decalcomanie (waterslide decal) sau autocolant inkjet protejat cu lac transparent/bandă adezivă, printat la imprimanta de acasă Canon G3010 pe modul "High/Photo".
-* **Ghidaj Pacient:** Telefonul conectat prin Bluetooth stă pe masă și oferă ghidajul topografic (unde să plaseze pacientul clopotul pe piept), în timp ce UI-ul luminos de pe carcasă ghidează ritmul respirator.
+### 3.1. Camera Acustică de Compresie (Inovația)
+* Se află pe interiorul feței inferioare, în continuarea ștuțului exterior.
+* Este un canal care se îngustează sub formă de pâlnie întoarsă.
+* **Etanșarea:** La capătul pâlniei interne, diametrul trebuie să se potrivească exact cu orificiul microfonului INMP441. Se proiectează un "pat" plat pentru placa INMP441, permițând fixarea ei sub presiune cu o garnitură inelară de silicon.
+
+### 3.2. Punctele de Montare (Standoffs)
+Fără prinderi mecanice, forța de a introduce o mufa Jack sau un cablu USB va distruge componentele.
+* **Suport AD8232 (EKG):** 2 sau 4 piloni cilindrici (standoffs) cu diametrul interior potrivit pentru șuruburi M2 sau M3 (sau inserții filetate din alamă topite în plastic).
+* **Suport ESP32-S3:** Piloni de sprijin sau șine de ghidaj pentru a ține placa rigidă când se inserează cablul USB-C.
+* **Locaș Baterie LiPo:** Un compartiment delimitat de pereți subțiri de plastic (1-2 mm grosime) pentru a împiedica bateria să se lovească de pinii ascuțiți ai altor plăci în timpul manevrării.
+
+## 4. Instrucțiuni de Printare 3D
+* **Material:** PLA sau PETG (PETG recomandat pentru flexibilitate la montarea prin clipsare).
+* **Grosime perete (Wall thickness/Perimeters):** Minim 3 perimetre (aprox. 1.2 mm) pentru rigiditate structurală când se apasă mufele.
+* **Capacul Difuzor (Top):** Trebuie printat pe pat de sticlă sau PEI fin, fără suport, cu 100% infill pentru 2-3 straturi maxime, folosind filament de culoare deschisă.
