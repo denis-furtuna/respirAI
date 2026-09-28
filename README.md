@@ -1,40 +1,115 @@
-# Blueprint Mecanic & CAD: Carcasa respirAI
-**Scop:** Manual de proiectare pentru execuția prin printare 3D a dispozitivului medical hibrid.
+<p align="center">
+  <img src="docs/logo.png" alt="respirAI" width="320">
+</p>
 
-## 1. Conceptul Ergonomic Principal
-Carcasa are forma unui "puc" sau a unui "mouse medical" supradimensionat. Se ține în mâna stângă. Baza se sprijină în palmă, degetul arătător se ancorează în laterala cu oximetrul (MAX30102), iar fața superioară luminoasă este orientată către ochii pacientului.
+<p align="center"><b>A stethoscope that understands what it hears.</b></p>
 
-## 2. Topologia Externă (Zonele Funcționale)
+<p align="center">
+  Your phone shows you where to place it and when to breathe. The device listens,
+  an AI reads the sounds, and seconds later you know whether your lungs sound normal
+  — or whether it's time to see a doctor.
+</p>
 
-### 2.1. Fața Superioară (UI & Branding)
-* **Difuzorul LED:** Un decupaj central mare peste care vine montat capacul difuzor (printat la 0.4 - 0.6 mm grosime din filament alb/semitransparent) pentru a ascunde matricea WS2812B.
-* **Branding:** O adâncitură de 0.5 mm cu textul *respirAI*, poziționată sub difuzorul LED. Literele pot fi umplute ulterior cu vopsea sau acoperite de un sticker taiat precis.
+---
 
-### 2.2. Fața Inferioară (Baza)
-* **Punctul de Conexiune Acustică:** Fix în centrul bazei se proiectează ștuțul exterior (barb fitting) pe care se va mufează etanș furtunul tăiat al stetoscopului.
-* **Zona Logo:** O adâncitură de 0.2 mm grosime, de formă pătrată/rotundă, destinată aplicării decalcomaniei cu plămânii, pentru a o proteja de frecarea cu suprafețele.
+## Status
 
-### 2.3. Lateralele (Conectivitate și Senzori)
-* **Laterala Frontală/Dreapta (Trăgaciul):** O scobitură concavă, ergonomică, care ghidează natural degetul arătător. În centrul ei se află un orificiu dreptunghiular unde este expus senzorul MAX30102.
-* **Laterala Stângă (Conectivitate EKG):** Un orificiu circular precis pentru mufa Jack de 3.5mm a plăcii AD8232.
-* **Laterala Spate (Alimentare & Date):** 
-    * Decupajul pentru portul USB-C al plăcii ESP32-S3.
-    * O fantă laterală de 5x2 mm pentru comutatorul culisant (Slide Switch) de ON/OFF al bateriei.
+Pre-build. Hardware is on order and the software is being written for the **Medical Renaissance** hackathon in Timișoara.
 
-## 3. Structurile Interne (Cable Management & Ancorare)
+| Part | State |
+|---|---|
+| Architecture + interface contracts | Defined |
+| Firmware (ESP32, I²S + BLE) | Not started |
+| Web app (Web Bluetooth) | Not started |
+| AI model (ICBHI) | Not started |
+| Enclosure (CAD) | Not started |
 
-### 3.1. Camera Acustică de Compresie (Inovația)
-* Se află pe interiorul feței inferioare, în continuarea ștuțului exterior.
-* Este un canal care se îngustează sub formă de pâlnie întoarsă.
-* **Etanșarea:** La capătul pâlniei interne, diametrul trebuie să se potrivească exact cu orificiul microfonului INMP441. Se proiectează un "pat" plat pentru placa INMP441, permițând fixarea ei sub presiune cu o garnitură inelară de silicon.
+## What it does
 
-### 3.2. Punctele de Montare (Standoffs)
-Fără prinderi mecanice, forța de a introduce o mufa Jack sau un cablu USB va distruge componentele.
-* **Suport AD8232 (EKG):** 2 sau 4 piloni cilindrici (standoffs) cu diametrul interior potrivit pentru șuruburi M2 sau M3 (sau inserții filetate din alamă topite în plastic).
-* **Suport ESP32-S3:** Piloni de sprijin sau șine de ghidaj pentru a ține placa rigidă când se inserează cablul USB-C.
-* **Locaș Baterie LiPo:** Un compartiment delimitat de pereți subțiri de plastic (1-2 mm grosime) pentru a împiedica bateria să se lovească de pinii ascuțiți ai altor plăci în timpul manevrării.
+The stethoscope has barely changed since Laennec invented it in 1816, and interpreting what it hears still takes a trained ear.
 
-## 4. Instrucțiuni de Printare 3D
-* **Material:** PLA sau PETG (PETG recomandat pentru flexibilitate la montarea prin clipsare).
-* **Grosime perete (Wall thickness/Perimeters):** Minim 3 perimetre (aprox. 1.2 mm) pentru rigiditate structurală când se apasă mufele.
-* **Capacul Difuzor (Top):** Trebuie printat pe pat de sticlă sau PEI fin, fără suport, cu 100% infill pentru 2-3 straturi maxime, folosind filament de culoare deschisă.
+respirAI streams lung sounds over Bluetooth to the patient's phone. The phone shows a torso diagram marking where to place the device, while a light pattern on the device itself guides the breathing rhythm. A neural network then screens each recording for **crackles** and **wheezes** and reports whether the lungs sound normal — no clinical training required.
+
+## How it works
+
+<p align="center">
+  <img src="docs/architecture.svg" alt="System architecture" width="720">
+</p>
+
+The device captures audio at 16 kHz, downsamples to 8 kHz and streams 10 ms packets over Bluetooth Low Energy. The phone reassembles them, guides the user through the seven ICBHI chest positions, and sends each recording for inference. Results come back as JSON and are shown per position.
+
+## Hardware
+
+| Part | Purpose |
+|---|---|
+| Seeed XIAO ESP32-S3 | MCU, Bluetooth, battery charging |
+| INMP441 | I²S MEMS microphone |
+| Stethoscope chest piece + tube | acoustic front end |
+| LiPo 3.7 V 2500 mAh | power |
+| WS2812B 8×8 matrix | breathing guide |
+
+All off-the-shelf parts, no custom PCB.
+
+### Planned add-ons
+
+The same platform — power, sensor bus and app pipeline — is designed to take extension modules:
+
+| Add-on | Purpose |
+|---|---|
+| AD8232 | single-lead ECG |
+| MAX30102 | pulse and SpO2 |
+
+See [`docs/ADDONS.md`](docs/ADDONS.md).
+
+## Repository structure
+
+```
+firmware/   ESP32 — I²S capture, downsampling, BLE service
+app/        web app — Web Bluetooth, guided recording, results
+ai/         training notebook, preprocessing, inference server
+cad/        enclosure models and print files
+docs/       architecture, plan, interface contracts
+```
+
+| Document | What's in it |
+|---|---|
+| [`docs/PLAN.md`](docs/PLAN.md) | full project plan: scope, hardware, wiring, tasks, timeline, risks |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | the three interface contracts, byte by byte |
+| [`docs/ENCLOSURE.md`](docs/ENCLOSURE.md) | mechanical design manual for the 3D-printed case |
+| [`docs/ADDONS.md`](docs/ADDONS.md) | ECG and pulse extension modules |
+
+## Interface contracts
+
+The three interfaces are frozen so each part can be built independently. Full details in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+
+- **Firmware ↔ App** — BLE service `7b8c9d00-0001-4b5e-8f00-1a2b3c4d5e6f`, 162-byte packets (2-byte sequence + 10 ms of 8 kHz 16-bit mono PCM)
+- **App ↔ AI** — `POST /analyze` with a WAV and a chest position code, returning `finding`, `confidence` and `quality`
+- **Electronics ↔ CAD** — measured component dimensions in `cad/components.csv`
+
+## The AI
+
+Trained on the **ICBHI 2017 Respiratory Sound Database** (920 recordings, 126 participants). The model classifies each respiratory cycle as *normal*, *crackles*, *wheezes* or *both*.
+
+Two notes on methodology:
+
+- We train on the **sound labels, not the disease labels**. ICBHI's disease labels are ~86 % COPD, so a model trained on them scores well by always guessing one class.
+- Splits are **patient-wise**, never random. Random splits put the same patient in train and test and produce inflated accuracy.
+
+Accuracy numbers will be published here once training runs, per class, with the split described.
+
+## Disclaimer
+
+**This is not a medical device.** It is a student project built for a hackathon. It does not diagnose, and it must not be used to make any health decision. If you are unwell, see a doctor.
+
+## License
+
+MIT — see [`LICENSE`](LICENSE).
+
+## Team
+
+| Name | Role |
+|---|---|
+| *TBD* | firmware, electronics |
+| *TBD* | web app |
+| *TBD* | AI / data |
+| *TBD* | CAD, enclosure |

@@ -1,0 +1,53 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.env
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# --- AI: datasets and trained weights (download, don't commit) ---
+ai/data/
+*.pt
+*.pth
+*.ckpt
+wandb/
+runs/
+
+# --- Arduino / PlatformIO ---
+.pio/
+.pioenvs/
+.piolibdeps/
+build/
+*.bin
+*.elf
+*.hex
+*.map
+.vscode/c_cpp_properties.json
+.vscode/launch.json
+.vscode/ipch/
+
+# --- Web / build artefacts ---
+node_modules/
+dist/
+.cache/
+
+# --- CAD: slicer output (commit STL/STEP, not G-code) ---
+*.gcode
+*.3mf.bak
+
+# --- Recordings made during testing (demo clips are committed on purpose) ---
+*.wav
+!ai/demo_clips/*.wav
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+.idea/
