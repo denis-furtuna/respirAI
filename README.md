@@ -101,6 +101,12 @@ Built for the **Medical Renaissance** hackathon in Timișoara. Hardware is on or
 | *TBD* | AI / data |
 | *TBD* | CAD, enclosure |
 
+## Concept
+
+<img src="docs/brand/concept-render.jpg" alt="Concept render of the respirAI device: a rounded white puck with a glowing LED matrix on top, connected by tube to a stethoscope chest piece" width="720">
+
+<sub><i>Concept render. The real enclosure is designed only after the electronics are measured and frozen. See <a href="docs/ENCLOSURE.md">docs/ENCLOSURE.md</a>.</i></sub>
+
 ## License
 
 [MIT](LICENSE)
