@@ -13,6 +13,7 @@ env/
 
 # --- AI: datasets and trained weights (download, don't commit) ---
 ai/data/
+ai/weights/
 *.pt
 *.pth
 *.ckpt

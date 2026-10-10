@@ -1,0 +1,7 @@
+# Server only (laptop): no PyTorch or librosa needed.
+numpy
+scipy
+onnxruntime
+fastapi
+uvicorn
+python-multipart
