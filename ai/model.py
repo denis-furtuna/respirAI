@@ -3,6 +3,7 @@
 PyTorch is only needed for training (on Kaggle). The trained model is
 exported to ONNX, and the server runs it with ONNX Runtime.
 """
+import copy
 import json
 
 import torch
@@ -33,7 +34,7 @@ def build_model(pretrained=True):
 
 def export(net, onnx_path, model_version, metrics=None):
     """Write <name>.onnx plus <name>.json (version, classes, preprocessing settings, scores)."""
-    net = net.eval().cpu()
+    net = copy.deepcopy(net).eval().cpu()  # a copy: the caller's model stays on its device
     dummy = torch.zeros(1, 1, pp.N_MELS, pp.N_FRAMES)
     kwargs = dict(input_names=["spec"], output_names=["logits"],
                   dynamic_axes={"spec": {0: "batch"}, "logits": {0: "batch"}}, opset_version=17)
