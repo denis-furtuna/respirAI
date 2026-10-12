@@ -38,7 +38,7 @@ cd ai  && uvicorn server:app --host 0.0.0.0 --port 8000   # the AI server (dummy
 1. Phone on the laptop's hotspot. Find the laptop's address on the hotspot (e.g. `192.168.137.1`).
 2. On the laptop, start both commands above.
 3. On the phone, open `chrome://flags/#unsafely-treat-insecure-origin-as-secure`, add `http://192.168.137.1:8080`, set it to **Enabled**, and relaunch Chrome. Without this, Chrome refuses Web Bluetooth on a plain `http://` page.
-4. Open `http://192.168.137.1:8080`. The AI server address defaults to the same host on port 8000. Check it with **Settings → Test the AI server**.
-5. Press **Connect device** once now, so Chrome asks for the *Nearby devices* permission during setup and not during the demo.
+4. Open `http://192.168.137.1:8080`. The AI server address defaults to the same host on port 8000. Check it with the settings icon → **Test the AI server**.
+5. Press **Connect the device** once now, so Chrome asks for the *Nearby devices* permission during setup and not during the demo.
 
 Don't host the page on GitHub Pages for the demo. An `https://` page can't call the laptop's `http://` server.
