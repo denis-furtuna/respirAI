@@ -110,7 +110,8 @@ async function runSession(codes) {
   cancel = false;
   hideError();
   showIdle();
-  const lock = await navigator.wakeLock?.request("screen").catch(() => null);  // keep the screen on
+  $("step").scrollIntoView({ behavior: "smooth", block: "end" });  // keep the instructions and countdown on screen
+  const lock =await navigator.wakeLock?.request("screen").catch(() => null);  // keep the screen on
   try {
     for (const code of codes) {
       await recordPoint(code);
@@ -144,6 +145,11 @@ async function recordPoint(code) {
   current = null;
   if (!finished) return;
   send(CMD.done);
+  if (!settings.demo && samples.length < 2 * SAMPLE_RATE) {   // demo mode sends no audio, so it doesn't need any
+    session.results[code] = { finding: "error", error: "No audio arrived from the device. Check it is on and connected, then press Redo." };
+    drawTorso();
+    return;
+  }
   session.pending.push(analyze(code, samples));
 }
 
