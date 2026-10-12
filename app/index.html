@@ -2,96 +2,130 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f3f6f9">
   <title>respirAI</title>
   <link rel="stylesheet" href="style.css">
   <script type="module" src="app.js"></script>
 </head>
 <body>
-<main>
-  <header>
-    <div>
-      <h1>respirAI</h1>
-      <p class="muted">Lung sound screening</p>
-    </div>
-    <div class="status">
-      <span id="battery" class="muted" hidden></span>
-      <span id="badge" class="badge">Not connected</span>
-    </div>
-  </header>
+<svg width="0" height="0" aria-hidden="true" style="position:absolute">
+  <defs>
+    <symbol id="silhouette" viewBox="0 0 160 190">
+      <ellipse cx="80" cy="24" rx="15" ry="17"/>
+      <path d="M72 40c0 6-2 8-6 10-14 4-26 8-32 16-4 6-4 18-3 30l2 24c1 4 5 4 6 0l1-20c1 12 2 30 4 50 2 16 8 22 36 22s34-6 36-22c2-20 3-38 4-50l1 20c1 4 5 4 6 0l2-24c1-12 1-24-3-30-6-8-18-12-32-16-4-2-6-4-6-10z"/>
+    </symbol>
+    <symbol id="lungs" viewBox="0 0 24 24">
+      <path d="M12 3v8m0 0c-.5 1.2-1.6 1.8-3 1.8M12 11c.5 1.2 1.6 1.8 3 1.8"/>
+      <path d="M9 7.5C6 7.5 3.5 12 3.5 16.5c0 2.5 1.2 3.5 3 3.5 2.5 0 4-1.5 4-4.5V9M15 7.5c3 0 5.5 4.5 5.5 9 0 2.5-1.2 3.5-3 3.5-2.5 0-4-1.5-4-4.5V9"/>
+    </symbol>
+  </defs>
+</svg>
 
-  <div class="row">
-    <button id="btnConnect" class="primary">Connect device</button>
-    <button id="btnMock">Use mock device</button>
+<header class="top">
+  <div class="brand"><svg class="i"><use href="#lungs"/></svg><span>respir<b>AI</b></span></div>
+  <div class="top-right">
+    <span id="battery" class="pill" hidden></span>
+    <button id="btnSettings" class="icon-btn" aria-label="Settings">
+      <svg class="i" viewBox="0 0 24 24"><path d="M4 7h9m4 0h3M4 17h3m4 0h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>
+    </button>
   </div>
+</header>
 
-  <section class="card">
-    <canvas id="wave"></canvas>
-    <p id="stats" class="muted small">No audio yet</p>
+<main>
+  <p id="notice" class="notice" role="alert" hidden></p>
+
+  <section id="sConnect" class="screen">
+    <div class="hero"><svg class="i"><use href="#lungs"/></svg></div>
+    <h1>Let's listen to your lungs</h1>
+    <p class="lead">Switch on the respirAI device, then connect it to this phone.</p>
+    <div class="spacer"></div>
+    <button id="btnConnect" class="btn primary">Connect the device</button>
+    <button id="btnPractice" class="btn link">No device? Try a practice run</button>
   </section>
 
-  <section class="card">
-    <svg id="torso" viewBox="0 0 320 190" role="img" aria-label="Chest points, front and back">
-      <defs>
-        <g id="body">
-          <circle cx="80" cy="20" r="13"/>
-          <path d="M66 36h28l2 6q24 4 30 18l-6 18-8-4-2 80q-30 8-60 0l-2-80-8 4-6-18q6-14 30-18z"/>
-        </g>
-      </defs>
-      <use href="#body" class="silhouette"/>
-      <use href="#body" class="silhouette" x="160"/>
-      <text x="80" y="182">Front</text><text x="240" y="182">Back</text>
-      <text x="36" y="140" class="side">R</text><text x="124" y="140" class="side">L</text>
-      <text x="196" y="140" class="side">L</text><text x="284" y="140" class="side">R</text>
-      <g id="dots"></g>
-    </svg>
-    <p class="legend small muted">
-      <span><i class="key now"></i>now</span>
-      <span><i class="key normal"></i>no abnormal sounds</span>
-      <span><i class="key abnormal"></i>possible abnormal sounds</span>
-      <span><i class="key unclear"></i>record again</span>
-    </p>
+  <section id="sReady" class="screen" hidden>
+    <p class="eyebrow ok-text">Device connected</p>
+    <h1 id="readyTitle">Before we start</h1>
+    <ol class="steps">
+      <li><span>1</span><p><b>Sit upright</b> and relax your shoulders.</p></li>
+      <li><span>2</span><p><b>Place the chest piece</b> where the screen shows you. There are 7 places, about 20 seconds each.</p></li>
+      <li><span>3</span><p><b>Breathe slowly</b> through your mouth, following the circle.</p></li>
+    </ol>
+    <p id="readyNote" class="note" hidden></p>
+    <div class="spacer"></div>
+    <button id="btnBegin" class="btn primary">Begin</button>
   </section>
 
-  <section class="card" id="step">
-    <p id="stepEyebrow" class="eyebrow">7 chest points · 15 s each</p>
-    <h2 id="stepTitle">Connect the device to begin</h2>
-    <p id="stepText" class="muted">Or use the mock device to try the app without hardware.</p>
-    <p id="clock" class="clock" hidden></p>
-    <div id="busy" class="busy" hidden></div>
-    <div class="row">
-      <button id="btnStart" class="primary" disabled>Start screening</button>
-      <button id="btnStop" hidden>Stop</button>
+  <section id="sPoint" class="screen" hidden>
+    <div id="progress" class="progress" aria-hidden="true"></div>
+    <p id="pointStep" class="eyebrow"></p>
+    <h1 id="pointTitle"></h1>
+    <p id="pointWhere" class="lead"></p>
+    <div class="stage">
+      <svg id="body" class="body" viewBox="0 0 160 190" role="img" aria-label="Where to place the chest piece"></svg>
+      <div id="dial" class="dial">
+        <svg viewBox="0 0 200 200" aria-hidden="true">
+          <circle class="track" cx="100" cy="100" r="92"/>
+          <circle id="ringBar" class="bar" cx="100" cy="100" r="92"/>
+        </svg>
+        <div id="breath" class="breath"></div>
+        <div class="dial-text" aria-live="polite"><b id="dialMain"></b><span id="dialSub"></span></div>
+      </div>
     </div>
+    <div class="signal">
+      <canvas id="wave"></canvas>
+      <span id="signalText"></span>
+    </div>
+    <div class="spacer"></div>
+    <button id="btnNow" class="btn secondary">It's in place, start now</button>
+    <button id="btnStop" class="btn link">Stop</button>
   </section>
 
-  <p id="error" class="error" hidden></p>
+  <section id="sBusy" class="screen center" hidden>
+    <div class="orb"><i></i><i></i><i></i></div>
+    <h1>Listening to the recordings</h1>
+    <p class="lead">This takes a few seconds.</p>
+  </section>
 
-  <section class="card" id="results" hidden>
-    <h2>Results</h2>
-    <p id="overall" class="overall"></p>
-    <ul id="resultList"></ul>
+  <section id="sResults" class="screen" hidden>
+    <div id="overall" class="overall">
+      <span id="overallIcon" class="mark big"></span>
+      <div>
+        <h1 id="overallTitle"></h1>
+        <p id="overallText" class="lead"></p>
+      </div>
+    </div>
+    <div class="map">
+      <svg id="mapFront" class="body" viewBox="0 0 160 190"></svg>
+      <svg id="mapBack" class="body" viewBox="0 0 160 190"></svg>
+    </div>
+    <ul id="resultList" class="results"></ul>
     <p class="disclaimer">Screening aid only. Not a diagnosis. Consult a doctor.</p>
+    <button id="btnRestart" class="btn secondary">Start a new check</button>
   </section>
+</main>
 
-  <details class="card">
-    <summary>Settings</summary>
+<dialog id="settings">
+  <form method="dialog">
+    <h2>Settings</h2>
+    <p class="muted">For the team. Not needed for a normal check.</p>
     <label>AI server address <input id="server" type="url" autocomplete="off"></label>
-    <label>Seconds per point <input id="seconds" type="number" min="5" max="20"></label>
+    <label>Seconds per place <input id="seconds" type="number" min="5" max="20"></label>
     <label>Demo mode
       <select id="demo">
         <option value="">Off: analyse the real recordings</option>
-        <option value="normal">On: show a normal example</option>
-        <option value="crackles">On: show a crackles example</option>
-        <option value="wheezes">On: show a wheezes example</option>
-        <option value="both">On: show a crackles + wheezes example</option>
+        <option value="normal">On: normal example</option>
+        <option value="crackles">On: crackles example</option>
+        <option value="wheezes">On: wheezes example</option>
+        <option value="both">On: crackles + wheezes example</option>
       </select>
     </label>
-    <div class="row">
-      <button id="btnTest">Test the AI server</button>
-      <span id="testResult" class="muted small"></span>
-    </div>
-  </details>
-</main>
+    <button type="button" id="btnTest" class="btn secondary small">Test the AI server</button>
+    <p id="testResult" class="muted small"></p>
+    <p id="stats" class="muted small"></p>
+    <button class="btn primary small" value="close">Done</button>
+  </form>
+</dialog>
 </body>
 </html>

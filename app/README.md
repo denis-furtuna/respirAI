@@ -15,12 +15,15 @@ Wording rule: the UI never says "diagnosis". Use "finding", "screening", "possib
 
 ## How a screening runs
 
-1. Connect the device (or the mock). The device streams all the time, so the waveform is live while the chest piece is being placed.
-2. For each of the 7 points (front → sides → back): the red dot shows where to place it, the LED guide starts (`0x10 n`), 5 s to place it, then 15 s of recording.
-3. Each recording is uploaded as a WAV in the background while the next point is recorded.
-4. The results show one row per point, with Play and Redo buttons. Points with quality below 0.4 or an error ask for a re-record.
+Designed so an elderly person can follow it: one screen at a time, large text and buttons, plain words.
 
-**Settings** (at the bottom of the page, remembered on the phone): the AI server's address, the seconds per point, and **demo mode**. Demo mode sends `demo=true` with the chosen case instead of the audio, so it also works without the device.
+1. **Connect:** one button. "Try a practice run" uses the mock device instead.
+2. **Before we start:** three short instructions, then *Begin*. The device streams all the time from here, so the app can tell when no sound is arriving.
+3. **Each of the 7 places** (front → sides → back): the body drawing and plain words say where. There are 8 s to place the chest piece (or tap *It's in place, start now*), then 15 s of recording while a circle paces the breathing (4 s in, 5 s out, like the LED guide). The LED guide starts with `0x10 n`.
+4. Each recording is uploaded as a WAV in the background while the next place is recorded.
+5. **Results:** one sentence at the top, a coloured body map, and one row per place with *Listen* and *Record again*. Quality below 0.4, an error, or no sound from the device asks for a re-record.
+
+**Settings** (the sliders icon, top right; for the team, remembered on the phone): the AI server's address, the seconds per place, and **demo mode**. Demo mode sends `demo=true` with the chosen case instead of the audio.
 
 ## Run it
 
@@ -29,7 +32,7 @@ Wording rule: the UI never says "diagnosis". Use "finding", "screening", "possib
 cd app && python -m http.server 8080          # the page:  http://localhost:8080
 cd ai  && uvicorn server:app --host 0.0.0.0 --port 8000   # the AI server (dummy mode is fine)
 ```
-`localhost` counts as secure, so Web Bluetooth works with no extra setup. Use **Use mock device** if there is no hardware.
+`localhost` counts as secure, so Web Bluetooth works with no extra setup. Use **No device? Try a practice run** if there is no hardware.
 
 **Demo setup, phone + laptop, no internet (task H):**
 1. Phone on the laptop's hotspot. Find the laptop's address on the hotspot (e.g. `192.168.137.1`).
