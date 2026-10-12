@@ -1,203 +1,97 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>respirAI Controller</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>respirAI</title>
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="app.js"></script>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen p-4 flex flex-col items-center">
-
-  <main class="w-full max-w-md space-y-4">
-    <!-- Header & Status -->
-    <header class="flex justify-between items-center border-b border-slate-800 pb-3">
-      <div>
-        <h1 class="text-xl font-bold tracking-tight text-emerald-400">respirAI</h1>
-        <p class="text-xs text-slate-400">Lung Screening Terminal</p>
-      </div>
-      <div id="statusBadge" class="text-xs px-2.5 py-1 rounded-full bg-slate-800 text-slate-300 font-mono">
-        Disconnected
-      </div>
-    </header>
-
-    <!-- Visualizer Canvas -->
-    <section class="bg-slate-900 rounded-xl p-3 border border-slate-800">
-      <div class="flex justify-between items-center mb-2 text-xs text-slate-400 font-medium">
-        <span>Acoustic Waveform (8 kHz)</span>
-        <span id="packetRate">0 pkts/s</span>
-      </div>
-      <canvas id="waveformCanvas" width="400" height="120" class="w-full h-28 bg-black rounded-lg"></canvas>
-    </section>
-
-    <!-- Controls -->
-    <section class="grid grid-cols-2 gap-3">
-      <button id="btnConnect" class="bg-emerald-600 hover:bg-emerald-500 font-semibold py-2.5 rounded-lg text-sm transition">
-        Connect BLE
-      </button>
-      <button id="btnMock" class="bg-slate-800 hover:bg-slate-700 font-semibold py-2.5 rounded-lg text-sm transition border border-slate-700">
-        Start Mock Device
-      </button>
-    </section>
-
-    <div class="text-xs text-slate-500 font-mono" id="debugLog">
-      Packets: 0 | Recorded: 0.0s | Lost: 0
+<body>
+<main>
+  <header>
+    <div>
+      <h1>respirAI</h1>
+      <p class="muted">Lung sound screening</p>
     </div>
-  </main>
+    <div class="status">
+      <span id="battery" class="muted" hidden></span>
+      <span id="badge" class="badge">Not connected</span>
+    </div>
+  </header>
 
-  <script>
-    // --- Configuration & Constants ---
-    const SAMPLE_RATE = 8000;
-    const SAMPLES_PER_PACKET = 80;
-    const PACKET_BYTES = 162; // 2 bytes seq + 80 * 2 bytes int16
+  <div class="row">
+    <button id="btnConnect" class="primary">Connect device</button>
+    <button id="btnMock">Use mock device</button>
+  </div>
 
-    // --- State Management ---
-    let lastSeq = null;
-    let droppedPackets = 0;
-    let totalPackets = 0;
-    let audioBuffer = []; // Master accumulator for the active point
-    let waveformRingBuffer = new Float32Array(SAMPLE_RATE * 2); // 2-second circular buffer
-    let ringWriteIdx = 0;
-    let mockInterval = null;
+  <section class="card">
+    <canvas id="wave"></canvas>
+    <p id="stats" class="muted small">No audio yet</p>
+  </section>
 
-    // --- UI Elements ---
-    const canvas = document.getElementById('waveformCanvas');
-    const ctx = canvas.getContext('2d');
-    const statusBadge = document.getElementById('statusBadge');
-    const debugLog = document.getElementById('debugLog');
-    const btnConnect = document.getElementById('btnConnect');
-    const btnMock = document.getElementById('btnMock');
+  <section class="card">
+    <svg id="torso" viewBox="0 0 320 190" role="img" aria-label="Chest points, front and back">
+      <defs>
+        <g id="body">
+          <circle cx="80" cy="20" r="13"/>
+          <path d="M66 36h28l2 6q24 4 30 18l-6 18-8-4-2 80q-30 8-60 0l-2-80-8 4-6-18q6-14 30-18z"/>
+        </g>
+      </defs>
+      <use href="#body" class="silhouette"/>
+      <use href="#body" class="silhouette" x="160"/>
+      <text x="80" y="182">Front</text><text x="240" y="182">Back</text>
+      <text x="36" y="140" class="side">R</text><text x="124" y="140" class="side">L</text>
+      <text x="196" y="140" class="side">L</text><text x="284" y="140" class="side">R</text>
+      <g id="dots"></g>
+    </svg>
+    <p class="legend small muted">
+      <span><i class="key now"></i>now</span>
+      <span><i class="key normal"></i>no abnormal sounds</span>
+      <span><i class="key abnormal"></i>possible abnormal sounds</span>
+      <span><i class="key unclear"></i>record again</span>
+    </p>
+  </section>
 
-    // --- Task A2: Binary Packet Reconstruction & Gap Filling ---
-    function handleIncomingPacket(dataView) {
-      if (dataView.byteLength < PACKET_BYTES) return;
+  <section class="card" id="step">
+    <p id="stepEyebrow" class="eyebrow">7 chest points · 15 s each</p>
+    <h2 id="stepTitle">Connect the device to begin</h2>
+    <p id="stepText" class="muted">Or use the mock device to try the app without hardware.</p>
+    <p id="clock" class="clock" hidden></p>
+    <div id="busy" class="busy" hidden></div>
+    <div class="row">
+      <button id="btnStart" class="primary" disabled>Start screening</button>
+      <button id="btnStop" hidden>Stop</button>
+    </div>
+  </section>
 
-      // 1. Read 16-bit unsigned sequence counter (little-endian)
-      const seq = dataView.getUint16(0, true);
-      totalPackets++;
+  <p id="error" class="error" hidden></p>
 
-      // 2. Gap Detection (Handling uint16 rollover at 65535)
-      if (lastSeq !== null) {
-        const expectedSeq = (lastSeq + 1) & 0xFFFF;
-        if (seq !== expectedSeq) {
-          const gap = (seq - expectedSeq + 0x10000) & 0xFFFF;
-          droppedPackets += gap;
-          // Fill missing packets with silent zeroes (0.0 float)
-          const missingSamples = gap * SAMPLES_PER_PACKET;
-          for (let i = 0; i < missingSamples; i++) {
-            audioBuffer.push(0);
-            waveformRingBuffer[ringWriteIdx] = 0;
-            ringWriteIdx = (ringWriteIdx + 1) % waveformRingBuffer.length;
-          }
-        }
-      }
-      lastSeq = seq;
+  <section class="card" id="results" hidden>
+    <h2>Results</h2>
+    <p id="overall" class="overall"></p>
+    <ul id="resultList"></ul>
+    <p class="disclaimer">Screening aid only. Not a diagnosis. Consult a doctor.</p>
+  </section>
 
-      // 3. Parse 80 signed 16-bit audio samples (normalize to -1.0 .. +1.0)
-      for (let i = 0; i < SAMPLES_PER_PACKET; i++) {
-        const rawSample = dataView.getInt16(2 + i * 2, true);
-        const floatSample = rawSample / 32768.0;
-
-        audioBuffer.push(floatSample);
-        waveformRingBuffer[ringWriteIdx] = floatSample;
-        ringWriteIdx = (ringWriteIdx + 1) % waveformRingBuffer.length;
-      }
-
-      if (totalPackets % 50 === 0) {
-        debugLog.textContent = `Packets: ${totalPackets} | Recorded: ${(audioBuffer.length / SAMPLE_RATE).toFixed(1)}s | Lost: ${droppedPackets}`;
-      }
-    }
-
-    // --- Task A3: 60 FPS Oscilloscope Canvas Visualizer ---
-    function renderWaveform() {
-      requestAnimationFrame(renderWaveform);
-
-      ctx.fillStyle = '#020617';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      ctx.lineWidth = 1.5;
-      ctx.strokeStyle = '#34d399';
-      ctx.beginPath();
-
-      const sliceWidth = canvas.width / waveformRingBuffer.length;
-      let x = 0;
-
-      // Read continuously starting from oldest sample in ring
-      for (let i = 0; i < waveformRingBuffer.length; i++) {
-        const readIdx = (ringWriteIdx + i) % waveformRingBuffer.length;
-        const v = waveformRingBuffer[readIdx];
-        const y = ((v + 1) / 2) * canvas.height;
-
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-
-        x += sliceWidth;
-      }
-
-      ctx.stroke();
-    }
-    requestAnimationFrame(renderWaveform);
-
-    // --- Task A1 (Mock Fallback): Synthesize 8 kHz Sine Wave Packets ---
-    let mockSeq = 0;
-    let mockPhase = 0;
-    btnMock.addEventListener('click', () => {
-      if (mockInterval) {
-        clearInterval(mockInterval);
-        mockInterval = null;
-        btnMock.textContent = 'Start Mock Device';
-        statusBadge.textContent = 'Disconnected';
-        statusBadge.className = 'text-xs px-2.5 py-1 rounded-full bg-slate-800 text-slate-300 font-mono';
-        return;
-      }
-
-      statusBadge.textContent = 'Streaming (Mock)';
-      statusBadge.className = 'text-xs px-2.5 py-1 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800 font-mono';
-      btnMock.textContent = 'Stop Mock Device';
-
-      // 100 packets/sec = send 1 packet every 10 ms
-      mockInterval = setInterval(() => {
-        const buffer = new ArrayBuffer(PACKET_BYTES);
-        const view = new DataView(buffer);
-
-        view.setUint16(0, mockSeq, true);
-        mockSeq = (mockSeq + 1) & 0xFFFF;
-
-        // Produce a 150 Hz tone with subtle amplitude jitter
-        for (let i = 0; i < SAMPLES_PER_PACKET; i++) {
-          const sample = Math.sin(mockPhase) * 20000;
-          mockPhase += (2 * Math.PI * 150) / SAMPLE_RATE;
-          view.setInt16(2 + i * 2, sample, true);
-        }
-
-        handleIncomingPacket(view);
-      }, 10);
-    });
-
-    // --- Task A1: Real Web Bluetooth Connection Hook ---
-    btnConnect.addEventListener('click', async () => {
-      try {
-        const device = await navigator.bluetooth.requestDevice({
-          filters: [{ name: 'respirAI' }],
-          optionalServices: ['4fafc201-1fb5-459e-8fcc-c5c9c331914b'] // Match Person 1's UUID
-        });
-
-        statusBadge.textContent = 'Connecting...';
-        const server = await device.gatt.connect();
-        const service = await server.getPrimaryService('4fafc201-1fb5-459e-8fcc-c5c9c331914b');
-        const characteristic = await service.getCharacteristic('beb5483e-36e1-4688-b7f5-ea07361b26a8');
-
-        await characteristic.startNotifications();
-        characteristic.addEventListener('characteristicvaluechanged', (event) => {
-          handleIncomingPacket(event.target.value);
-        });
-
-        statusBadge.textContent = 'Connected (BLE)';
-        statusBadge.className = 'text-xs px-2.5 py-1 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800 font-mono';
-      } catch (err) {
-        console.error('BLE connection failed:', err);
-        statusBadge.textContent = 'Failed';
-      }
-    });
-  </script>
+  <details class="card">
+    <summary>Settings</summary>
+    <label>AI server address <input id="server" type="url" autocomplete="off"></label>
+    <label>Seconds per point <input id="seconds" type="number" min="5" max="20"></label>
+    <label>Demo mode
+      <select id="demo">
+        <option value="">Off: analyse the real recordings</option>
+        <option value="normal">On: show a normal example</option>
+        <option value="crackles">On: show a crackles example</option>
+        <option value="wheezes">On: show a wheezes example</option>
+        <option value="both">On: show a crackles + wheezes example</option>
+      </select>
+    </label>
+    <div class="row">
+      <button id="btnTest">Test the AI server</button>
+      <span id="testResult" class="muted small"></span>
+    </div>
+  </details>
+</main>
 </body>
 </html>

@@ -1,15 +1,41 @@
 # app/
 
-The **web app** that runs in Chrome on the phone (demo device: Samsung S25 Ultra) and on desktop Chrome. No native app, no app store. Not supported on iPhone — Safari has no Web Bluetooth.
+The **web app** that runs in Chrome on the phone (demo device: Samsung S25 Ultra) and on desktop Chrome. No native app, no app store, no build step. Not supported on iPhone: Safari has no Web Bluetooth.
 
-What belongs here:
+Wording rule: the UI never says "diagnosis". Use "finding", "screening", "possible abnormal sounds, see a doctor".
 
-- Web Bluetooth connection to the `respirAI` device, per [contract 1](../docs/ARCHITECTURE.md#1-firmware--app-ble)
-- packet reassembly by sequence number, gap filling, live waveform
-- the torso diagram and the guided recording flow (fixed 15 s timer per chest point in v1)
-- WAV encoding and upload to the AI server, per [contract 2](../docs/ARCHITECTURE.md#2-app--ai-http)
-- the results screen, with the disclaimer wording
+## Files
 
-Hosting and the HTTP/HTTPS trap are explained in [`docs/PLAN.md` §5.2](../docs/PLAN.md#52-app-owner-unassigned--highest-risk-fill-this-slot-first). Task list: A1–A11.
+| File | What it does | Tasks |
+|---|---|---|
+| `index.html`, `style.css` | the page. No CDNs or web fonts, so it works offline on the hotspot | — |
+| `device.js` | the device over Web Bluetooth ([contract 1](../docs/ARCHITECTURE.md#1-firmware--app-ble)), plus a **mock device** with the same interface | A1, A9 |
+| `audio.js` | packets → audio (sequence numbers, gap filling, packet size learned from the first packet), WAV encoding, playback | A2, A6, A11 |
+| `app.js` | waveform, torso diagram, guided flow, upload to `/analyze` ([contract 2](../docs/ARCHITECTURE.md#2-app--ai-http)), results | A3–A8 |
 
-Wording rule: the UI never says "diagnosis". Use "finding", "screening", "possible abnormal sounds — see a doctor".
+## How a screening runs
+
+1. Connect the device (or the mock). The device streams all the time, so the waveform is live while the chest piece is being placed.
+2. For each of the 7 points (front → sides → back): the red dot shows where to place it, the LED guide starts (`0x10 n`), 5 s to place it, then 15 s of recording.
+3. Each recording is uploaded as a WAV in the background while the next point is recorded.
+4. The results show one row per point, with Play and Redo buttons. Points with quality below 0.4 or an error ask for a re-record.
+
+**Settings** (at the bottom of the page, remembered on the phone): the AI server's address, the seconds per point, and **demo mode**. Demo mode sends `demo=true` with the chosen case instead of the audio, so it also works without the device.
+
+## Run it
+
+**Development, on one computer:**
+```bash
+cd app && python -m http.server 8080          # the page:  http://localhost:8080
+cd ai  && uvicorn server:app --host 0.0.0.0 --port 8000   # the AI server (dummy mode is fine)
+```
+`localhost` counts as secure, so Web Bluetooth works with no extra setup. Use **Use mock device** if there is no hardware.
+
+**Demo setup, phone + laptop, no internet (task H):**
+1. Phone on the laptop's hotspot. Find the laptop's address on the hotspot (e.g. `192.168.137.1`).
+2. On the laptop, start both commands above.
+3. On the phone, open `chrome://flags/#unsafely-treat-insecure-origin-as-secure`, add `http://192.168.137.1:8080`, set it to **Enabled**, and relaunch Chrome. Without this, Chrome refuses Web Bluetooth on a plain `http://` page.
+4. Open `http://192.168.137.1:8080`. The AI server address defaults to the same host on port 8000. Check it with **Settings → Test the AI server**.
+5. Press **Connect device** once now, so Chrome asks for the *Nearby devices* permission during setup and not during the demo.
+
+Don't host the page on GitHub Pages for the demo. An `https://` page can't call the laptop's `http://` server.
