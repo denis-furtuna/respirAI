@@ -2,25 +2,26 @@
 import { BleDevice, CMD } from "./device.js";
 import { PacketStream, Recording, SAMPLE_RATE, play, stopPlayback, toWav } from "./audio.js";
 import { fakeBluetooth } from "./fake-bluetooth.js";
+import { LANGUAGES, current, dateTime, detect, percent, setLanguage, t } from "./i18n/index.js";
 
-// n is the contract number (0-6). x/y place the dot on the front or back drawing.
+// n is the contract number (0-6). x/y place the dot on the front or back drawing; names are in i18n/ (point.Tc.title…).
 // Left/right are the patient's: on the front view their left is on the viewer's right.
 const POINTS = {
-  Tc: { n: 0, view: "front", x: 80, y: 56, title: "Base of the neck", where: "In the middle, just above the breastbone." },
-  Al: { n: 1, view: "front", x: 101, y: 76, title: "Upper chest, left", where: "Just below your left collarbone." },
-  Ar: { n: 2, view: "front", x: 59, y: 76, title: "Upper chest, right", where: "Just below your right collarbone." },
-  Pl: { n: 3, view: "back", x: 64, y: 88, title: "Upper back, left", where: "Left of the spine, at shoulder-blade height. Ask someone to help you." },
-  Pr: { n: 4, view: "back", x: 96, y: 88, title: "Upper back, right", where: "Right of the spine, at shoulder-blade height. Ask someone to help you." },
-  Ll: { n: 5, view: "front", x: 112, y: 110, title: "Left side", where: "On your left side, a hand's width below the armpit." },
-  Lr: { n: 6, view: "front", x: 48, y: 110, title: "Right side", where: "On your right side, a hand's width below the armpit." },
+  Tc: { n: 0, view: "front", x: 80, y: 56 },
+  Al: { n: 1, view: "front", x: 101, y: 76 },
+  Ar: { n: 2, view: "front", x: 59, y: 76 },
+  Pl: { n: 3, view: "back", x: 64, y: 88 },
+  Pr: { n: 4, view: "back", x: 96, y: 88 },
+  Ll: { n: 5, view: "front", x: 112, y: 110 },
+  Lr: { n: 6, view: "front", x: 48, y: 110 },
 };
+const title = (code) => t(`point.${code}.title`);
 const ORDER = ["Tc", "Al", "Ar", "Ll", "Lr", "Pl", "Pr"];  // front, sides, back
 const PLACE_SECONDS = 8;
 const BREATH_IN = 4, BREATH_OUT = 5;   // seconds; matches the device's LED guide
 const MIN_QUALITY = 0.4;               // contract 2: below this, ask for a re-record
 const RING = 2 * Math.PI * 92;         // circumference of the dial's progress ring
 const FINDINGS = ["normal", "crackles", "wheezes", "both", "unusable"];
-const ABNORMAL = { crackles: "Possible crackles", wheezes: "Possible wheezes", both: "Possible crackles and wheezes" };
 const ICONS = {
   check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
   alert: '<path d="M12 7v6m0 3.5v.5"/>',
@@ -38,18 +39,25 @@ const params = new URLSearchParams(location.search);
 const bluetooth = params.has("fakebt") ? (window.fakeBt = fakeBluetooth(Object.fromEntries(params))) : navigator.bluetooth;
 
 // ---------- settings (remembered on this phone, behind the icon; voice is on the "before we start" screen) ----------
-const settings = { server: `http://${location.hostname || "localhost"}:8000`, seconds: 15, demo: "", textSize: "100", voice: false };
+const settings = { server: `http://${location.hostname || "localhost"}:8000`, seconds: 15, demo: "", textSize: "100", theme: "auto",
+  voice: false, lang: "", welcomed: false };
 try { Object.assign(settings, JSON.parse(localStorage.getItem("respirai") || "{}")); } catch (e) { /* private mode */ }
 
+const darkSystem = matchMedia("(prefers-color-scheme: dark)");
 function saveSettings() {
   try { localStorage.setItem("respirai", JSON.stringify(settings)); } catch (e) { /* not essential */ }
   document.documentElement.style.fontSize = `${settings.textSize}%`;
+  const theme = settings.theme === "auto" ? (darkSystem.matches ? "dark" : "light") : settings.theme;
+  document.documentElement.dataset.theme = theme;
+  document.querySelector('meta[name="theme-color"]').content = theme === "dark" ? "#0b1620" : "#f3f6f9";
   $("btnVoice").setAttribute("aria-pressed", settings.voice);
 }
 saveSettings();
+darkSystem.addEventListener("change", saveSettings);
 
 for (const [id, parse] of [
   ["textSize", (v) => v],
+  ["theme", (v) => v],
   ["server", (v) => v.trim().replace(/\/+$/, "")],
   ["seconds", (v) => Math.min(20, Math.max(5, Number(v) || 15))],
   ["demo", (v) => v],
@@ -68,7 +76,7 @@ function say(text) {
   if (!settings.voice || !window.speechSynthesis) return Promise.resolve();
   speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(text);
-  Object.assign(u, { lang: "en-GB", rate: 0.9 });
+  Object.assign(u, { lang: current().locale, rate: 0.9 });
   const spoken = new Promise((r) => { u.onend = u.onerror = r; });
   speechSynthesis.speak(u);
   return Promise.race([spoken, sleep(8000)]);
@@ -88,22 +96,31 @@ const stream = new PacketStream((samples) => {
 });
 
 // Say up front when this phone can't connect, rather than after a tap.
-function connectNote(message) {
-  $("connectNote").textContent = message || "";
-  $("connectNote").hidden = !message;
+let connectNoteKey = null;
+function connectNote(key) {
+  connectNoteKey = key;
+  $("connectNote").textContent = key ? t(key) : "";
+  $("connectNote").hidden = !key;
 }
 if (!bluetooth) {
-  connectNote("This browser can't use Bluetooth. Open this page in Chrome on an Android phone or a computer, or try a practice run.");
+  connectNote("connect.noBluetooth");
   $("btnConnect").disabled = true;
   console.info("Web Bluetooth needs Chrome, and https:// or localhost. For http:// on a phone, add the address to " +
     "chrome://flags/#unsafely-treat-insecure-origin-as-secure.");
 } else if (bluetooth.getAvailability) {
-  const off = (on) => connectNote(on ? "" : "Bluetooth is switched off. Turn it on, then connect the device.");
+  const off = (on) => connectNote(on ? null : "connect.bluetoothOff");
   bluetooth.getAvailability().then(off, () => {});
   bluetooth.addEventListener?.("availabilitychanged", (e) => off(e.value));
 }
 
 let latest = null;   // the last device the user connected; a reconnect gives up when they pick another
+let battery = null;  // last level the device reported
+
+function showBattery() {
+  $("battery").hidden = battery === null || battery > 100;   // 255 = the device can't measure it (no battery sense wired)
+  $("battery").textContent = t("device.battery", { pct: percent(battery / 100) });
+  $("battery").classList.toggle("low", battery <= 15);
+}
 
 async function connect(bt, button) {
   notice();
@@ -113,20 +130,18 @@ async function connect(bt, button) {
   if (old) old.disconnect();
   const d = (latest = new BleDevice(bt, {
     onPacket: (view) => stream.push(view),
-    onStatus: ({ battery, state }) => {
-      $("battery").hidden = battery > 100;   // 255 = the device can't measure it (no battery sense wired)
-      $("battery").textContent = `Battery ${battery}%`;
-      $("battery").classList.toggle("low", battery <= 15);
-      if (state === 2) notice("The device reported a problem. Switch it off and on again.");
+    onStatus: (status) => {
+      battery = status.battery;
+      showBattery();
+      if (status.state === 2) notice("device.problem");
       else if (battery <= 15 && !batteryWarned) {
         batteryWarned = true;
-        notice(`The device battery is low (${battery}%). Charge it soon.`);
+        notice("device.lowBattery", { pct: percent(battery / 100) });
       }
     },
     onDisconnect: () => { if (d === device) lostDevice(d); },
   }));
-  const label = button.textContent;
-  button.textContent = "Connecting…";
+  button.textContent = t("connect.connecting");
   $("btnConnect").disabled = $("btnPractice").disabled = true;
   try {
     await d.connect();
@@ -137,19 +152,19 @@ async function connect(bt, button) {
     const message = connectError(e);
     if (message) notice(message);
   } finally {
-    button.textContent = label;
+    button.textContent = t(button.dataset.t);
     $("btnConnect").disabled = !bluetooth;
     $("btnPractice").disabled = false;
   }
 }
 
-// Plain words for the user; the details go to the console for the team.
+// Plain words for the user (a text key); the details go to the console for the team.
 function connectError(e) {
   console.warn("Could not connect:", e);
-  if (/adapter/i.test(e.message)) return "Bluetooth is switched off. Turn it on, then try again.";
+  if (/adapter/i.test(e.message)) return "error.bluetoothOff";
   if (e.name === "NotFoundError") return null;   // the device picker was closed
-  if (e.name === "SecurityError" || e.name === "NotAllowedError") return "This page isn't allowed to use Bluetooth. Allow it in the browser's settings, then try again.";
-  return "Couldn't connect to the device. Make sure it is switched on and close to the phone, then try again.";
+  if (e.name === "SecurityError" || e.name === "NotAllowedError") return "error.notAllowed";
+  return "error.connect";
 }
 
 async function online(d) {
@@ -165,8 +180,9 @@ async function online(d) {
 // A dropped connection is retried for about 10 s before the user has to do anything.
 async function lostDevice(d) {
   device = null;
-  $("battery").hidden = true;
-  notice("The device disconnected. Reconnecting…");
+  battery = null;
+  showBattery();
+  notice("device.reconnecting");
   if (running) cancel = true;
   else if (!$("sReady").hidden) show("sConnect");   // results stay on screen if they are showing
   for (const wait of [500, 1500, 3000, 5000]) {
@@ -175,18 +191,18 @@ async function lostDevice(d) {
     try {
       await d.open();
       if (latest !== d || device) return d.disconnect();
-      notice(session && remaining().length && remaining().length < ORDER.length ? "The device is connected again. Tap Continue to carry on." : "The device is connected again.");
+      notice(session && remaining().length && remaining().length < ORDER.length ? "device.backContinue" : "device.back");
       return await online(d);
     } catch (e) {
       console.warn("Reconnect failed:", e.message);
     }
   }
-  if (latest === d && !device) notice("The device disconnected. Switch it on and connect again. Your recordings so far are kept.");
+  if (latest === d && !device) notice("device.lost");
 }
 
 function needDevice() {
   if (device) return false;
-  notice("Connect the device first.");
+  notice("device.first");
   show("sConnect");
   return true;
 }
@@ -211,7 +227,7 @@ document.addEventListener("visibilitychange", () => {
     hush();
     if (running && !$("sPoint").hidden) {   // a phone call, or the screen switched off: pause rather than record nothing
       cancel = true;
-      notice("The check paused while the app was in the background. Your recordings so far are kept.");
+      notice("device.paused");
     }
   } else if (running) keepAwake();
 });
@@ -249,46 +265,53 @@ async function runSession(codes) {
     lock = null;
     send(CMD.idle);
     hush();
+    pointCode = null;
     if (!finished) !device ? show("sConnect") : remaining().length ? showReady() : showResults();
   }
 }
 
+let pointCode = null;   // the place being recorded
+function pointTexts(code) {
+  $("pointStep").textContent = t("point.step", { n: ORDER.indexOf(code) + 1, total: ORDER.length });
+  $("pointTitle").textContent = title(code);
+  $("pointWhere").textContent = t(`point.${code}.where`);
+}
+
 async function recordPoint(code) {
   const p = POINTS[code];
-  $("pointStep").textContent = `Place ${ORDER.indexOf(code) + 1} of ${ORDER.length}`;
-  $("pointTitle").textContent = p.title;
-  $("pointWhere").textContent = p.where;
+  pointCode = code;
+  pointTexts(code);
   $("progress").innerHTML = ORDER.map((c) => `<i class="${c === code ? "now" : session.results[c] ? "done" : ""}"></i>`).join("");
   drawBody($("body"), p.view, (c) => (c === code ? "here" : ""));
   if (settled()) enter($("pointStep"), $("pointTitle"), $("pointWhere"), $("body"));   // the next place (the first comes in with the screen)
-  say(`${p.title}. ${p.where}`);
+  say(`${title(code)}. ${t(`point.${code}.where`)}`);
 
   // 1. Time to place the chest piece (or tap "start now").
   $("btnNow").hidden = false;
   $("breath").style.transform = "scale(0.62)";
-  const placed = await countdown(PLACE_SECONDS, (t, total) => dial(Math.ceil(total - t), "Recording starts in", t / total), true);
+  const placed = await countdown(PLACE_SECONDS, (s, total) => dial(Math.ceil(total - s), t("point.startsIn"), s / total), true);
   $("btnNow").hidden = true;
   if (!placed) return;
-  dial("Get ready", "Breathe slowly with the circle", 0);
-  await say("Now breathe slowly, in and out, with the circle.");   // finishes before the recording starts
+  dial(t("point.getReady"), t("point.breatheSlowly"), 0);
+  await say(t("point.sayBreathe"));   // finishes before the recording starts
   if (cancel) return;
 
   // 2. Record while the circle paces the breathing.
   recording = new Recording(settings.seconds);
   send(CMD.guide(p.n));   // the device's LEDs start breathing now, in step with the circle on screen
-  const recorded = await countdown(settings.seconds, (t, total) => {
-    const phase = t % (BREATH_IN + BREATH_OUT);
+  const recorded = await countdown(settings.seconds, (s, total) => {
+    const phase = s % (BREATH_IN + BREATH_OUT);
     const inhale = phase < BREATH_IN;
     const k = inhale ? phase / BREATH_IN : 1 - (phase - BREATH_IN) / BREATH_OUT;
     $("breath").style.transform = `scale(${0.62 + 0.38 * (1 - Math.cos(Math.PI * k)) / 2})`;
-    dial(inhale ? "Breathe in" : "Breathe out", `${Math.ceil(total - t)} seconds left`, t / total);
+    dial(t(inhale ? "point.in" : "point.out"), t("point.secondsLeft", { n: Math.ceil(total - s) }), s / total);
   });
   const samples = recording.samples.slice();
   recording = null;
   if (!recorded) return;
   send(CMD.done);
   if (!settings.demo && samples.length < 2 * SAMPLE_RATE) {   // demo mode sends no audio, so it needs none
-    session.results[code] = { finding: "error", error: "No sound arrived from the device. Check it is switched on, then record again." };
+    session.results[code] = { finding: "error", error: "error.noSound" };
   } else {
     analyze(code, samples);
   }
@@ -296,7 +319,7 @@ async function recordPoint(code) {
   // 3. A moment to see it worked, then the next place.
   navigator.vibrate?.(120);
   $("breath").style.transform = "scale(0.62)";
-  dial("Done", "Well done", 1);
+  dial(t("point.done"), t("point.wellDone"), 1);
   await countdown(1.2, () => {});
 }
 
@@ -304,12 +327,11 @@ async function recordPoint(code) {
 async function countdown(seconds, onTick, skippable = false) {
   const start = performance.now();
   skip = false;
-  for (let t = 0; !cancel && t < seconds && !(skippable && skip); t = (performance.now() - start) / 1000) {
-    onTick(t, seconds);
+  for (let elapsed = 0; !cancel && elapsed < seconds && !(skippable && skip); elapsed = (performance.now() - start) / 1000) {
+    onTick(elapsed, seconds);
     const hearing = performance.now() - lastAudioAt < 1000;
     const clipping = hearing && ring.reduce((n, v) => n + (Math.abs(v) > 0.97), 0) > ring.length / 100;   // rubbing or knocks
-    $("signalText").textContent = !hearing ? "No sound. Check the device is switched on."
-      : clipping ? "Too loud. Hold the chest piece still, flat on the skin." : "Sound is coming through";
+    $("signalText").textContent = t(!hearing ? "signal.none" : clipping ? "signal.loud" : "signal.ok");
     $("signalText").parentElement.classList.toggle("none", (!hearing || clipping) && !settings.demo);
     await sleep(50);
   }
@@ -347,15 +369,19 @@ async function request(code, samples, sessionId) {
     form.append("audio", toWav(samples), `${code}.wav`);
   }
   // retry: the recording is fine and can simply be sent again; otherwise it needs recording again.
+  // error: a text key; the server's own words (English, technical) only go to the console.
   try {
     const res = await fetch(`${settings.server}/analyze`, { method: "POST", body: form, signal: AbortSignal.timeout(30000) });
     const body = await res.json().catch(() => ({}));
     if (res.status >= 500) {   // the server's own words are for the team
       console.warn(`AI server error ${res.status}:`, body.error);
-      return { finding: "error", error: "The AI server had a problem. Try again in a moment.", retry: true };
+      return { finding: "error", error: "error.server", retry: true };
     }
-    if (!res.ok) return { finding: "error", error: body.error || `The AI server answered with error ${res.status}.` };
-    if (!FINDINGS.includes(body.finding)) return { finding: "error", error: "The AI server sent an answer this app doesn't understand.", retry: true };
+    if (!res.ok) {
+      console.warn(`AI server refused the recording (${res.status}):`, body.error);
+      return { finding: "error", error: "error.rejected" };
+    }
+    if (!FINDINGS.includes(body.finding)) return { finding: "error", error: "error.badAnswer", retry: true };
     return body;
   } catch (e) {
     return { finding: "error", error: describeFetchError(e), retry: true };
@@ -363,9 +389,8 @@ async function request(code, samples, sessionId) {
 }
 
 function describeFetchError(e) {
-  if (e.name === "TimeoutError") return "The AI server took too long to answer.";
-  if (e instanceof TypeError) return `Can't reach the AI server at ${settings.server}. Check the address in Settings.`;
-  return e.message;
+  console.warn("AI server:", e);
+  return e.name === "TimeoutError" ? "error.timeout" : "error.unreachable";
 }
 
 // ---------- screens ----------
@@ -377,6 +402,7 @@ function show(id) {
   const screen = $(id);
   if (!screen.hidden) return;   // already showing: content updates in place, without jumping
   document.querySelectorAll(".screen").forEach((s) => { s.hidden = s !== screen; });
+  $("btnLang").hidden = id !== "sWelcome" && id !== "sConnect";   // the language is chosen at the start (and in Settings)
   window.scrollTo(0, 0);
   enter(screen);
   screen.querySelector("h1").focus({ preventScroll: true });   // screen readers announce the new screen
@@ -388,42 +414,36 @@ function enter(...elements) {   // a gentle fade-up for new content
   for (const el of elements) el.animate([{ opacity: 0.35, transform: "translateY(8px)" }, { opacity: 1, transform: "none" }], { duration: 320, easing: "ease-out" });
 }
 
-function notice(message) {   // no message: hide it
-  $("notice").textContent = message || "";
-  $("notice").hidden = !message;
+let noticeShown = [null];
+function notice(key, vars) {   // no key: hide it. Kept as a key, so it follows a change of language.
+  noticeShown = [key, vars];
+  $("notice").textContent = key ? t(key, vars) : "";
+  $("notice").hidden = !key;
 }
 
 function showReady() {
   const left = remaining().length;
   const partial = session && left > 0 && left < ORDER.length;
-  $("readyTitle").textContent = partial ? "Ready to continue" : "Before we start";
-  $("btnBegin").textContent = partial ? `Continue (${left} ${left === 1 ? "place" : "places"} left)` : "Begin";
-  $("perPlace").textContent = settings.seconds;
+  $("readyTitle").textContent = t(partial ? "ready.titleContinue" : "ready.title");
+  $("btnBegin").textContent = partial ? t("ready.continue", { n: left }) : t("ready.begin");
+  $("step2").innerHTML = t("ready.step2", { n: settings.seconds });
   $("readyNote").hidden = !settings.demo;
-  $("readyNote").textContent = `Demo mode is on: the results will show a ${settings.demo} example.`;
+  $("readyNote").textContent = settings.demo ? t("ready.demo", { case: t(`case.${settings.demo}`) }) : "";
   show("sReady");
 }
 
 function verdict(r) {
-  if (!r) return { cls: "todo", chip: "Not recorded" };
-  if (r.finding === "pending") return { cls: "todo", chip: "Still analysing", pending: true };
-  if (r.finding === "error") return { cls: "unclear", chip: r.retry ? "Not checked yet" : "Please record again", detail: r.error, retry: r.retry };
-  if (r.finding === "unusable" || r.quality < MIN_QUALITY) return { cls: "unclear", chip: "Please record again", detail: "The sound was not clear enough." };
-  const detail = [Number.isFinite(r.confidence) && `${Math.round(r.confidence * 100)}% confidence`, r.demo && "example recording"].filter(Boolean).join(" · ");
-  return r.finding === "normal" ? { cls: "ok", chip: "Clear", detail } : { cls: "warn", chip: ABNORMAL[r.finding], detail };
+  if (!r) return { cls: "todo", chip: t("chip.notRecorded") };
+  if (r.finding === "pending") return { cls: "todo", chip: t("chip.analysing"), pending: true };
+  if (r.finding === "error") return { cls: "unclear", chip: t(r.retry ? "chip.notChecked" : "chip.again"), detail: t(r.error), retry: r.retry };
+  if (r.finding === "unusable" || r.quality < MIN_QUALITY) return { cls: "unclear", chip: t("chip.again"), detail: t("detail.unclear") };
+  const detail = [Number.isFinite(r.confidence) && t("detail.confidence", { pct: percent(r.confidence) }), r.demo && t("detail.example")].filter(Boolean).join(" · ");
+  return r.finding === "normal" ? { cls: "ok", chip: t("chip.clear"), detail } : { cls: "warn", chip: t(`finding.${r.finding}`), detail };
 }
 
 const MARK = { ok: "check", warn: "alert", unclear: "retry", todo: "retry" };
-const OVERALL = {   // [style, title, text]
-  warn: ["warn", "Some unusual sounds were heard", "Please show these results to a doctor."],
-  pending: ["unclear", "Still checking", "A few places are still being analysed. This takes a few seconds."],
-  retry: ["unclear", "Some places couldn't be checked", "Check the connection, then tap “Try again” next to them below."],
-  unclear: ["unclear", "Some places need another recording", "Tap “Record again” next to them below."],
-  ok: ["ok", "No unusual sounds were heard", "If you feel unwell, see a doctor anyway."],
-};
-
-const SHORT = { warn: "Unusual sounds", retry: "Not finished", unclear: "Not finished", ok: "No unusual sounds" };
-const when = (t) => new Date(t).toLocaleString("en-GB", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
+const STYLE = { warn: "warn", pending: "unclear", retry: "unclear", unclear: "unclear", ok: "ok" };   // overall answer → colour
+const SHORT = { warn: "short.warn", retry: "short.unfinished", unclear: "short.unfinished", ok: "short.ok" };   // for earlier checks
 const listenable = (code) => session.audio[code]?.length > 0 && !session.results[code]?.demo;   // a demo result was about an example, not this recording
 
 function showResults() {
@@ -439,11 +459,12 @@ function renderResults() {
   const any = (test) => all.some(test);
   const key = any((v) => v.cls === "warn") ? "warn" : any((v) => v.pending) ? "pending" : any((v) => v.retry) ? "retry"
     : any((v) => v.cls !== "ok") ? "unclear" : "ok";
-  const [cls, title, text] = OVERALL[key];
+  const cls = STYLE[key];
   $("overall").className = `overall ${cls}`;
   $("overallIcon").innerHTML = icon(MARK[cls]);
-  [$("overallTitle").textContent, $("overallText").textContent] = [title, text];
-  $("checkDate").textContent = `Checked on ${when(session.started)}`;
+  $("overallTitle").textContent = t(`overall.${key}.title`);
+  $("overallText").textContent = t(`overall.${key}.text`);
+  $("checkDate").textContent = t("results.checked", { date: dateTime(session.started) });
   drawBody($("mapFront"), "front", (c) => verdicts[c].cls);
   drawBody($("mapBack"), "back", (c) => verdicts[c].cls);
 
@@ -453,15 +474,15 @@ function renderResults() {
     li.className = v.cls;
     li.innerHTML = `<span class="mark">${icon(MARK[v.cls])}</span><div class="what"><b></b><span class="chip"></span><small></small></div>` +
       (listenable(code) ? `<div class="wave" aria-hidden="true">${waveform(audio)}</div>` : "") + `<div class="acts"></div>`;
-    [li.querySelector("b").textContent, li.querySelector(".chip").textContent, li.querySelector("small").textContent] = [POINTS[code].title, v.chip, v.detail || ""];
+    [li.querySelector("b").textContent, li.querySelector(".chip").textContent, li.querySelector("small").textContent] = [title(code), v.chip, v.detail || ""];
     const acts = li.querySelector(".acts");
     if (listenable(code)) {
-      const b = button("play", "Listen", () => listen(code));
+      const b = button("play", t("action.listen"), () => listen(code));
       b.dataset.listen = code;
       acts.append(b);
     }
-    if (v.retry) acts.append(button("retry", "Try again", () => { analyze(code, audio); renderResults(); }));
-    acts.append(button("retry", "Record again", () => { if (!needDevice()) runSession([code]); }));
+    if (v.retry) acts.append(button("retry", t("action.retry"), () => { analyze(code, audio); renderResults(); }));
+    acts.append(button("retry", t("action.record"), () => { if (!needDevice()) runSession([code]); }));
     return li;
   }));
   listenButtons();
@@ -469,7 +490,7 @@ function renderResults() {
   const earlier = pastChecks(key === "pending" ? null : { id: session.id, started: session.started, key })
     .filter((c) => c.id !== session.id && SHORT[c.key]).sort((a, b) => b.started - a.started).slice(0, 3);
   $("earlier").hidden = !earlier.length;
-  $("earlierList").innerHTML = earlier.map((c) => `<li><i class="dot ${OVERALL[c.key][0]}"></i><span>${when(c.started)}</span><b>${SHORT[c.key]}</b></li>`).join("");
+  $("earlierList").innerHTML = earlier.map((c) => `<li><i class="dot ${STYLE[c.key]}"></i><span>${dateTime(c.started)}</span><b>${t(SHORT[c.key])}</b></li>`).join("");
 }
 
 // A recording's outline (min/max per column), worked out once per recording.
@@ -504,14 +525,15 @@ function pastChecks(update) {
 async function share() {
   const lines = ORDER.map((c) => {
     const v = verdict(session.results[c]);
-    return `• ${POINTS[c].title}: ${v.chip}${v.detail && v.cls !== "unclear" ? ` (${v.detail})` : ""}`;
+    return `• ${title(c)}: ${v.chip}${v.detail && v.cls !== "unclear" ? ` (${v.detail})` : ""}`;
   });
-  const text = [`respirAI lung sound check, ${when(session.started)}`, `${$("overallTitle").textContent}.`, ...lines, "", "Screening aid only. Not a diagnosis."].join("\n");
+  const text = [t("share.heading", { date: dateTime(session.started) }), `${$("overallTitle").textContent}.`, ...lines, "", t("results.disclaimer")].join("\n");
   const day = new Date(session.started).toISOString().slice(0, 10);
-  const files = ORDER.filter(listenable).map((c) => new File([toWav(session.audio[c])], `respirAI ${day} ${POINTS[c].title.replace(",", "")}.wav`, { type: "audio/wav" }));
+  const files = ORDER.filter(listenable).map((c) => new File([toWav(session.audio[c])], `respirAI ${day} ${title(c).replace(/[^\p{L}\p{N} -]+/gu, "")}.wav`, { type: "audio/wav" }));
+  const sheet = { title: t("share.title"), text };
   try {
-    if (files.length && navigator.canShare?.({ files })) await navigator.share({ title: "respirAI check", text, files });
-    else if (navigator.share) await navigator.share({ title: "respirAI check", text });
+    if (files.length && navigator.canShare?.({ files })) await navigator.share({ ...sheet, files });
+    else if (navigator.share) await navigator.share(sheet);
     else print();
   } catch (e) {
     if (e.name !== "AbortError") { console.warn("Share failed:", e); print(); }   // AbortError: the share sheet was closed
@@ -540,7 +562,7 @@ function stopListening() {
 function listenButtons() {
   document.querySelectorAll("[data-listen]").forEach((b) => {
     const on = !!playing && b.dataset.listen === playing.code;
-    b.innerHTML = on ? `${icon("stop")} Stop` : `${icon("play")} Listen`;
+    b.innerHTML = on ? `${icon("stop")} ${t("action.stop")}` : `${icon("play")} ${t("action.listen")}`;
     b.setAttribute("aria-pressed", on);
     b.classList.toggle("playing", on);
     const li = b.closest("li");
@@ -557,7 +579,7 @@ let armedAt = -Infinity, disarm = null;
 function resetRestart() {
   clearTimeout(disarm);
   armedAt = -Infinity;
-  $("btnRestart").textContent = "Start a new check";
+  $("btnRestart").textContent = t("results.restart");
 }
 
 function button(iconName, label, onClick) {
@@ -570,9 +592,9 @@ function button(iconName, label, onClick) {
 
 // Front or back outline with its points; stateOf(code) gives each dot's class.
 function drawBody(svg, view, stateOf) {
-  const [left, right] = view === "front" ? ["Right", "Left"] : ["Left", "Right"];
-  svg.innerHTML = `<use href="#silhouette" class="sil"/><text x="18" y="152">${left}</text><text x="142" y="152">${right}</text>
-    <text x="80" y="187" class="view">${view === "front" ? "Front" : "Back"}</text>` +
+  const [left, right] = (view === "front" ? ["body.right", "body.left"] : ["body.left", "body.right"]).map((k) => t(k));
+  svg.innerHTML = `<use href="#silhouette" class="sil"/><text x="0" y="14" class="side l">${left}</text><text x="160" y="14" class="side r">${right}</text>
+    <text x="80" y="187" class="view">${t(view === "front" ? "body.front" : "body.back")}</text>` +
     ORDER.filter((c) => POINTS[c].view === view).map((c) => {
       const { x, y } = POINTS[c], s = stateOf(c);
       return `<g class="pt ${s}"><circle class="halo" cx="${x}" cy="${y}" r="8"/><circle cx="${x}" cy="${y}" r="${s === "here" ? 8 : 6}"/></g>`;
@@ -608,11 +630,12 @@ let gain = 1;
   gain += (Math.min(50, 0.9 / Math.max(peak, 1e-4)) - gain) * 0.05;  // auto-gain: quiet breath sounds stay visible
 })();
 
-setInterval(() => {
+function showStats() {
   $("stats").textContent = stream.received
-    ? `Signal: ${stream.received} packets, ${stream.lost} lost, ${stream.packetSamples * 2 + 2} bytes each`
-    : "Signal: no audio received yet";
-}, 1000);
+    ? t("settings.stats", { received: stream.received, lost: stream.lost, bytes: stream.packetSamples * 2 + 2 })
+    : t("settings.noSignal");
+}
+setInterval(showStats, 1000);
 
 // ---------- buttons ----------
 $("btnConnect").addEventListener("click", () => connect(bluetooth, $("btnConnect")));
@@ -629,7 +652,7 @@ $("btnRestart").addEventListener("click", () => {
   if (since < 400) return;   // the two taps of a double-tap count as one
   if (since > 4000) {
     armedAt = performance.now();
-    $("btnRestart").textContent = "Tap again to clear these results";
+    $("btnRestart").textContent = t("results.restartConfirm");
     disarm = setTimeout(resetRestart, 4000);
     return;
   }
@@ -642,7 +665,7 @@ $("btnShare").addEventListener("click", share);
 $("btnVoice").addEventListener("click", () => {
   settings.voice = !settings.voice;
   saveSettings();
-  if (settings.voice) say("Spoken instructions are on.");
+  if (settings.voice) say(t("ready.voiceOn"));
   else hush();
 });
 $("btnForget").addEventListener("click", () => {
@@ -650,19 +673,64 @@ $("btnForget").addEventListener("click", () => {
   $("earlier").hidden = true;
 });
 $("btnSettings").addEventListener("click", () => $("settings").showModal());
-$("settings").addEventListener("click", (e) => { if (e.target === $("settings")) $("settings").close(); });   // tap outside closes
+$("btnLang").addEventListener("click", chooseLanguage);
+$("btnLangRow").addEventListener("click", chooseLanguage);
+$("btnWelcome").addEventListener("click", () => {
+  settings.welcomed = true;
+  saveSettings();
+  show("sConnect");
+});
+for (const d of [$("settings"), $("languages")]) d.addEventListener("click", (e) => { if (e.target === d) d.close(); });   // tap outside closes
 $("btnTest").addEventListener("click", async () => {
   $("btnTest").disabled = true;
-  $("testResult").textContent = "Checking…";
+  $("testResult").textContent = t("settings.checking");
   try {
     const h = await (await fetch(`${settings.server}/health`, { signal: AbortSignal.timeout(5000) })).json();
-    $("testResult").textContent = `OK · model ${h.model_version}${h.dummy ? " (dummy answers)" : ""} · ${h.demo_clips} demo clips`;
+    $("testResult").textContent = t("settings.testOk", { model: h.model_version, dummy: h.dummy ? t("settings.dummy") : "", clips: h.demo_clips });
   } catch (e) {
-    $("testResult").textContent = describeFetchError(e);
+    $("testResult").textContent = e.name === "TimeoutError" ? t("error.timeout") : t("settings.unreachable", { server: settings.server });
   } finally {
     $("btnTest").disabled = false;
   }
 });
+
+// ---------- language ----------
+function chooseLanguage() {
+  $("languageList").replaceChildren(...LANGUAGES.map((l) => {
+    const b = document.createElement("button");
+    Object.assign(b, { type: "button", className: "language", lang: l.code, textContent: l.name });
+    b.setAttribute("aria-pressed", l.code === current().code);
+    b.addEventListener("click", async () => {
+      $("languages").close();
+      settings.lang = l.code;
+      saveSettings();
+      await setLanguage(l.code);
+      refreshTexts();
+    });
+    return b;
+  }));
+  $("languages").showModal();
+}
+
+// Everything on screen that code wrote, in the current language (setLanguage does the fixed text in index.html).
+function refreshTexts() {
+  $("langCode").textContent = current().code.toUpperCase();
+  $("langName").textContent = current().name;
+  for (const o of $("demo").options) o.textContent = o.value ? t("settings.demo.on", { case: t(`case.${o.value}`) }) : t("settings.demo.off");
+  notice(...noticeShown);
+  connectNote(connectNoteKey);
+  showBattery();
+  showStats();
+  resetRestart();
+  if (!$("sReady").hidden) showReady();
+  if (!$("sResults").hidden) renderResults();
+  if (pointCode) pointTexts(pointCode);
+}
+
+await setLanguage(settings.lang || detect());   // the phone's language until the user picks one
+refreshTexts();
+if (!settings.welcomed) show("sWelcome");
+document.documentElement.classList.remove("loading");
 
 // Works without a connection once opened (the AI server still needs one), and can be installed.
 if ("serviceWorker" in navigator && isSecureContext) navigator.serviceWorker.register("sw.js").catch((e) => console.warn("No offline mode:", e.message));

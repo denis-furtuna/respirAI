@@ -2,7 +2,8 @@
 // Network first: a change to the app shows at once; the copy is only used when the network fails.
 const CACHE = "respirai";
 const APP = ["./", "index.html", "style.css", "app.js", "audio.js", "device.js", "fake-bluetooth.js", "manifest.webmanifest",
-  "img/logo.png", "img/lungs.png", "img/favicon.png", "img/icon-192.png"];
+  "i18n/index.js", "i18n/en.js", "i18n/ro.js", "i18n/es.js", "i18n/fr.js", "i18n/de.js",
+  "img/logo.png", "img/logo-dark.png", "img/lungs.png", "img/lungs-dark.png", "img/favicon.png", "img/icon-192.png"];
 
 self.addEventListener("install", (e) => {
   self.skipWaiting();

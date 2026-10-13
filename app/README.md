@@ -13,12 +13,20 @@ Wording rule: the UI never says "diagnosis". Use "finding", "screening", "possib
 | `device.js` | the device over Web Bluetooth ([contract 1](../docs/ARCHITECTURE.md#1-firmware--app-ble)) | A1, A9 |
 | `fake-bluetooth.js` | a fake device behind a fake Web Bluetooth API, so the real Bluetooth code runs without hardware (practice run, `?fakebt`) | — |
 | `audio.js` | packets → audio (sequence numbers, gap filling, packet size learned from the first packet), WAV encoding, playback | A2, A6, A11 |
+| `i18n/` | translations: English, Română, Español, Français, Deutsch (see *Languages* below) | — |
 | `app.js` | waveform, torso diagram, guided flow, upload to `/analyze` ([contract 2](../docs/ARCHITECTURE.md#2-app--ai-http)), results | A3–A8 |
+
+## Languages
+
+The app opens in the phone's language when it has it (else English); the globe button on the first screens and *Settings → Language* change it, and the choice is remembered. Dates, percentages and plurals follow the language (Romanian: „15 secunde”, „20 de secunde”), and the spoken instructions use it too.
+
+All text is in `i18n/<code>.js`, one file per language, loaded only when chosen. `en.js` is the reference: a missing text falls back to English, and the tests check every language has every text with the same `{placeholders}` and all the plural forms it needs. To add a language: copy `en.js`, translate the values, add a line to `LANGUAGES` in `i18n/index.js`. The AI server's own messages are never shown; the app shows its own words, in the user's language.
 
 ## How a screening runs
 
 Designed so an elderly person can follow it: one screen at a time, large text and buttons, plain words.
 
+0. **Welcome** (first time only): the language, what the app is and isn't (not a diagnosis), privacy in one line, and what to do in an emergency (112).
 1. **Connect:** one button. "Try a practice run" connects to the fake device instead.
 2. **Before we start:** three short instructions, a switch to **read the instructions aloud** (spoken only before each recording, never during it, so the stethoscope doesn't pick it up), then *Begin*. The device streams all the time from here, so the app can tell when no sound is arriving.
 3. **Each of the 7 places** (front → sides → back): the body drawing and plain words say where. There are 8 s to place the chest piece (or tap *It's in place, start now*), then 15 s of recording while a circle paces the breathing (4 s in, 5 s out, like the LED guide). The LED guide starts with `0x10 n`.
@@ -31,7 +39,7 @@ During recording the signal line also warns when the sound is clipping ("Too lou
 
 The check can be paused and continued without losing anything: *Stop*, the phone's back button, leaving the app, or the device disconnecting all keep the finished places, and *Continue* records only what is left. The page asks before closing if there are results. "Start a new check" needs two separate taps.
 
-**Settings** (the sliders icon, top right; remembered on the phone): **text size** for the user; for the team: the AI server's address, the seconds per place, and **demo mode**. Demo mode sends `demo=true` with the chosen case instead of the audio.
+**Settings** (the sliders icon, top right; remembered on the phone): **language**, **text size** and **appearance** (automatic / light / dark) for the user; for the team: the AI server's address, the seconds per place, and **demo mode**. Demo mode sends `demo=true` with the chosen case instead of the audio.
 
 ## Testing without the hardware
 
