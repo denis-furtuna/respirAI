@@ -53,6 +53,10 @@
       <li><span>2</span><p><b>Place the chest piece</b> where the screen shows you. There are 7 places; each one listens for <span id="perPlace">15</span> seconds.</p></li>
       <li><span>3</span><p><b>Breathe slowly</b> through your mouth, following the circle.</p></li>
     </ol>
+    <button id="btnVoice" class="toggle" aria-pressed="false">
+      <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></svg>
+      <span>Read the instructions aloud</span><i class="switch"></i>
+    </button>
     <p id="readyNote" class="note" hidden></p>
     <div class="spacer"></div>
     <button id="btnBegin" class="btn primary">Begin</button>
@@ -95,6 +99,7 @@
       <div>
         <h1 tabindex="-1" id="overallTitle"></h1>
         <p id="overallText" class="lead"></p>
+        <p id="checkDate" class="muted small"></p>
       </div>
     </div>
     <div class="map">
@@ -103,6 +108,11 @@
     </div>
     <ul id="resultList" class="results"></ul>
     <p class="disclaimer">Screening aid only. Not a diagnosis. Consult a doctor.</p>
+    <button id="btnShare" class="btn primary">Share with a doctor</button>
+    <section id="earlier" class="earlier" hidden>
+      <h2>Earlier checks</h2>
+      <ul id="earlierList"></ul>
+    </section>
     <button id="btnRestart" class="btn secondary">Start a new check</button>
   </section>
 </main>
@@ -110,7 +120,14 @@
 <dialog id="settings">
   <form method="dialog">
     <h2>Settings</h2>
-    <p class="muted">For the team. Not needed for a normal check.</p>
+    <label>Text size
+      <select id="textSize">
+        <option value="100">Normal</option>
+        <option value="115">Large</option>
+        <option value="130">Extra large</option>
+      </select>
+    </label>
+    <p class="muted team">For the team. Not needed for a normal check.</p>
     <label>AI server address <input id="server" type="url" autocomplete="off"></label>
     <label>Seconds per place <input id="seconds" type="number" min="5" max="20"></label>
     <label>Demo mode
@@ -125,6 +142,7 @@
     <button type="button" id="btnTest" class="btn secondary small">Test the AI server</button>
     <p id="testResult" class="muted small"></p>
     <p id="stats" class="muted small"></p>
+    <button type="button" id="btnForget" class="btn secondary small">Forget earlier checks</button>
     <button class="btn primary small" value="close">Done</button>
   </form>
 </dialog>

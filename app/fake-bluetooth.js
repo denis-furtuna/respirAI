@@ -7,7 +7,7 @@
 //   &battery=64           battery level to report (default 255 = unknown)
 //   &wav=crackles.wav     stream a real recording on a loop instead of generated breathing:
 //                         a file in dev/recordings/, or a path like demo_clips/crackles_Al.wav
-// From the console: fakeBt.disconnect()
+// From the console: fakeBt.disconnect() (a short drop: the app reconnects), fakeBt.switchOff() / fakeBt.switchOn()
 import { AUDIO, CONTROL, SERVICE, STATUS } from "./device.js";
 
 const fail = (name, message) => Promise.reject(new DOMException(message, name));
@@ -16,7 +16,7 @@ export function fakeBluetooth({ mtu = 185, drop = 0, disconnectAfter = 0, batter
   const samplesPerPacket = Math.min(80, ((mtu - 5) >> 1) & ~1);
   let recording = null;   // loaded in the background; never holds up the app
   const recordingReady = wav ? loadRecording(wav).then((r) => { recording = r; }) : Promise.resolve();
-  let current = null;
+  let current = null, on = true;
 
   function makeDevice(allowed) {
     const device = new EventTarget();
@@ -61,7 +61,11 @@ export function fakeBluetooth({ mtu = 185, drop = 0, disconnectAfter = 0, batter
 
     device.gatt = {
       connected: false,
-      connect() { this.connected = true; return Promise.resolve(this); },
+      connect() {
+        if (!on) return fail("NetworkError", "Bluetooth Device is no longer in range.");
+        this.connected = true;
+        return Promise.resolve(this);
+      },
       disconnect() {
         stop();
         if (!this.connected) return;
@@ -88,6 +92,8 @@ export function fakeBluetooth({ mtu = 185, drop = 0, disconnectAfter = 0, batter
       return (current = makeDevice([...optionalServices, ...filters.flatMap((f) => f.services || [])]));
     },
     disconnect: () => current && current.gatt.disconnect(),
+    switchOff() { on = false; this.disconnect(); },
+    switchOn() { on = true; },
     get source() { return recording ? wav : "generated breathing"; },
   };
 }

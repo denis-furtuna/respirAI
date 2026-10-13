@@ -27,8 +27,16 @@ export class BleDevice {
     // By name, or by our service ID (a Windows test peripheral can't change its name).
     this.device = await this.bluetooth.requestDevice({ filters: [{ name: "respirAI" }, { services: [SERVICE] }], optionalServices: [SERVICE] });
     this.device.addEventListener("gattserverdisconnected", () => this.h.onDisconnect());
+    await this.open();
+  }
+
+  // Connects to the device picked in connect(). Also used to reconnect, without the device picker.
+  async open() {
     const service = await (await this.device.gatt.connect()).getPrimaryService(SERVICE);
     this.control = await service.getCharacteristic(CONTROL);
+    this.queue = Promise.resolve();
+    for (const [c, fn] of this.listeners || []) c.removeEventListener("characteristicvaluechanged", fn);
+    this.listeners = [];
     await this.subscribe(service, AUDIO, (v) => this.h.onPacket(v));
     try {  // status is optional until firmware task F8 is done
       await this.subscribe(service, STATUS, (v) => this.h.onStatus({ battery: v.getUint8(0), state: v.getUint8(1) }));
@@ -38,8 +46,9 @@ export class BleDevice {
   }
 
   async subscribe(service, uuid, onValue) {
-    const c = await service.getCharacteristic(uuid);
-    c.addEventListener("characteristicvaluechanged", (e) => onValue(e.target.value));
+    const c = await service.getCharacteristic(uuid), fn = (e) => onValue(e.target.value);
+    c.addEventListener("characteristicvaluechanged", fn);
+    this.listeners.push([c, fn]);
     await c.startNotifications();
   }
 

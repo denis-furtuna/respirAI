@@ -37,11 +37,19 @@ const calm = matchMedia("(prefers-reduced-motion: reduce)");
 const params = new URLSearchParams(location.search);
 const bluetooth = params.has("fakebt") ? (window.fakeBt = fakeBluetooth(Object.fromEntries(params))) : navigator.bluetooth;
 
-// ---------- settings (remembered on this phone; for the team, behind the icon) ----------
-const settings = { server: `http://${location.hostname || "localhost"}:8000`, seconds: 15, demo: "" };
+// ---------- settings (remembered on this phone, behind the icon; voice is on the "before we start" screen) ----------
+const settings = { server: `http://${location.hostname || "localhost"}:8000`, seconds: 15, demo: "", textSize: "100", voice: false };
 try { Object.assign(settings, JSON.parse(localStorage.getItem("respirai") || "{}")); } catch (e) { /* private mode */ }
 
+function saveSettings() {
+  try { localStorage.setItem("respirai", JSON.stringify(settings)); } catch (e) { /* not essential */ }
+  document.documentElement.style.fontSize = `${settings.textSize}%`;
+  $("btnVoice").setAttribute("aria-pressed", settings.voice);
+}
+saveSettings();
+
 for (const [id, parse] of [
+  ["textSize", (v) => v],
   ["server", (v) => v.trim().replace(/\/+$/, "")],
   ["seconds", (v) => Math.min(20, Math.max(5, Number(v) || 15))],
   ["demo", (v) => v],
@@ -49,10 +57,23 @@ for (const [id, parse] of [
   $(id).value = settings[id];
   $(id).addEventListener("change", () => {
     $(id).value = settings[id] = parse($(id).value);   // show the value actually used (e.g. 50 s -> 20 s)
-    try { localStorage.setItem("respirai", JSON.stringify(settings)); } catch (e) { /* not essential */ }
+    saveSettings();
     if (!$("sReady").hidden) showReady();
   });
 }
+
+// ---------- spoken instructions (for when the eyes are not on the screen, e.g. placing on the back) ----------
+// Never while recording: the stethoscope would pick it up.
+function say(text) {
+  if (!settings.voice || !window.speechSynthesis) return Promise.resolve();
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  Object.assign(u, { lang: "en-GB", rate: 0.9 });
+  const spoken = new Promise((r) => { u.onend = u.onerror = r; });
+  speechSynthesis.speak(u);
+  return Promise.race([spoken, sleep(8000)]);
+}
+const hush = () => window.speechSynthesis?.cancel();
 
 // ---------- device + audio ----------
 let device = null, recording = null, lastAudioAt = 0, batteryWarned = false;
@@ -82,13 +103,15 @@ if (!bluetooth) {
   bluetooth.addEventListener?.("availabilitychanged", (e) => off(e.value));
 }
 
+let latest = null;   // the last device the user connected; a reconnect gives up when they pick another
+
 async function connect(bt, button) {
   notice();
   batteryWarned = false;
   const old = device;
   device = null;
   if (old) old.disconnect();
-  const d = new BleDevice(bt, {
+  const d = (latest = new BleDevice(bt, {
     onPacket: (view) => stream.push(view),
     onStatus: ({ battery, state }) => {
       $("battery").hidden = battery > 100;   // 255 = the device can't measure it (no battery sense wired)
@@ -100,19 +123,14 @@ async function connect(bt, button) {
         notice(`The device battery is low (${battery}%). Charge it soon.`);
       }
     },
-    onDisconnect: () => { if (d === device) lostDevice(); },
-  });
+    onDisconnect: () => { if (d === device) lostDevice(d); },
+  }));
   const label = button.textContent;
   button.textContent = "Connecting…";
   $("btnConnect").disabled = $("btnPractice").disabled = true;
   try {
     await d.connect();
-    stream.reset();
-    device = d;
-    await d.send(CMD.start);              // stream all the time, so the signal is live while placing the chest piece
-    d.send(CMD.status).catch(() => {});   // battery now, not in 2 s
-    if (session && !remaining().length) showResults();   // carry on where the user was
-    else showReady();
+    await online(d);
   } catch (e) {
     if (device === d) device = null;
     d.disconnect();
@@ -134,12 +152,36 @@ function connectError(e) {
   return "Couldn't connect to the device. Make sure it is switched on and close to the phone, then try again.";
 }
 
-function lostDevice() {
+async function online(d) {
+  stream.reset();
+  device = d;
+  await d.send(CMD.start);              // stream all the time, so the signal is live while placing the chest piece
+  d.send(CMD.status).catch(() => {});   // battery now, not in 2 s
+  if (running) return;                  // still analysing: the results come next anyway
+  if (session && !remaining().length) showResults();   // carry on where the user was
+  else showReady();
+}
+
+// A dropped connection is retried for about 10 s before the user has to do anything.
+async function lostDevice(d) {
   device = null;
   $("battery").hidden = true;
-  notice("The device disconnected. Switch it on and connect again. Your recordings so far are kept.");
+  notice("The device disconnected. Reconnecting…");
   if (running) cancel = true;
   else if (!$("sReady").hidden) show("sConnect");   // results stay on screen if they are showing
+  for (const wait of [500, 1500, 3000, 5000]) {
+    await sleep(wait);
+    if (latest !== d || device) return;   // the user connected something themselves
+    try {
+      await d.open();
+      if (latest !== d || device) return d.disconnect();
+      notice(session && remaining().length && remaining().length < ORDER.length ? "The device is connected again. Tap Continue to carry on." : "The device is connected again.");
+      return await online(d);
+    } catch (e) {
+      console.warn("Reconnect failed:", e.message);
+    }
+  }
+  if (latest === d && !device) notice("The device disconnected. Switch it on and connect again. Your recordings so far are kept.");
 }
 
 function needDevice() {
@@ -154,11 +196,11 @@ function send(bytes) {
 }
 
 // ---------- session ----------
-let session = null;   // { id, results: {code: response}, audio: {code: Int16Array}, pending: [] }
+let session = null;   // { id, started, results: {code: response}, audio: {code: Int16Array}, pending: [] }
 let running = false, cancel = false, skip = false, lock = null;
 
 const remaining = () => (session ? ORDER.filter((c) => !session.results[c]) : ORDER);
-const newSession = () => { session = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), results: {}, audio: {}, pending: [] }; };
+const newSession = () => { session = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), started: Date.now(), results: {}, audio: {}, pending: [] }; };
 
 // Keep the screen on during a session, also after switching away and back. Never waited for.
 const keepAwake = () => navigator.wakeLock?.request("screen").then((l) => { if (running) lock = l; else l.release(); }).catch(() => {});
@@ -166,6 +208,7 @@ const keepAwake = () => navigator.wakeLock?.request("screen").then((l) => { if (
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) {
     stopListening();
+    hush();
     if (running && !$("sPoint").hidden) {   // a phone call, or the screen switched off: pause rather than record nothing
       cancel = true;
       notice("The check paused while the app was in the background. Your recordings so far are kept.");
@@ -205,6 +248,7 @@ async function runSession(codes) {
     if (lock) lock.release();
     lock = null;
     send(CMD.idle);
+    hush();
     if (!finished) !device ? show("sConnect") : remaining().length ? showReady() : showResults();
   }
 }
@@ -217,6 +261,7 @@ async function recordPoint(code) {
   $("progress").innerHTML = ORDER.map((c) => `<i class="${c === code ? "now" : session.results[c] ? "done" : ""}"></i>`).join("");
   drawBody($("body"), p.view, (c) => (c === code ? "here" : ""));
   if (settled()) enter($("pointStep"), $("pointTitle"), $("pointWhere"), $("body"));   // the next place (the first comes in with the screen)
+  say(`${p.title}. ${p.where}`);
 
   // 1. Time to place the chest piece (or tap "start now").
   $("btnNow").hidden = false;
@@ -224,6 +269,9 @@ async function recordPoint(code) {
   const placed = await countdown(PLACE_SECONDS, (t, total) => dial(Math.ceil(total - t), "Recording starts in", t / total), true);
   $("btnNow").hidden = true;
   if (!placed) return;
+  dial("Get ready", "Breathe slowly with the circle", 0);
+  await say("Now breathe slowly, in and out, with the circle.");   // finishes before the recording starts
+  if (cancel) return;
 
   // 2. Record while the circle paces the breathing.
   recording = new Recording(settings.seconds);
@@ -259,8 +307,10 @@ async function countdown(seconds, onTick, skippable = false) {
   for (let t = 0; !cancel && t < seconds && !(skippable && skip); t = (performance.now() - start) / 1000) {
     onTick(t, seconds);
     const hearing = performance.now() - lastAudioAt < 1000;
-    $("signalText").textContent = hearing ? "Sound is coming through" : "No sound. Check the device is switched on.";
-    $("signalText").parentElement.classList.toggle("none", !hearing && !settings.demo);
+    const clipping = hearing && ring.reduce((n, v) => n + (Math.abs(v) > 0.97), 0) > ring.length / 100;   // rubbing or knocks
+    $("signalText").textContent = !hearing ? "No sound. Check the device is switched on."
+      : clipping ? "Too loud. Hold the chest piece still, flat on the skin." : "Sound is coming through";
+    $("signalText").parentElement.classList.toggle("none", (!hearing || clipping) && !settings.demo);
     await sleep(50);
   }
   return !cancel;
@@ -300,7 +350,11 @@ async function request(code, samples, sessionId) {
   try {
     const res = await fetch(`${settings.server}/analyze`, { method: "POST", body: form, signal: AbortSignal.timeout(30000) });
     const body = await res.json().catch(() => ({}));
-    if (!res.ok) return { finding: "error", error: body.error || `The AI server answered with error ${res.status}.`, retry: res.status >= 500 };
+    if (res.status >= 500) {   // the server's own words are for the team
+      console.warn(`AI server error ${res.status}:`, body.error);
+      return { finding: "error", error: "The AI server had a problem. Try again in a moment.", retry: true };
+    }
+    if (!res.ok) return { finding: "error", error: body.error || `The AI server answered with error ${res.status}.` };
     if (!FINDINGS.includes(body.finding)) return { finding: "error", error: "The AI server sent an answer this app doesn't understand.", retry: true };
     return body;
   } catch (e) {
@@ -368,10 +422,15 @@ const OVERALL = {   // [style, title, text]
   ok: ["ok", "No unusual sounds were heard", "If you feel unwell, see a doctor anyway."],
 };
 
+const SHORT = { warn: "Unusual sounds", retry: "Not finished", unclear: "Not finished", ok: "No unusual sounds" };
+const when = (t) => new Date(t).toLocaleString("en-GB", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
+const listenable = (code) => session.audio[code]?.length > 0 && !session.results[code]?.demo;   // a demo result was about an example, not this recording
+
 function showResults() {
   resetRestart();
   show("sResults");
   renderResults();
+  say(`${$("overallTitle").textContent}. ${$("overallText").textContent}`);
 }
 
 function renderResults() {
@@ -384,17 +443,19 @@ function renderResults() {
   $("overall").className = `overall ${cls}`;
   $("overallIcon").innerHTML = icon(MARK[cls]);
   [$("overallTitle").textContent, $("overallText").textContent] = [title, text];
+  $("checkDate").textContent = `Checked on ${when(session.started)}`;
   drawBody($("mapFront"), "front", (c) => verdicts[c].cls);
   drawBody($("mapBack"), "back", (c) => verdicts[c].cls);
 
   $("resultList").replaceChildren(...ORDER.map((code) => {
-    const v = verdicts[code], r = session.results[code], audio = session.audio[code];
+    const v = verdicts[code], audio = session.audio[code];
     const li = document.createElement("li");
     li.className = v.cls;
-    li.innerHTML = `<span class="mark">${icon(MARK[v.cls])}</span><div class="what"><b></b><span class="chip"></span><small></small></div><div class="acts"></div>`;
+    li.innerHTML = `<span class="mark">${icon(MARK[v.cls])}</span><div class="what"><b></b><span class="chip"></span><small></small></div>` +
+      (listenable(code) ? `<div class="wave" aria-hidden="true">${waveform(audio)}</div>` : "") + `<div class="acts"></div>`;
     [li.querySelector("b").textContent, li.querySelector(".chip").textContent, li.querySelector("small").textContent] = [POINTS[code].title, v.chip, v.detail || ""];
     const acts = li.querySelector(".acts");
-    if (audio && audio.length && !(r && r.demo)) {   // a demo result was about an example, not this recording
+    if (listenable(code)) {
       const b = button("play", "Listen", () => listen(code));
       b.dataset.listen = code;
       acts.append(b);
@@ -404,9 +465,60 @@ function renderResults() {
     return li;
   }));
   listenButtons();
+
+  const earlier = pastChecks(key === "pending" ? null : { id: session.id, started: session.started, key })
+    .filter((c) => c.id !== session.id && SHORT[c.key]).sort((a, b) => b.started - a.started).slice(0, 3);
+  $("earlier").hidden = !earlier.length;
+  $("earlierList").innerHTML = earlier.map((c) => `<li><i class="dot ${OVERALL[c.key][0]}"></i><span>${when(c.started)}</span><b>${SHORT[c.key]}</b></li>`).join("");
 }
 
-// Listen / Stop: one recording at a time, with a bar showing how far it has played.
+// A recording's outline (min/max per column), worked out once per recording.
+const waves = new WeakMap();
+function waveform(samples) {
+  if (!waves.has(samples)) {
+    const cols = 120, step = samples.length / cols, peak = samples.reduce((m, v) => Math.max(m, Math.abs(v)), 1);
+    let d = "";
+    for (let x = 0; x < cols; x++) {
+      let lo = 0, hi = 0;
+      for (let i = Math.floor(x * step); i < Math.floor((x + 1) * step); i++) { lo = Math.min(lo, samples[i]); hi = Math.max(hi, samples[i]); }
+      d += `M${x + 0.5} ${(20 - (19 * hi) / peak).toFixed(1)}V${(20.5 - (19 * lo) / peak).toFixed(1)}`;
+    }
+    waves.set(samples, `<svg viewBox="0 0 ${cols} 40" preserveAspectRatio="none"><path d="${d}"/></svg><i class="played"></i>`);
+  }
+  return waves.get(samples);
+}
+
+// Earlier checks on this phone: the date and the overall answer only, never the audio.
+function pastChecks(update) {
+  let list = [];
+  try { list = JSON.parse(localStorage.getItem("respirai-checks")) || []; } catch (e) { /* none yet */ }
+  if (update) {
+    list = [update, ...list.filter((c) => c.id !== update.id)].slice(0, 20);
+    try { localStorage.setItem("respirai-checks", JSON.stringify(list)); } catch (e) { /* not essential */ }
+  }
+  return list;
+}
+
+// "Share with a doctor": a short summary and the recordings, through the phone's own share sheet
+// (email, WhatsApp…). Where sharing files isn't possible, the summary alone; on a computer, print / save as PDF.
+async function share() {
+  const lines = ORDER.map((c) => {
+    const v = verdict(session.results[c]);
+    return `• ${POINTS[c].title}: ${v.chip}${v.detail && v.cls !== "unclear" ? ` (${v.detail})` : ""}`;
+  });
+  const text = [`respirAI lung sound check, ${when(session.started)}`, `${$("overallTitle").textContent}.`, ...lines, "", "Screening aid only. Not a diagnosis."].join("\n");
+  const day = new Date(session.started).toISOString().slice(0, 10);
+  const files = ORDER.filter(listenable).map((c) => new File([toWav(session.audio[c])], `respirAI ${day} ${POINTS[c].title.replace(",", "")}.wav`, { type: "audio/wav" }));
+  try {
+    if (files.length && navigator.canShare?.({ files })) await navigator.share({ title: "respirAI check", text, files });
+    else if (navigator.share) await navigator.share({ title: "respirAI check", text });
+    else print();
+  } catch (e) {
+    if (e.name !== "AbortError") { console.warn("Share failed:", e); print(); }   // AbortError: the share sheet was closed
+  }
+}
+
+// Listen / Stop: one recording at a time, with the waveform showing how far it has played.
 let playing = null;   // { code, started, seconds }
 
 function listen(code) {
@@ -431,9 +543,11 @@ function listenButtons() {
     b.innerHTML = on ? `${icon("stop")} Stop` : `${icon("play")} Listen`;
     b.setAttribute("aria-pressed", on);
     b.classList.toggle("playing", on);
+    const li = b.closest("li");
+    li.classList.toggle("playing", on);
     if (on) {
-      b.style.setProperty("--dur", `${playing.seconds}s`);
-      b.style.setProperty("--delay", `${-(performance.now() - playing.started) / 1000}s`);
+      li.style.setProperty("--dur", `${playing.seconds}s`);
+      li.style.setProperty("--delay", `${-(performance.now() - playing.started) / 1000}s`);
     }
   });
 }
@@ -524,6 +638,17 @@ $("btnRestart").addEventListener("click", () => {
   showReady();
 });
 $("notice").addEventListener("click", () => notice());   // tap to dismiss
+$("btnShare").addEventListener("click", share);
+$("btnVoice").addEventListener("click", () => {
+  settings.voice = !settings.voice;
+  saveSettings();
+  if (settings.voice) say("Spoken instructions are on.");
+  else hush();
+});
+$("btnForget").addEventListener("click", () => {
+  try { localStorage.removeItem("respirai-checks"); } catch (e) { /* nothing stored */ }
+  $("earlier").hidden = true;
+});
 $("btnSettings").addEventListener("click", () => $("settings").showModal());
 $("settings").addEventListener("click", (e) => { if (e.target === $("settings")) $("settings").close(); });   // tap outside closes
 $("btnTest").addEventListener("click", async () => {
@@ -538,3 +663,6 @@ $("btnTest").addEventListener("click", async () => {
     $("btnTest").disabled = false;
   }
 });
+
+// Works without a connection once opened (the AI server still needs one), and can be installed.
+if ("serviceWorker" in navigator && isSecureContext) navigator.serviceWorker.register("sw.js").catch((e) => console.warn("No offline mode:", e.message));

@@ -1,0 +1,23 @@
+// Offline copy of the app itself, so it opens even without a connection (the AI server still needs one).
+// Network first: a change to the app shows at once; the copy is only used when the network fails.
+const CACHE = "respirai";
+const APP = ["./", "index.html", "style.css", "app.js", "audio.js", "device.js", "fake-bluetooth.js", "manifest.webmanifest",
+  "img/logo.png", "img/lungs.png", "img/favicon.png", "img/icon-192.png"];
+
+self.addEventListener("install", (e) => {
+  self.skipWaiting();
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(APP)).catch(() => {}));
+});
+self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
+
+self.addEventListener("fetch", (e) => {
+  const url = new URL(e.request.url);
+  if (e.request.method !== "GET" || url.origin !== location.origin || /^\/(health|session|log)\b/.test(url.pathname)) return;
+  e.respondWith(fetch(e.request).then((res) => {
+    if (res.ok) {
+      const copy = res.clone();
+      caches.open(CACHE).then((c) => c.put(e.request, copy));
+    }
+    return res;
+  }).catch(() => caches.match(e.request, { ignoreSearch: true }).then((hit) => hit || Response.error())));
+});
