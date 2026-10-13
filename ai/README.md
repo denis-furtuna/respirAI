@@ -37,7 +37,7 @@ pip install -r requirements-server.txt
 uvicorn server:app --host 0.0.0.0 --port 8000
 ```
 
-Check it at `http://localhost:8000/health`. With no model in `ai/weights/`, it runs in **dummy mode**: same request and response shapes, fixed answers. That's enough for the app to be built against it today.
+Check it at `http://localhost:8000/health`. Once the web app (`app/`) is in the same checkout, the server also serves it at `http://localhost:8000`, so the demo needs only this one command. With no model in `ai/weights/`, it runs in **dummy mode**: same request and response shapes, fixed answers. That's enough for the app to be built against it today.
 
 ```bash
 curl -F point=Al -F session_id=test -F audio=@recording.wav http://localhost:8000/analyze
