@@ -7,6 +7,7 @@ All the logic lives in service.py; this file only turns it into HTTP.
 If the web app (../app) is next to it, it is served too, so the demo needs
 one command and one address: http://<laptop>:8000
 """
+import mimetypes
 from pathlib import Path
 from typing import Optional
 
@@ -54,6 +55,10 @@ async def analyze(
 def summary(session_id: str):
     return service.summary(session_id)
 
+
+# Some Windows setups map .js to text/plain in the registry; Chrome then refuses to run the app's modules.
+mimetypes.add_type("text/javascript", ".js")
+mimetypes.add_type("application/manifest+json", ".webmanifest")
 
 # Last, so the API routes above take priority over the files.
 APP_DIR = Path(__file__).resolve().parent.parent / "app"
