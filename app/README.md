@@ -9,6 +9,7 @@ Wording rule: the UI never says "diagnosis". Use "finding", "screening", "possib
 | File | What it does | Tasks |
 |---|---|---|
 | `index.html`, `style.css` | the page. No CDNs or web fonts, so it works offline on the hotspot | — |
+| `img/`, `manifest.webmanifest` | the logo (made from `docs/brand/`), favicon and home-screen icons, so the app can be added to the phone's home screen | — |
 | `device.js` | the device over Web Bluetooth ([contract 1](../docs/ARCHITECTURE.md#1-firmware--app-ble)) | A1, A9 |
 | `fake-bluetooth.js` | a fake device behind a fake Web Bluetooth API, so the real Bluetooth code runs without hardware (practice run, `?fakebt`) | — |
 | `audio.js` | packets → audio (sequence numbers, gap filling, packet size learned from the first packet), WAV encoding, playback | A2, A6, A11 |
@@ -21,8 +22,10 @@ Designed so an elderly person can follow it: one screen at a time, large text an
 1. **Connect:** one button. "Try a practice run" connects to the fake device instead.
 2. **Before we start:** three short instructions, then *Begin*. The device streams all the time from here, so the app can tell when no sound is arriving.
 3. **Each of the 7 places** (front → sides → back): the body drawing and plain words say where. There are 8 s to place the chest piece (or tap *It's in place, start now*), then 15 s of recording while a circle paces the breathing (4 s in, 5 s out, like the LED guide). The LED guide starts with `0x10 n`.
-4. Each recording is uploaded as a WAV in the background while the next place is recorded.
-5. **Results:** one sentence at the top, a coloured body map, and one row per place with *Listen* and *Record again*. Quality below 0.4, an error, or no sound from the device asks for a re-record.
+4. Each recording is uploaded as a WAV in the background while the next place is recorded. A short *Done* (and a buzz) marks the end of each place.
+5. **Results:** one sentence at the top, a coloured body map, and one row per place with *Listen* (tap again to stop; one at a time) and *Record again*. Quality below 0.4, a rejected recording, or no sound from the device asks for a re-record. If the AI server couldn't be reached or failed (timeout, 5xx), the row offers *Try again*, which sends the same recording again.
+
+The check can be paused and continued without losing anything: *Stop*, the phone's back button, leaving the app, or the device disconnecting all keep the finished places, and *Continue* records only what is left. The page asks before closing if there are results. "Start a new check" needs two separate taps.
 
 **Settings** (the sliders icon, top right; for the team, remembered on the phone): the AI server's address, the seconds per place, and **demo mode**. Demo mode sends `demo=true` with the chosen case instead of the audio.
 

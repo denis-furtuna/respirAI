@@ -6,8 +6,9 @@
   --ink: #0e2233;
   --muted: #4b5f6f;
   --line: #dbe3ea;
-  --primary: #0f4c75;
-  --primary-soft: #e4eef6;
+  --primary: #004565;     /* the logo's navy */
+  --primary-soft: #e2eef3;
+  --glow: rgb(0 200 215 / 0.22);   /* a soft touch of the logo's cyan */
   --here: #d43f2f;
   --ok: #1d7a4c;      --ok-soft: #e3f3ea;
   --warn: #8f5500;    --warn-soft: #fdf0db;  --warn-dot: #e3951a;
@@ -22,6 +23,7 @@ html { -webkit-text-size-adjust: 100%; }
 button { touch-action: manipulation; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }   /* no double-tap zoom or text selection */
 body { margin: 0; background: var(--bg); color: var(--ink); font: 400 19px/1.5 var(--font); }
 h1, h2, p { margin: 0; }
+h1:focus { outline: none; }   /* focused on each new screen, for screen readers */
 h1 { font-size: 1.75rem; line-height: 1.2; font-weight: 700; letter-spacing: -0.01em; text-wrap: balance; }
 h2 { font-size: 1.35rem; }
 .lead { font-size: 1.12rem; color: var(--muted); }
@@ -33,10 +35,10 @@ h2 { font-size: 1.35rem; }
 
 /* ---------- frame ---------- */
 .top { display: flex; justify-content: space-between; align-items: center; max-width: 520px; margin: 0 auto; padding: 14px 20px 0; }
-.brand { display: flex; align-items: center; gap: 8px; font-size: 1.15rem; font-weight: 600; color: var(--primary); }
-.brand b { font-weight: 800; }
+.logo { height: 36px; width: auto; display: block; }
 .top-right { display: flex; align-items: center; gap: 10px; }
 .pill { font-size: 0.85rem; font-weight: 600; color: var(--ok); background: var(--ok-soft); padding: 5px 12px; border-radius: 999px; }
+.pill.low { color: var(--warn); background: var(--warn-soft); }
 .icon-btn { width: 48px; height: 48px; display: grid; place-items: center; border-radius: 50%; border: 0; background: transparent; color: var(--muted); cursor: pointer; }
 .icon-btn:hover { background: var(--primary-soft); color: var(--primary); }
 
@@ -45,12 +47,12 @@ main { max-width: 520px; margin: 0 auto; padding: 12px 20px 28px; }
 .screen.center { justify-content: center; align-items: center; text-align: center; }
 .spacer { flex: 1; }
 
-.notice { margin-top: 8px; padding: 14px 16px; border-radius: 16px; background: #fdecea; color: #9b2316; font-weight: 600; }
+.notice { cursor: pointer; margin-top: 8px; padding: 14px 16px; border-radius: 16px; background: #fdecea; color: #9b2316; font-weight: 600; }
 
 /* ---------- buttons ---------- */
 .btn { font: 600 1.15rem/1.2 var(--font); min-height: 64px; width: 100%; padding: 14px 22px; border-radius: 18px; border: 0; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 10px; transition: transform 0.1s, background 0.2s; }
-.btn:active { transform: scale(0.98); }
-.btn.primary { background: var(--primary); color: #fff; box-shadow: 0 6px 18px rgb(15 76 117 / 0.28); }
+.btn:active:not(:disabled) { transform: scale(0.98); }
+.btn.primary { background: var(--primary); color: #fff; box-shadow: 0 6px 18px rgb(0 69 101 / 0.28); }
 .btn.secondary { background: var(--surface); color: var(--primary); box-shadow: inset 0 0 0 2px var(--line); }
 .btn.link { background: transparent; color: var(--primary); min-height: 52px; text-decoration: underline; text-underline-offset: 4px; }
 .btn.small { min-height: 48px; font-size: 1rem; padding: 10px 16px; border-radius: 14px; width: auto; }
@@ -58,16 +60,16 @@ main { max-width: 520px; margin: 0 auto; padding: 12px 20px 28px; }
 :focus-visible { outline: 3px solid var(--primary); outline-offset: 3px; }
 
 /* ---------- connect ---------- */
-.hero { width: 132px; height: 132px; margin: 28px auto 8px; border-radius: 50%; display: grid; place-items: center; color: var(--primary);
-  background: radial-gradient(circle, var(--surface) 55%, var(--primary-soft) 56%); box-shadow: var(--shadow); animation: breathe 9s ease-in-out infinite; }
-.hero .i { width: 64px; height: 64px; stroke-width: 1.3; }
+.hero { width: 184px; height: 184px; margin: 24px auto 8px; border-radius: 50%; display: grid; place-items: center;
+  background: radial-gradient(circle, var(--surface) 60%, var(--primary-soft) 61%); box-shadow: var(--shadow), 0 0 48px var(--glow); animation: breathe 9s ease-in-out infinite; }
+.hero img { width: 124px; height: auto; }
 #sConnect h1, #sConnect .lead { text-align: center; }
 @keyframes breathe { 0%, 100% { transform: scale(0.94); } 44% { transform: scale(1.04); } }
 
 /* ---------- ready ---------- */
 .steps { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 12px; }
 .steps li { display: flex; gap: 16px; align-items: flex-start; background: var(--surface); border-radius: 20px; padding: 18px; box-shadow: var(--shadow); }
-.steps span { flex: none; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; color: var(--primary); background: var(--primary-soft); }
+.steps li > span { flex: none; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; color: var(--primary); background: var(--primary-soft); }
 .note { padding: 14px 16px; border-radius: 16px; background: var(--warn-soft); color: var(--warn); font-weight: 600; }
 
 /* ---------- recording ---------- */
@@ -95,7 +97,7 @@ main { max-width: 520px; margin: 0 auto; padding: 12px 20px 28px; }
 .dial circle { fill: none; stroke-width: 8; }
 .dial .track { stroke: var(--primary-soft); }
 .dial .bar { stroke: var(--primary); stroke-linecap: round; stroke-dasharray: 578; transition: stroke-dashoffset 0.1s linear; }
-.breath { position: absolute; inset: 16%; border-radius: 50%; background: radial-gradient(circle at 50% 40%, #fff, var(--primary-soft)); box-shadow: 0 0 0 1px var(--line); transform: scale(0.62); transition: transform 0.12s linear; }
+.breath { position: absolute; inset: 16%; border-radius: 50%; background: radial-gradient(circle at 50% 40%, #fff, var(--primary-soft)); box-shadow: 0 0 0 1px var(--line), 0 0 28px var(--glow); transform: scale(0.62); transition: transform 0.12s linear; }
 .dial-text { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 18%; }
 #dialMain { font-size: 3rem; line-height: 1; color: var(--primary); font-variant-numeric: tabular-nums; }
 #dialMain.word { font-size: 1.35rem; line-height: 1.15; }
@@ -107,6 +109,7 @@ main { max-width: 520px; margin: 0 auto; padding: 12px 20px 28px; }
 
 /* ---------- analysing ---------- */
 .orb { position: relative; width: 140px; height: 140px; margin-bottom: 18px; }
+.orb img { position: absolute; inset: 0; margin: auto; width: 76px; height: auto; animation: breathe 3s ease-in-out infinite; }
 .orb i { position: absolute; inset: 0; border-radius: 50%; border: 2px solid var(--primary); opacity: 0; animation: ripple 2.4s ease-out infinite; }
 .orb i:nth-child(2) { animation-delay: 0.8s; }
 .orb i:nth-child(3) { animation-delay: 1.6s; }
@@ -129,9 +132,13 @@ main { max-width: 520px; margin: 0 auto; padding: 12px 20px 28px; }
 .chip { font-weight: 600; }
 .ok .chip { color: var(--ok); } .warn .chip { color: var(--warn); } .unclear .chip, .todo .chip { color: var(--unclear); }
 .results small { color: var(--muted); font-size: 0.85rem; }
-.results .acts { grid-column: 1 / -1; display: flex; gap: 10px; }
-.results .acts .btn { flex: 1; white-space: nowrap; font-size: 0.95rem; padding-inline: 8px; gap: 6px; }
+.results .acts { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 10px; }
+.results .acts .btn { flex: 1 1 auto; white-space: nowrap; font-size: 0.95rem; padding-inline: 8px; gap: 6px; }
 .results .acts .i { width: 20px; height: 20px; }
+.btn.playing { position: relative; overflow: hidden; box-shadow: inset 0 0 0 2px var(--primary); }
+.btn.playing::after { content: ""; position: absolute; left: 0; bottom: 0; width: 100%; height: 4px; background: var(--primary); transform-origin: left;
+  animation: fill var(--dur) linear var(--delay) both; }   /* how far through the recording */
+@keyframes fill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 .disclaimer { text-align: center; font-weight: 600; color: var(--muted); padding: 4px 8px; }
 
 /* ---------- settings ---------- */
@@ -142,4 +149,4 @@ label { display: grid; gap: 6px; font-size: 0.95rem; font-weight: 600; color: va
 input, select { font: inherit; font-weight: 400; padding: 12px 14px; border-radius: 12px; border: 2px solid var(--line); background: var(--bg); color: var(--ink); width: 100%; }
 
 @media (max-width: 360px) { .stage { grid-template-columns: 1fr; } .dial { max-width: 240px; margin: 0 auto; } }
-@media (prefers-reduced-motion: reduce) { .hero, .pt.here .halo, .orb i { animation: none; } .orb i { opacity: 0.5; } }
+@media (prefers-reduced-motion: reduce) { .hero, .pt.here .halo, .orb i, .orb img { animation: none; } .orb i { opacity: 0.5; } }

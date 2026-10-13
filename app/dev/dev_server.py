@@ -81,7 +81,7 @@ else:
 # ---------- HTTP ----------
 class Handler(SimpleHTTPRequestHandler):
     extensions_map = {**SimpleHTTPRequestHandler.extensions_map, ".js": "text/javascript", ".css": "text/css",
-                      ".ogg": "audio/ogg", ".wav": "audio/wav", ".json": "application/json"}
+                      ".ogg": "audio/ogg", ".wav": "audio/wav", ".json": "application/json", ".webmanifest": "application/manifest+json"}
 
     def translate_path(self, path):
         path = path.split("?", 1)[0].split("#", 1)[0]

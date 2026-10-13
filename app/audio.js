@@ -73,23 +73,29 @@ export function toWav(samples) {
 }
 
 // One recording at a time: starting another, or calling stopPlayback(), stops the current one.
-let audioCtx = null, source = null;
+let audioCtx = null, current = null;   // current: { source, gain }
 
+// Plays at a comfortable level (breath sounds are quiet) and returns the length in seconds.
 export function play(samples, onEnded) {
   stopPlayback();
   audioCtx = audioCtx || new AudioContext();
   audioCtx.resume();   // phones may start it suspended
+  const peak = samples.reduce((m, v) => Math.max(m, Math.abs(v)), 1);
+  const k = Math.min(30, (0.9 * 32768) / peak) / 32768;   // loudest point at 90 %, at most 30x louder
   const buffer = audioCtx.createBuffer(1, samples.length, SAMPLE_RATE);
-  buffer.copyToChannel(Float32Array.from(samples, (v) => v / 32768), 0);
-  const s = (source = audioCtx.createBufferSource());
-  s.buffer = buffer;
-  s.connect(audioCtx.destination);
-  s.onended = () => { if (source === s) { source = null; onEnded(); } };
-  s.start();
+  buffer.copyToChannel(Float32Array.from(samples, (v) => v * k), 0);
+  const p = (current = { source: audioCtx.createBufferSource(), gain: audioCtx.createGain() });
+  p.source.buffer = buffer;
+  p.source.connect(p.gain).connect(audioCtx.destination);
+  p.source.onended = () => { if (current === p) { current = null; onEnded(); } };
+  p.source.start();
+  return buffer.duration;
 }
 
 export function stopPlayback() {
-  const s = source;
-  source = null;   // so its onended doesn't report a stop we asked for
-  if (s) s.stop();
+  const p = current;
+  current = null;   // so its onended doesn't report a stop we asked for
+  if (!p) return;
+  p.gain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.015);   // a quick fade instead of a click
+  p.source.stop(audioCtx.currentTime + 0.1);
 }

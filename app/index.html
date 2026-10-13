@@ -6,7 +6,9 @@
   <meta name="theme-color" content="#f3f6f9">
   <title>respirAI</title>
   <meta name="description" content="respirAI: guided lung sound screening with a digital stethoscope.">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230f4c75' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3v8m0 0c-.5 1.2-1.6 1.8-3 1.8M12 11c.5 1.2 1.6 1.8 3 1.8'/%3E%3Cpath d='M9 7.5C6 7.5 3.5 12 3.5 16.5c0 2.5 1.2 3.5 3 3.5 2.5 0 4-1.5 4-4.5V9M15 7.5c3 0 5.5 4.5 5.5 9 0 2.5-1.2 3.5-3 3.5-2.5 0-4-1.5-4-4.5V9'/%3E%3C/svg%3E">
+  <link rel="icon" href="img/favicon.png">
+  <link rel="apple-touch-icon" href="img/icon-180.png">
+  <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="style.css">
   <script type="module" src="app.js"></script>
 </head>
@@ -17,15 +19,11 @@
       <ellipse cx="80" cy="24" rx="15" ry="17"/>
       <path d="M72 40c0 6-2 8-6 10-14 4-26 8-32 16-4 6-4 18-3 30l2 24c1 4 5 4 6 0l1-20c1 12 2 30 4 50 2 16 8 22 36 22s34-6 36-22c2-20 3-38 4-50l1 20c1 4 5 4 6 0l2-24c1-12 1-24-3-30-6-8-18-12-32-16-4-2-6-4-6-10z"/>
     </symbol>
-    <symbol id="lungs" viewBox="0 0 24 24">
-      <path d="M12 3v8m0 0c-.5 1.2-1.6 1.8-3 1.8M12 11c.5 1.2 1.6 1.8 3 1.8"/>
-      <path d="M9 7.5C6 7.5 3.5 12 3.5 16.5c0 2.5 1.2 3.5 3 3.5 2.5 0 4-1.5 4-4.5V9M15 7.5c3 0 5.5 4.5 5.5 9 0 2.5-1.2 3.5-3 3.5-2.5 0-4-1.5-4-4.5V9"/>
-    </symbol>
   </defs>
 </svg>
 
 <header class="top">
-  <div class="brand"><svg class="i"><use href="#lungs"/></svg><span>respir<b>AI</b></span></div>
+  <img class="logo" src="img/logo.png" alt="respirAI" width="482" height="120">
   <div class="top-right">
     <span id="battery" class="pill" hidden></span>
     <button id="btnSettings" class="icon-btn" aria-label="Settings">
@@ -38,9 +36,10 @@
   <p id="notice" class="notice" role="alert" hidden></p>
 
   <section id="sConnect" class="screen">
-    <div class="hero"><svg class="i"><use href="#lungs"/></svg></div>
-    <h1>Let's listen to your lungs</h1>
+    <div class="hero"><img src="img/lungs.png" alt="" width="408" height="300"></div>
+    <h1 tabindex="-1">Let's listen to your lungs</h1>
     <p class="lead">Switch on the respirAI device, then connect it to this phone.</p>
+    <p id="connectNote" class="note" hidden></p>
     <div class="spacer"></div>
     <button id="btnConnect" class="btn primary">Connect the device</button>
     <button id="btnPractice" class="btn link">No device? Try a practice run</button>
@@ -48,10 +47,10 @@
 
   <section id="sReady" class="screen" hidden>
     <p class="eyebrow ok-text">Device connected</p>
-    <h1 id="readyTitle">Before we start</h1>
+    <h1 tabindex="-1" id="readyTitle">Before we start</h1>
     <ol class="steps">
       <li><span>1</span><p><b>Sit upright</b> and relax your shoulders.</p></li>
-      <li><span>2</span><p><b>Place the chest piece</b> where the screen shows you. There are 7 places, about 20 seconds each.</p></li>
+      <li><span>2</span><p><b>Place the chest piece</b> where the screen shows you. There are 7 places; each one listens for <span id="perPlace">15</span> seconds.</p></li>
       <li><span>3</span><p><b>Breathe slowly</b> through your mouth, following the circle.</p></li>
     </ol>
     <p id="readyNote" class="note" hidden></p>
@@ -62,7 +61,7 @@
   <section id="sPoint" class="screen" hidden>
     <div id="progress" class="progress" aria-hidden="true"></div>
     <p id="pointStep" class="eyebrow"></p>
-    <h1 id="pointTitle"></h1>
+    <h1 tabindex="-1" id="pointTitle"></h1>
     <p id="pointWhere" class="lead"></p>
     <div class="stage">
       <svg id="body" class="body" viewBox="0 0 160 190" role="img" aria-label="Where to place the chest piece"></svg>
@@ -85,8 +84,8 @@
   </section>
 
   <section id="sBusy" class="screen center" hidden>
-    <div class="orb"><i></i><i></i><i></i></div>
-    <h1>Listening to the recordings</h1>
+    <div class="orb"><i></i><i></i><i></i><img src="img/lungs.png" alt="" width="408" height="300"></div>
+    <h1 tabindex="-1">Listening to the recordings</h1>
     <p class="lead">This takes a few seconds.</p>
   </section>
 
@@ -94,7 +93,7 @@
     <div id="overall" class="overall">
       <span id="overallIcon" class="mark big"></span>
       <div>
-        <h1 id="overallTitle"></h1>
+        <h1 tabindex="-1" id="overallTitle"></h1>
         <p id="overallText" class="lead"></p>
       </div>
     </div>

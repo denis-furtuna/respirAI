@@ -19,6 +19,7 @@ const PLACE_SECONDS = 8;
 const BREATH_IN = 4, BREATH_OUT = 5;   // seconds; matches the device's LED guide
 const MIN_QUALITY = 0.4;               // contract 2: below this, ask for a re-record
 const RING = 2 * Math.PI * 92;         // circumference of the dial's progress ring
+const FINDINGS = ["normal", "crackles", "wheezes", "both", "unusable"];
 const ABNORMAL = { crackles: "Possible crackles", wheezes: "Possible wheezes", both: "Possible crackles and wheezes" };
 const ICONS = {
   check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
@@ -30,6 +31,7 @@ const ICONS = {
 const icon = (name) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>`;
 const $ = (id) => document.getElementById(id);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const calm = matchMedia("(prefers-reduced-motion: reduce)");
 
 // ?fakebt puts a fake device behind "Connect the device" (options in fake-bluetooth.js).
 const params = new URLSearchParams(location.search);
@@ -64,6 +66,22 @@ const stream = new PacketStream((samples) => {
   if (recording) recording.add(samples);
 });
 
+// Say up front when this phone can't connect, rather than after a tap.
+function connectNote(message) {
+  $("connectNote").textContent = message || "";
+  $("connectNote").hidden = !message;
+}
+if (!bluetooth) {
+  connectNote("This browser can't use Bluetooth. Open this page in Chrome on an Android phone or a computer, or try a practice run.");
+  $("btnConnect").disabled = true;
+  console.info("Web Bluetooth needs Chrome, and https:// or localhost. For http:// on a phone, add the address to " +
+    "chrome://flags/#unsafely-treat-insecure-origin-as-secure.");
+} else if (bluetooth.getAvailability) {
+  const off = (on) => connectNote(on ? "" : "Bluetooth is switched off. Turn it on, then connect the device.");
+  bluetooth.getAvailability().then(off, () => {});
+  bluetooth.addEventListener?.("availabilitychanged", (e) => off(e.value));
+}
+
 async function connect(bt, button) {
   notice();
   batteryWarned = false;
@@ -75,6 +93,7 @@ async function connect(bt, button) {
     onStatus: ({ battery, state }) => {
       $("battery").hidden = battery > 100;   // 255 = the device can't measure it (no battery sense wired)
       $("battery").textContent = `Battery ${battery}%`;
+      $("battery").classList.toggle("low", battery <= 15);
       if (state === 2) notice("The device reported a problem. Switch it off and on again.");
       else if (battery <= 15 && !batteryWarned) {
         batteryWarned = true;
@@ -95,11 +114,24 @@ async function connect(bt, button) {
     if (session && !remaining().length) showResults();   // carry on where the user was
     else showReady();
   } catch (e) {
-    if (e.name !== "NotFoundError") notice(e.message);  // NotFoundError: the device picker was closed
+    if (device === d) device = null;
+    d.disconnect();
+    const message = connectError(e);
+    if (message) notice(message);
   } finally {
     button.textContent = label;
-    $("btnConnect").disabled = $("btnPractice").disabled = false;
+    $("btnConnect").disabled = !bluetooth;
+    $("btnPractice").disabled = false;
   }
+}
+
+// Plain words for the user; the details go to the console for the team.
+function connectError(e) {
+  console.warn("Could not connect:", e);
+  if (/adapter/i.test(e.message)) return "Bluetooth is switched off. Turn it on, then try again.";
+  if (e.name === "NotFoundError") return null;   // the device picker was closed
+  if (e.name === "SecurityError" || e.name === "NotAllowedError") return "This page isn't allowed to use Bluetooth. Allow it in the browser's settings, then try again.";
+  return "Couldn't connect to the device. Make sure it is switched on and close to the phone, then try again.";
 }
 
 function lostDevice() {
@@ -125,23 +157,44 @@ function send(bytes) {
 let session = null;   // { id, results: {code: response}, audio: {code: Int16Array}, pending: [] }
 let running = false, cancel = false, skip = false, lock = null;
 
-// Keep the screen on during a session, also after switching away and back. Never waited for.
-const keepAwake = () => navigator.wakeLock?.request("screen").then((l) => { if (running) lock = l; else l.release(); }).catch(() => {});
-document.addEventListener("visibilitychange", () => { if (running && !document.hidden) keepAwake(); });
-addEventListener("beforeunload", (e) => { if (running) { e.preventDefault(); e.returnValue = ""; } });   // ask before leaving mid-recording
-
 const remaining = () => (session ? ORDER.filter((c) => !session.results[c]) : ORDER);
 const newSession = () => { session = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), results: {}, audio: {}, pending: [] }; };
 
+// Keep the screen on during a session, also after switching away and back. Never waited for.
+const keepAwake = () => navigator.wakeLock?.request("screen").then((l) => { if (running) lock = l; else l.release(); }).catch(() => {});
+
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    stopListening();
+    if (running && !$("sPoint").hidden) {   // a phone call, or the screen switched off: pause rather than record nothing
+      cancel = true;
+      notice("The check paused while the app was in the background. Your recordings so far are kept.");
+    }
+  } else if (running) keepAwake();
+});
+
+// Ask before leaving the page mid-check or with results that would be lost.
+addEventListener("beforeunload", (e) => {
+  if (running || (session && Object.keys(session.results).length)) { e.preventDefault(); e.returnValue = ""; }
+});
+
+// Android's back button stops a recording instead of leaving the page.
+addEventListener("popstate", () => { if (running) cancel = true; });
+const catchBack = () => { if (history.state !== "check") history.pushState("check", ""); };
+
 async function runSession(codes) {
+  if (running) return;
   running = true;
   cancel = false;
+  let finished = false;
   notice();
+  catchBack();
   show("sPoint");
   keepAwake();
   try {
     for (const code of codes) if (!cancel) await recordPoint(code);
     if (!cancel) {
+      finished = true;   // from here a disconnect no longer matters: everything is recorded
       show("sBusy");
       await Promise.all([...session.pending, sleep(1500)]);  // a short, calm pause even when the server is fast
       showResults();
@@ -152,7 +205,7 @@ async function runSession(codes) {
     if (lock) lock.release();
     lock = null;
     send(CMD.idle);
-    if (cancel) !device ? show("sConnect") : remaining().length ? showReady() : showResults();
+    if (!finished) !device ? show("sConnect") : remaining().length ? showReady() : showResults();
   }
 }
 
@@ -163,6 +216,7 @@ async function recordPoint(code) {
   $("pointWhere").textContent = p.where;
   $("progress").innerHTML = ORDER.map((c) => `<i class="${c === code ? "now" : session.results[c] ? "done" : ""}"></i>`).join("");
   drawBody($("body"), p.view, (c) => (c === code ? "here" : ""));
+  if (settled()) enter($("pointStep"), $("pointTitle"), $("pointWhere"), $("body"));   // the next place (the first comes in with the screen)
 
   // 1. Time to place the chest piece (or tap "start now").
   $("btnNow").hidden = false;
@@ -174,7 +228,7 @@ async function recordPoint(code) {
   // 2. Record while the circle paces the breathing.
   recording = new Recording(settings.seconds);
   send(CMD.guide(p.n));   // the device's LEDs start breathing now, in step with the circle on screen
-  const finished = await countdown(settings.seconds, (t, total) => {
+  const recorded = await countdown(settings.seconds, (t, total) => {
     const phase = t % (BREATH_IN + BREATH_OUT);
     const inhale = phase < BREATH_IN;
     const k = inhale ? phase / BREATH_IN : 1 - (phase - BREATH_IN) / BREATH_OUT;
@@ -183,13 +237,19 @@ async function recordPoint(code) {
   });
   const samples = recording.samples.slice();
   recording = null;
-  if (!finished) return;
+  if (!recorded) return;
   send(CMD.done);
   if (!settings.demo && samples.length < 2 * SAMPLE_RATE) {   // demo mode sends no audio, so it needs none
     session.results[code] = { finding: "error", error: "No sound arrived from the device. Check it is switched on, then record again." };
   } else {
-    session.pending.push(analyze(code, samples));
+    analyze(code, samples);
   }
+
+  // 3. A moment to see it worked, then the next place.
+  navigator.vibrate?.(120);
+  $("breath").style.transform = "scale(0.62)";
+  dial("Done", "Well done", 1);
+  await countdown(1.2, () => {});
 }
 
 // Runs onTick about 20 times a second; resolves false if the session was stopped.
@@ -213,25 +273,38 @@ function dial(main, sub, progress) {
   $("ringBar").style.strokeDashoffset = RING * (1 - progress);
 }
 
-async function analyze(code, samples) {
-  session.audio[code] = samples;
-  session.results[code] = { finding: "pending" };
+// ---------- AI server (contract 2) ----------
+// Sends one place in the background. A late answer never lands in a newer recording or a new check.
+function analyze(code, samples) {
+  const s = session, mine = { finding: "pending" };
+  s.audio[code] = samples;
+  s.results[code] = mine;
+  s.pending.push(request(code, samples, s.id).then((result) => {
+    if (s.results[code] !== mine) return;
+    s.results[code] = result;
+    if (s === session && !$("sResults").hidden) renderResults();
+  }));
+}
+
+async function request(code, samples, sessionId) {
   const form = new FormData();
   form.append("point", code);
-  form.append("session_id", session.id);
+  form.append("session_id", sessionId);
   if (settings.demo) {
     form.append("demo", "true");
     form.append("demo_case", settings.demo);
   } else {
     form.append("audio", toWav(samples), `${code}.wav`);
   }
+  // retry: the recording is fine and can simply be sent again; otherwise it needs recording again.
   try {
     const res = await fetch(`${settings.server}/analyze`, { method: "POST", body: form, signal: AbortSignal.timeout(30000) });
     const body = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(body.error || `The AI server answered with error ${res.status}.`);
-    session.results[code] = body;
+    if (!res.ok) return { finding: "error", error: body.error || `The AI server answered with error ${res.status}.`, retry: res.status >= 500 };
+    if (!FINDINGS.includes(body.finding)) return { finding: "error", error: "The AI server sent an answer this app doesn't understand.", retry: true };
+    return body;
   } catch (e) {
-    session.results[code] = { finding: "error", error: describeFetchError(e) };
+    return { finding: "error", error: describeFetchError(e), retry: true };
   }
 }
 
@@ -242,11 +315,23 @@ function describeFetchError(e) {
 }
 
 // ---------- screens ----------
+let shownAt = 0;
+const settled = () => performance.now() - shownAt > 400;   // a double-tap must not also press the next screen's button
+
 function show(id) {
-  stopPlayback();
-  playing = null;
-  document.querySelectorAll(".screen").forEach((s) => { s.hidden = s.id !== id; });
+  stopListening();
+  const screen = $(id);
+  if (!screen.hidden) return;   // already showing: content updates in place, without jumping
+  document.querySelectorAll(".screen").forEach((s) => { s.hidden = s !== screen; });
   window.scrollTo(0, 0);
+  enter(screen);
+  screen.querySelector("h1").focus({ preventScroll: true });   // screen readers announce the new screen
+  shownAt = performance.now();
+}
+
+function enter(...elements) {   // a gentle fade-up for new content
+  if (calm.matches) return;
+  for (const el of elements) el.animate([{ opacity: 0.35, transform: "translateY(8px)" }, { opacity: 1, transform: "none" }], { duration: 320, easing: "ease-out" });
 }
 
 function notice(message) {   // no message: hide it
@@ -259,6 +344,7 @@ function showReady() {
   const partial = session && left > 0 && left < ORDER.length;
   $("readyTitle").textContent = partial ? "Ready to continue" : "Before we start";
   $("btnBegin").textContent = partial ? `Continue (${left} ${left === 1 ? "place" : "places"} left)` : "Begin";
+  $("perPlace").textContent = settings.seconds;
   $("readyNote").hidden = !settings.demo;
   $("readyNote").textContent = `Demo mode is on: the results will show a ${settings.demo} example.`;
   show("sReady");
@@ -266,75 +352,97 @@ function showReady() {
 
 function verdict(r) {
   if (!r) return { cls: "todo", chip: "Not recorded" };
-  if (r.finding === "pending") return { cls: "todo", chip: "Still analysing" };
-  if (r.finding === "error") return { cls: "unclear", chip: "Please record again", detail: r.error };
+  if (r.finding === "pending") return { cls: "todo", chip: "Still analysing", pending: true };
+  if (r.finding === "error") return { cls: "unclear", chip: r.retry ? "Not checked yet" : "Please record again", detail: r.error, retry: r.retry };
   if (r.finding === "unusable" || r.quality < MIN_QUALITY) return { cls: "unclear", chip: "Please record again", detail: "The sound was not clear enough." };
-  const detail = `${Math.round(r.confidence * 100)}% confidence${r.demo ? " · example recording" : ""}`;
-  return r.finding === "normal" ? { cls: "ok", chip: "Clear", detail } : { cls: "warn", chip: ABNORMAL[r.finding] || r.finding, detail };
+  const detail = [Number.isFinite(r.confidence) && `${Math.round(r.confidence * 100)}% confidence`, r.demo && "example recording"].filter(Boolean).join(" · ");
+  return r.finding === "normal" ? { cls: "ok", chip: "Clear", detail } : { cls: "warn", chip: ABNORMAL[r.finding], detail };
 }
 
 const MARK = { ok: "check", warn: "alert", unclear: "retry", todo: "retry" };
-const OVERALL = {
-  warn: ["Some unusual sounds were heard", "Please show these results to a doctor."],
-  unclear: ["Some places need another recording", "Tap “Record again” next to them below."],
-  ok: ["No unusual sounds were heard", "If you feel unwell, see a doctor anyway."],
+const OVERALL = {   // [style, title, text]
+  warn: ["warn", "Some unusual sounds were heard", "Please show these results to a doctor."],
+  pending: ["unclear", "Still checking", "A few places are still being analysed. This takes a few seconds."],
+  retry: ["unclear", "Some places couldn't be checked", "Check the connection, then tap “Try again” next to them below."],
+  unclear: ["unclear", "Some places need another recording", "Tap “Record again” next to them below."],
+  ok: ["ok", "No unusual sounds were heard", "If you feel unwell, see a doctor anyway."],
 };
 
 function showResults() {
-  const cls = (c) => verdict(session.results[c]).cls;
-  const all = ORDER.map(cls);
-  const overall = all.includes("warn") ? "warn" : all.some((c) => c === "unclear" || c === "todo") ? "unclear" : "ok";
-  $("overall").className = `overall ${overall}`;
-  $("overallIcon").innerHTML = icon(MARK[overall]);
-  [$("overallTitle").textContent, $("overallText").textContent] = OVERALL[overall];
-  drawBody($("mapFront"), "front", cls);
-  drawBody($("mapBack"), "back", cls);
+  resetRestart();
+  show("sResults");
+  renderResults();
+}
+
+function renderResults() {
+  const verdicts = Object.fromEntries(ORDER.map((c) => [c, verdict(session.results[c])]));
+  const all = Object.values(verdicts);
+  const any = (test) => all.some(test);
+  const key = any((v) => v.cls === "warn") ? "warn" : any((v) => v.pending) ? "pending" : any((v) => v.retry) ? "retry"
+    : any((v) => v.cls !== "ok") ? "unclear" : "ok";
+  const [cls, title, text] = OVERALL[key];
+  $("overall").className = `overall ${cls}`;
+  $("overallIcon").innerHTML = icon(MARK[cls]);
+  [$("overallTitle").textContent, $("overallText").textContent] = [title, text];
+  drawBody($("mapFront"), "front", (c) => verdicts[c].cls);
+  drawBody($("mapBack"), "back", (c) => verdicts[c].cls);
 
   $("resultList").replaceChildren(...ORDER.map((code) => {
-    const v = verdict(session.results[code]);
+    const v = verdicts[code], r = session.results[code], audio = session.audio[code];
     const li = document.createElement("li");
     li.className = v.cls;
     li.innerHTML = `<span class="mark">${icon(MARK[v.cls])}</span><div class="what"><b></b><span class="chip"></span><small></small></div><div class="acts"></div>`;
     [li.querySelector("b").textContent, li.querySelector(".chip").textContent, li.querySelector("small").textContent] = [POINTS[code].title, v.chip, v.detail || ""];
-    const audio = session.audio[code], r = session.results[code];
+    const acts = li.querySelector(".acts");
     if (audio && audio.length && !(r && r.demo)) {   // a demo result was about an example, not this recording
       const b = button("play", "Listen", () => listen(code));
       b.dataset.listen = code;
-      li.querySelector(".acts").append(b);
+      acts.append(b);
     }
-    li.querySelector(".acts").append(button("retry", "Record again", () => { if (!needDevice()) runSession([code]); }));
+    if (v.retry) acts.append(button("retry", "Try again", () => { analyze(code, audio); renderResults(); }));
+    acts.append(button("retry", "Record again", () => { if (!needDevice()) runSession([code]); }));
     return li;
   }));
-  resetRestart();
-  show("sResults");
+  listenButtons();
 }
 
-// Listen / Stop: one recording at a time.
-let playing = null;
+// Listen / Stop: one recording at a time, with a bar showing how far it has played.
+let playing = null;   // { code, started, seconds }
+
 function listen(code) {
-  if (playing === code) {
-    stopPlayback();
-    playing = null;
-  } else {
-    play(session.audio[code], () => { playing = null; listenButtons(); });
-    playing = code;
+  const again = playing && playing.code === code;
+  stopListening();
+  if (!again) {
+    const seconds = play(session.audio[code], () => { playing = null; listenButtons(); });
+    playing = { code, started: performance.now(), seconds };
   }
+  listenButtons();
+}
+
+function stopListening() {
+  stopPlayback();
+  playing = null;
   listenButtons();
 }
 
 function listenButtons() {
   document.querySelectorAll("[data-listen]").forEach((b) => {
-    const on = b.dataset.listen === playing;
+    const on = !!playing && b.dataset.listen === playing.code;
     b.innerHTML = on ? `${icon("stop")} Stop` : `${icon("play")} Listen`;
     b.setAttribute("aria-pressed", on);
+    b.classList.toggle("playing", on);
+    if (on) {
+      b.style.setProperty("--dur", `${playing.seconds}s`);
+      b.style.setProperty("--delay", `${-(performance.now() - playing.started) / 1000}s`);
+    }
   });
 }
 
-// "Start a new check" clears the results, so it asks for a second tap.
-let restartTimer = null;
+// "Start a new check" clears the results, so it asks for a second, separate tap.
+let armedAt = -Infinity, disarm = null;
 function resetRestart() {
-  clearTimeout(restartTimer);
-  restartTimer = null;
+  clearTimeout(disarm);
+  armedAt = -Infinity;
   $("btnRestart").textContent = "Start a new check";
 }
 
@@ -396,22 +504,26 @@ setInterval(() => {
 $("btnConnect").addEventListener("click", () => connect(bluetooth, $("btnConnect")));
 $("btnPractice").addEventListener("click", () => connect(fakeBluetooth({ battery: 87, drop: 0.005 }), $("btnPractice")));
 $("btnBegin").addEventListener("click", () => {
-  if (needDevice()) return;
+  if (!settled() || needDevice()) return;
   if (!session || !remaining().length) newSession();
   runSession(remaining());
 });
-$("btnNow").addEventListener("click", () => { skip = true; });
-$("btnStop").addEventListener("click", () => { cancel = true; });
+$("btnNow").addEventListener("click", () => { if (settled()) skip = true; });
+$("btnStop").addEventListener("click", () => { if (settled()) cancel = true; });
 $("btnRestart").addEventListener("click", () => {
-  if (!restartTimer) {
+  const since = performance.now() - armedAt;
+  if (since < 400) return;   // the two taps of a double-tap count as one
+  if (since > 4000) {
+    armedAt = performance.now();
     $("btnRestart").textContent = "Tap again to clear these results";
-    restartTimer = setTimeout(resetRestart, 4000);
+    disarm = setTimeout(resetRestart, 4000);
     return;
   }
   resetRestart();
   newSession();
   showReady();
 });
+$("notice").addEventListener("click", () => notice());   // tap to dismiss
 $("btnSettings").addEventListener("click", () => $("settings").showModal());
 $("settings").addEventListener("click", (e) => { if (e.target === $("settings")) $("settings").close(); });   // tap outside closes
 $("btnTest").addEventListener("click", async () => {
