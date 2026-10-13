@@ -48,9 +48,12 @@ def fake_analyze(point, session_id, audio_bytes=None, demo=False, demo_case=None
             raise ServiceError(400, "Send the recording in the 'audio' field, or set demo=true.")
         try:
             with wave.open(io.BytesIO(audio_bytes)) as w:
-                samples = array("h", w.readframes(w.getnframes()))
+                samples, rate = array("h", w.readframes(w.getnframes())), w.getframerate()
         except Exception:
             raise ServiceError(400, "The audio file is not a readable WAV.")
+        seconds = len(samples) / rate
+        if not 2 <= seconds <= 60:   # as ai/service.py
+            raise ServiceError(400, f"Recording is {seconds:.1f} s; send between 2 and 60 s.")
         rms = (sum(s * s for s in samples) / max(1, len(samples))) ** 0.5
         finding, quality = ("unusable", 0.1) if rms < 30 else ("normal", 0.9)
     result = {"point": point, "finding": finding, "confidence": 0.5, "quality": quality,

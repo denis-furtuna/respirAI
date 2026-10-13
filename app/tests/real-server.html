@@ -1,0 +1,91 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>real-server test</title>
+<!-- A whole check against a real AI server (ai/server.py, or app/dev/dev_server.py with the AI code), serving the app
+     at the same address. Checks every answer against contract 2. Run with: python app/tests/run.py --real http://localhost:8000 -->
+<pre id="out">running</pre>
+<iframe id="app" style="width:390px;height:844px"></iframe>
+<script type="module">
+const out = [];
+const check = (name, ok, extra = "") => out.push(`${ok ? "PASS" : "FAIL"} ${name} ${extra}`);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const FINDINGS = ["normal", "crackles", "wheezes", "both", "unusable"];
+const num01 = (x) => typeof x === "number" && x >= 0 && x <= 1;
+
+// --- the server itself ---
+const health = await (await fetch("/health")).json();
+check("GET /health", health.status === "ok" && typeof health.model_version === "string" && typeof health.dummy === "boolean"
+  && typeof health.demo_clips === "number", JSON.stringify(health));
+for (const [path, type] of [["/app.js", "javascript"], ["/i18n/ro.js", "javascript"], ["/sw.js", "javascript"], ["/style.css", "text/css"], ["/img/logo.png", "image/png"]]) {
+  const res = await fetch(path);
+  check(`serves ${path} as ${type}`, res.ok && (res.headers.get("content-type") || "").includes(type), `${res.status} ${res.headers.get("content-type")}`);
+}
+const wav = (seconds) => {   // a quiet tone, 8 kHz 16-bit mono
+  const n = Math.round(seconds * 8000), v = new DataView(new ArrayBuffer(44 + 2 * n));
+  [..."RIFF"].forEach((c, i) => v.setUint8(i, c.charCodeAt(0))); v.setUint32(4, 36 + 2 * n, true);
+  [..."WAVEfmt "].forEach((c, i) => v.setUint8(8 + i, c.charCodeAt(0)));
+  [16, 1, 1, 8000, 16000, 2, 16].forEach((x, i) => (i === 0 || i === 3 || i === 4 ? v.setUint32 : v.setUint16).call(v, [16, 20, 22, 24, 28, 32, 34][i], x, true));
+  [..."data"].forEach((c, i) => v.setUint8(36 + i, c.charCodeAt(0))); v.setUint32(40, 2 * n, true);
+  for (let i = 0; i < n; i++) v.setInt16(44 + 2 * i, Math.round(3000 * Math.sin(i / 10)), true);
+  return new Blob([v], { type: "audio/wav" });
+};
+const post = (fields) => { const f = new FormData(); for (const [k, v] of Object.entries(fields)) f.append(k, v); return fetch("/analyze", { method: "POST", body: f }); };
+let res = await post({ point: "Tc", session_id: "t", audio: wav(1) });
+let body = await res.json().catch(() => ({}));
+check("a 1 s recording is refused with {error}", res.status >= 400 && res.status < 500 && typeof body.error === "string", `${res.status} ${JSON.stringify(body)}`);
+res = await post({ session_id: "t", audio: wav(5) });
+body = await res.json().catch(() => ({}));
+check("a missing field is refused with {error}", res.status >= 400 && res.status < 500 && typeof body.error === "string", `${res.status} ${JSON.stringify(body)}`);
+
+// --- a whole check in the app, with a real lung recording streamed by the fake device ---
+localStorage.setItem("respirai", JSON.stringify({ seconds: 5, demo: "", welcomed: true, lang: "en" }));
+const frame = document.getElementById("app");
+frame.src = "/index.html?fakebt&wav=crackles.wav";
+await new Promise((r) => (frame.onload = r));
+await sleep(500);
+const w = frame.contentWindow, d = frame.contentDocument, $ = (id) => d.getElementById(id);
+const answers = [];
+const original = w.fetch.bind(w);
+w.fetch = async (url, init) => {   // record what the app sends and what the server answers
+  const response = await original(url, init);
+  if (String(url).endsWith("/analyze")) {
+    answers.push({ point: init.body.get("point"), session: init.body.get("session_id"), demo: init.body.get("demo"),
+      status: response.status, body: await response.clone().json().catch(() => null) });
+  }
+  return response;
+};
+$("btnConnect").click(); await sleep(6000);
+check("app connects to the fake device", !$("sReady").hidden);
+$("btnBegin").click(); await sleep(600);
+for (let i = 0; i < 900 && $("sResults").hidden; i++) { if (!$("sPoint").hidden && !$("btnNow").hidden) $("btnNow").click(); await sleep(300); }
+await sleep(1000);
+check("results screen", !$("sResults").hidden);
+
+const contract = (a) => a.status === 200 && a.body && a.body.point === a.point && FINDINGS.includes(a.body.finding) && num01(a.body.confidence)
+  && num01(a.body.quality) && typeof a.body.model_version === "string" && typeof a.body.latency_ms === "number" && (a.demo ? a.body.demo === true : !a.body.demo);
+check("7 answers, every one matches contract 2", answers.length === 7 && answers.every(contract),
+  answers.map((a) => `${a.point}:${a.status}:${a.body && a.body.finding}:${a.body && a.body.quality?.toFixed?.(2)}`).join(" "));
+const rows = [...d.querySelectorAll("#resultList li")];
+check("every place shows an answer, none an error", rows.length === 7 && rows.every((li) => !/server|analysed|understand/i.test(li.textContent)),
+  rows.map((li) => li.querySelector(".chip").textContent).join(", "));
+check("overall answer shown", ["warn", "ok", "unclear"].some((c) => $("overall").classList.contains(c)) && $("overallTitle").textContent.length > 0, $("overallTitle").textContent);
+
+const session = answers[0] && answers[0].session;
+const summary = await (await fetch(`/session/${session}/summary`)).json();
+check("GET /session/{id}/summary", summary.session_id === session && summary.points_recorded === 7 && summary.per_point.length === 7
+  && typeof summary.overall === "string", `overall=${summary.overall} confidence=${summary.confidence}`);
+
+// demo mode: an example instead of the recording
+$("demo").value = "crackles"; $("demo").dispatchEvent(new Event("change"));
+const leftSide = () => [...d.querySelectorAll("#resultList li")].find((li) => li.querySelector("b").textContent === "Left side");
+leftSide().querySelector(".acts .btn:last-child").click(); await sleep(600);
+for (let i = 0; i < 300 && $("sResults").hidden; i++) { if (!$("sPoint").hidden && !$("btnNow").hidden) $("btnNow").click(); await sleep(300); }
+await sleep(1000);
+const demo = answers[7];
+check("demo mode: answer marked demo, shown as an example", demo && contract(demo) && demo.body.demo === true && leftSide().textContent.includes("example recording"),
+  demo ? `${demo.status} ${JSON.stringify(demo.body)}` : "no answer");
+$("demo").value = ""; $("demo").dispatchEvent(new Event("change"));
+
+out.push(`INFO model ${health.model_version}${health.dummy ? " (dummy answers)" : ""}, ${health.demo_clips} demo clips`);
+document.getElementById("out").textContent = out.join("\n") + "\nDONE";
+</script>

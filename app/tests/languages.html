@@ -1,0 +1,110 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>languages test</title>
+<!-- Every language has every text; a whole check in Romanian; switching language on the results screen; dark mode. Run with app/tests/run.py. -->
+<pre id="out">running</pre>
+<iframe id="app" style="width:390px;height:844px"></iframe>
+<script type="module">
+import { LANGUAGES } from "/i18n/index.js";
+const out = [];
+const check = (name, ok, extra = "") => out.push(`${ok ? "PASS" : "FAIL"} ${name} ${extra}`);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// --- every language has every text, with the same {names}, balanced <b>, and each plural form it needs ---
+const en = (await import("/i18n/en.js")).default;
+const names = (v) => [...new Set((typeof v === "object" ? Object.values(v).join(" ") : v).match(/\{\w+\}/g) || [])].sort().join();
+for (const { code, locale } of LANGUAGES) {
+  const dict = (await import(`/i18n/${code}.js`)).default, problems = [];
+  const rules = new Intl.PluralRules(locale);
+  for (const key of Object.keys(en)) {
+    const v = dict[key];
+    if (v === undefined) { problems.push(`missing ${key}`); continue; }
+    if (names(v) !== names(en[key])) problems.push(`${key}: ${names(v)} ≠ ${names(en[key])}`);
+    for (const text of typeof v === "object" ? Object.values(v) : [v]) {
+      if ((text.match(/<b>/g) || []).length !== (text.match(/<\/b>/g) || []).length) problems.push(`${key}: <b> not closed`);
+    }
+    if ((typeof v === "object") !== (typeof en[key] === "object")) problems.push(`${key}: plural in one language only`);
+    if (typeof v === "object") {
+      for (let n = 0; n <= 30; n++) { const cat = rules.select(n); if (!v[cat] && cat !== "other") problems.push(`${key}: no "${cat}" form (n=${n})`); }
+      if (!v.other) problems.push(`${key}: no "other" form`);
+    }
+  }
+  for (const key of Object.keys(dict)) if (!(key in en)) problems.push(`extra ${key}`);
+  check(`${code}: complete and consistent`, problems.length === 0, [...new Set(problems)].slice(0, 6).join("; "));
+}
+
+// --- first run: welcome, language picker, everything follows ---
+localStorage.clear();
+localStorage.setItem("respirai", JSON.stringify({ server: location.origin, seconds: 15 }));
+const frame = document.getElementById("app");
+async function load() {
+  frame.src = "/index.html?" + Math.random();
+  await new Promise((r) => (frame.onload = r));
+  await sleep(400);
+  return [frame.contentDocument, (id) => frame.contentDocument.getElementById(id)];
+}
+let [d, $] = await load();
+const visible = (id) => !$(id).hidden;
+check("first run: welcome screen, in the phone's language, language button shown",
+  visible("sWelcome") && !visible("sConnect") && d.documentElement.lang === "en" && visible("btnLang") && $("langCode").textContent === "EN");
+check("page shown once the texts are ready", !d.documentElement.classList.contains("loading"));
+$("btnLang").click();
+const options = [...d.querySelectorAll("#languageList .language")];
+check("language list: 5 languages in their own names, current one ticked", $("languages").open && options.map((b) => b.textContent).join() === "English,Română,Español,Français,Deutsch"
+  && options[0].getAttribute("aria-pressed") === "true", options.map((b) => b.textContent).join());
+options.find((b) => b.lang === "ro").click();
+await sleep(500);
+check("Romanian: welcome", !$("languages").open && d.documentElement.lang === "ro" && d.querySelector("#sWelcome h1").textContent === "Bun venit la respirAI"
+  && $("langCode").textContent === "RO" && d.querySelector("#sWelcome .facts").textContent.includes("112"), d.querySelector("#sWelcome h1").textContent);
+$("btnWelcome").click(); await sleep(500);
+check("Romanian: connect screen", visible("sConnect") && $("btnConnect").textContent === "Conectați dispozitivul" && $("btnPractice").textContent === "Nu aveți dispozitivul? Faceți o probă");
+$("btnPractice").click(); await sleep(1200);
+check("Romanian: ready screen, plural 'secunde' for 15, language button hidden",
+  visible("sReady") && $("btnBegin").textContent === "Începeți" && $("step2").textContent.includes("15 secunde") && !visible("btnLang")
+  && /^Baterie 87\s?%$/.test($("battery").textContent), $("step2").textContent + " / " + $("battery").textContent);
+$("seconds").value = "20"; $("seconds").dispatchEvent(new Event("change"));
+check("Romanian plural for 20: '20 de secunde'", $("step2").textContent.includes("20 de secunde"), $("step2").textContent);
+$("seconds").value = "5"; $("seconds").dispatchEvent(new Event("change"));
+
+// a whole check in Romanian
+$("btnBegin").click(); await sleep(600);
+check("Romanian: recording screen", $("pointTitle").textContent === "Baza gâtului" && $("pointStep").textContent === "Locul 1 din 7" && $("dialSub").textContent === "Înregistrarea începe în",
+  $("pointTitle").textContent + " / " + $("dialSub").textContent);
+$("btnNow").click(); await sleep(1500);
+check("Romanian: breathing guide, plural", /^(Inspirați|Expirați)$/.test($("dialMain").textContent) && /^au mai rămas \d secunde$/.test($("dialSub").textContent) && $("signalText").textContent === "Sunetul se aude bine",
+  $("dialMain").textContent + " / " + $("dialSub").textContent);
+for (let i = 0; i < 600 && !visible("sResults"); i++) { if (visible("sPoint") && !$("btnNow").hidden) $("btnNow").click(); await sleep(300); }
+await sleep(800);
+const row = (code) => [...d.querySelectorAll("#resultList li")][["Tc", "Al", "Ar", "Ll", "Lr", "Pl", "Pr"].indexOf(code)];
+check("Romanian: share button says what is sent", $("btnShare").textContent === "Trimiteți rezultatele medicului");
+check("Romanian: results", $("overallTitle").textContent === "Am auzit câteva sunete neobișnuite" && row("Al").textContent.includes("Posibile crepitații")
+  && row("Al").textContent.includes("încredere 80") && /^Verificare din \d+ octombrie/.test($("checkDate").textContent)
+  && row("Pl").textContent.includes("Înregistrarea nu a putut fi analizată") && !row("Pl").textContent.includes("Stub")
+  && d.querySelector("#mapFront").textContent.includes("Dreapta"), $("checkDate").textContent + " / " + row("Al").textContent + " / " + row("Pl").textContent);
+
+// change language on the results screen: everything follows, including what code wrote
+$("btnSettings").click(); $("btnLangRow").click();
+[...d.querySelectorAll("#languageList .language")].find((b) => b.lang === "de").click();
+await sleep(500);
+$("settings").close();
+check("German, switched on the results screen", d.documentElement.lang === "de" && $("overallTitle").textContent === "Einige ungewöhnliche Geräusche wurden gehört"
+  && row("Al").textContent.includes("Mögliche Rasselgeräusche") && row("Tc").textContent.includes("Anhören") && $("btnShare").textContent === "Ergebnisse an die Arztpraxis senden"
+  && d.querySelector("#mapBack").textContent.includes("Hinten") && /^Check vom \d+\. Oktober/.test($("checkDate").textContent) && $("langName").textContent === "Deutsch",
+  $("checkDate").textContent + " / " + $("overallTitle").textContent);
+check("German: settings and demo options", $("btnTest").textContent === "KI-Server testen" && $("demo").options[2].textContent === "An: Beispiel (Rasselgeräusche)", $("demo").options[2].textContent);
+
+// remembered: reload opens straight in German, without the welcome screen
+[d, $] = await load();
+check("remembered after reload: German, no welcome", d.documentElement.lang === "de" && visible("sConnect") && $("btnConnect").textContent === "Gerät verbinden");
+
+// dark mode
+$("theme").value = "dark"; $("theme").dispatchEvent(new Event("change"));
+const css = frame.contentWindow.getComputedStyle;
+check("dark mode: colours and the light logo", d.documentElement.dataset.theme === "dark" && css(d.body).backgroundColor === "rgb(11, 22, 32)"
+  && css(d.querySelector(".logo")).content.includes("logo-dark.png"), css(d.body).backgroundColor + " " + css(d.querySelector(".logo")).content);
+[d, $] = await load();
+check("dark mode remembered from the first paint", d.documentElement.dataset.theme === "dark");
+$("theme").value = "auto"; $("theme").dispatchEvent(new Event("change"));
+
+document.getElementById("out").textContent = out.join("\n") + "\nDONE";
+</script>

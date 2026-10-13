@@ -1,0 +1,58 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>bluetooth test</title>
+<!-- The real Bluetooth code against a fake device: small packets with losses, the device dropping out (automatic reconnect) and being switched off. Run with app/tests/run.py. -->
+<pre id="out">running</pre>
+<iframe id="a" style="width:390px;height:844px"></iframe>
+<iframe id="b" style="width:390px;height:844px"></iframe>
+<script type="module">
+const out = [];
+const check = (name, ok, extra = "") => out.push(`${ok ? "PASS" : "FAIL"} ${name} ${extra}`);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+localStorage.setItem("respirai", JSON.stringify({ server: location.origin, seconds: 5, demo: "", welcomed: true, lang: "en" }));
+
+async function open(id, query) {
+  const f = document.getElementById(id);
+  f.src = "/index.html" + query;
+  await new Promise((r) => (f.onload = r));
+  await sleep(300);
+  const d = f.contentDocument;
+  return [d, (x) => d.getElementById(x), f.contentWindow];
+}
+
+// 1. Low MTU + lost packets, full session through the real BleDevice code
+let [d, $, w] = await open("a", "?fakebt&mtu=25&drop=0.02&battery=64");
+check("fake bluetooth installed", typeof w.fakeBt === "object");
+$("btnConnect").click();
+await sleep(1500);
+check("connects through BleDevice → ready", !$("sReady").hidden, $("notice").hidden ? "" : $("notice").textContent);
+check("battery from status characteristic", !$("battery").hidden && $("battery").textContent === "Battery 64%", $("battery").textContent);
+check("packets learned from the first one", /22 bytes each/.test($("stats").textContent), $("stats").textContent);
+check("lost packets counted", /[1-9]\d* lost/.test($("stats").textContent), $("stats").textContent);
+const before = (await (await fetch("/log")).json()).length;
+$("btnBegin").click();
+for (let i = 0; i < 600 && $("sResults").hidden; i++) { if (!$("btnNow").hidden) $("btnNow").click(); await sleep(300); }
+const log = (await (await fetch("/log")).json()).slice(before);
+check("7 valid ~5 s WAVs despite small packets and losses", log.length === 7 && log.every((e) => e.wav_ok && e.seconds > 4.5), JSON.stringify(log.map((e) => e.seconds)));
+
+// 2. The device drops out in the middle of a session: the app reconnects by itself
+[d, $, w] = await open("b", "?fakebt&disconnectAfter=16");
+$("btnConnect").click(); await sleep(1500);
+$("btnBegin").click();
+for (let i = 0; i < 600 && !/Reconnecting/.test($("notice").textContent); i++) { if (!$("btnNow").hidden) $("btnNow").click(); await sleep(50); }
+check("drop → 'Reconnecting…'", /Reconnecting/.test($("notice").textContent), $("notice").textContent);
+await sleep(2000);
+check("reconnects without the device picker → continue where it stopped", !$("sReady").hidden && /Continue \(\d places? left\)/.test($("btnBegin").textContent) && /connected again/.test($("notice").textContent),
+  $("btnBegin").textContent + " / " + $("notice").textContent);
+
+// 3. The device is switched off: after ~10 s of trying, the user is asked to connect again
+w.fakeBt.switchOff(); await sleep(300);
+check("switched off → connect screen", !$("sConnect").hidden && /Reconnecting/.test($("notice").textContent), $("notice").textContent);
+await sleep(12000);
+check("gives up with a clear message", !$("sConnect").hidden && /Switch it on and connect again/.test($("notice").textContent), $("notice").textContent);
+w.fakeBt.switchOn();
+$("btnConnect").click(); await sleep(1500);
+check("connect again → continue", !$("sReady").hidden && /Continue/.test($("btnBegin").textContent), $("btnBegin").textContent);
+
+document.getElementById("out").textContent = out.join("\n") + "\nDONE";
+</script>

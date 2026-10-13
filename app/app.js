@@ -39,9 +39,14 @@ const params = new URLSearchParams(location.search);
 const bluetooth = params.has("fakebt") ? (window.fakeBt = fakeBluetooth(Object.fromEntries(params))) : navigator.bluetooth;
 
 // ---------- settings (remembered on this phone, behind the icon; voice is on the "before we start" screen) ----------
-const settings = { server: `http://${location.hostname || "localhost"}:8000`, seconds: 15, demo: "", textSize: "100", theme: "auto",
-  voice: false, lang: "", welcomed: false };
+// server "": the AI server is the one that served this page (ai/server.py and app/dev/dev_server.py serve both),
+// so the same setting works on the laptop, on a phone over Wi-Fi, and through an https tunnel.
+const settings = { server: "", seconds: 15, demo: "", textSize: "100", theme: "auto", voice: false, lang: "", welcomed: false };
 try { Object.assign(settings, JSON.parse(localStorage.getItem("respirai") || "{}")); } catch (e) { /* private mode */ }
+const sameServer = (v) => (v === location.origin ? "" : v);
+settings.server = sameServer(settings.server);
+const api = (path) => (settings.server || location.origin) + path;
+$("server").placeholder = location.origin;
 
 const darkSystem = matchMedia("(prefers-color-scheme: dark)");
 function saveSettings() {
@@ -58,7 +63,7 @@ darkSystem.addEventListener("change", saveSettings);
 for (const [id, parse] of [
   ["textSize", (v) => v],
   ["theme", (v) => v],
-  ["server", (v) => v.trim().replace(/\/+$/, "")],
+  ["server", (v) => sameServer(v.trim().replace(/\/+$/, ""))],
   ["seconds", (v) => Math.min(20, Math.max(5, Number(v) || 15))],
   ["demo", (v) => v],
 ]) {
@@ -371,7 +376,7 @@ async function request(code, samples, sessionId) {
   // retry: the recording is fine and can simply be sent again; otherwise it needs recording again.
   // error: a text key; the server's own words (English, technical) only go to the console.
   try {
-    const res = await fetch(`${settings.server}/analyze`, { method: "POST", body: form, signal: AbortSignal.timeout(30000) });
+    const res = await fetch(api("/analyze"), { method: "POST", body: form, signal: AbortSignal.timeout(30000) });
     const body = await res.json().catch(() => ({}));
     if (res.status >= 500) {   // the server's own words are for the team
       console.warn(`AI server error ${res.status}:`, body.error);
@@ -685,10 +690,10 @@ $("btnTest").addEventListener("click", async () => {
   $("btnTest").disabled = true;
   $("testResult").textContent = t("settings.checking");
   try {
-    const h = await (await fetch(`${settings.server}/health`, { signal: AbortSignal.timeout(5000) })).json();
+    const h = await (await fetch(api("/health"), { signal: AbortSignal.timeout(5000) })).json();
     $("testResult").textContent = t("settings.testOk", { model: h.model_version, dummy: h.dummy ? t("settings.dummy") : "", clips: h.demo_clips });
   } catch (e) {
-    $("testResult").textContent = e.name === "TimeoutError" ? t("error.timeout") : t("settings.unreachable", { server: settings.server });
+    $("testResult").textContent = e.name === "TimeoutError" ? t("error.timeout") : t("settings.unreachable", { server: settings.server || location.origin });
   } finally {
     $("btnTest").disabled = false;
   }

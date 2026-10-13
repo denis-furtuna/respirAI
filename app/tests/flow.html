@@ -1,0 +1,136 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>flow test</title>
+<!-- The whole check with the practice device: packets and WAV, placing, recording, results, Try again / Record again, Listen, share, earlier checks, restart, back button, settings. Run with app/tests/run.py. -->
+<pre id="out">running</pre>
+<iframe id="app" style="width:390px;height:844px"></iframe>
+<script type="module">
+import { PacketStream, Recording, toWav } from "/audio.js";
+const out = [];
+const check = (name, ok, extra = "") => out.push(`${ok ? "PASS" : "FAIL"} ${name} ${extra}`);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function packet(seq, n = 80, value = 100) {
+  const v = new DataView(new ArrayBuffer(2 + 2 * n));
+  v.setUint16(0, seq, true);
+  for (let i = 0; i < n; i++) v.setInt16(2 + 2 * i, value, true);
+  return v;
+}
+
+// --- unit tests: packet reassembly and WAV ---
+let got = [];
+let s = new PacketStream((x) => got.push(...x));
+s.push(packet(10)); s.push(packet(11)); s.push(packet(13));
+check("gap of 1 filled with 80 zeros", got.length === 320 && got.slice(160, 240).every((x) => x === 0));
+s.push(packet(13)); s.push(packet(12));
+check("duplicate and late packets ignored", got.length === 320);
+got = []; s = new PacketStream((x) => got.push(...x));
+s.push(packet(65535)); s.push(packet(0)); s.push(packet(2));
+check("wrap-around at 65535 + gap", got.length === 320 && s.lost === 1);
+got = []; s = new PacketStream((x) => got.push(...x));
+s.push(packet(5)); s.push(packet(5000));
+check("huge jump treated as restart", got.length === 160 && s.lost === 0);
+got = []; s = new PacketStream((x) => got.push(...x));
+s.push(packet(1, 8)); s.push(packet(3, 8));
+check("low-MTU packets learned", s.packetSamples === 8 && got.length === 24);
+const r = new Recording(1); r.add(new Int16Array(5000)); r.add(new Int16Array(5000));
+check("recording capped", r.samples.length === 8000);
+const wav = new DataView(await toWav(new Int16Array([1, -2, 3])).arrayBuffer());
+check("wav header", wav.byteLength === 50 && wav.getUint32(24, true) === 8000 && wav.getInt16(46, true) === -2);
+
+// --- end to end ---
+localStorage.setItem("respirai", JSON.stringify({ server: location.origin, seconds: 5, demo: "", welcomed: true, lang: "en" }));
+localStorage.setItem("respirai-checks", JSON.stringify([{ id: "old", started: Date.now() - 3 * 864e5, key: "ok" }]));
+const frame = document.getElementById("app");
+frame.src = "/index.html";
+await new Promise((r) => (frame.onload = r));
+const d = frame.contentDocument, $ = (id) => d.getElementById(id);
+const visible = (id) => !$(id).hidden;
+async function untilResults() {
+  for (let i = 0; i < 600 && !visible("sResults"); i++) {
+    if (visible("sPoint") && !$("btnNow").hidden) $("btnNow").click();
+    await sleep(300);
+  }
+}
+await sleep(300);
+check("opens on the connect screen", visible("sConnect") && !visible("sReady"));
+check("logo and lungs images load", [...d.querySelectorAll("img")].every((i) => i.complete && i.naturalWidth > 0) && d.querySelector("header .logo").alt === "respirAI", d.querySelectorAll("img").length + " images");
+$("btnPractice").click();
+await sleep(1000);
+check("practice device → ready screen + battery", visible("sReady") && !$("battery").hidden, $("battery").textContent);
+$("btnBegin").click(); $("btnStop").click();   // a double-tap must not also press Stop, which sits where Begin was
+await sleep(500);
+check("double-tap on Begin doesn't stop", visible("sPoint"));
+check("first place: base of the neck, one red dot", visible("sPoint") && $("pointTitle").textContent === "Base of the neck" && d.querySelectorAll("#body .pt.here").length === 1);
+check("placement countdown", $("dialSub").textContent === "Recording starts in", $("dialMain").textContent);
+$("btnNow").click();
+await sleep(1500);
+check("recording: breathing guide", /Breathe (in|out)/.test($("dialMain").textContent) && /seconds left/.test($("dialSub").textContent), $("dialMain").textContent + " / " + $("dialSub").textContent);
+check("signal shown", $("signalText").textContent === "Sound is coming through");
+await untilResults();
+check("results screen", visible("sResults"));
+const rows = [...d.querySelectorAll("#resultList li")].map((li) => `${li.className}:${li.querySelector("b").textContent}:${li.querySelector(".chip").textContent}`);
+check("7 rows", rows.length === 7, "\n    " + rows.join("\n    "));
+check("overall = unusual sounds", $("overall").className.includes("warn"), $("overallTitle").textContent);
+check("body map coloured", d.querySelectorAll("#sResults .pt.ok").length === 3 && d.querySelectorAll("#sResults .pt.warn").length === 1 && d.querySelectorAll("#sResults .pt.unclear").length === 3);
+const rowOf = (t) => [...d.querySelectorAll("#resultList li")].find((li) => li.querySelector("b").textContent === t);
+const btnOf = (li, t) => [...li.querySelectorAll("button")].find((b) => b.textContent.trim() === t);
+check("server hiccup -> Try again, bad request -> Record again", rowOf("Upper chest, right").textContent.includes("Not checked yet") && btnOf(rowOf("Upper chest, right"), "Try again") && !btnOf(rowOf("Upper back, left"), "Try again"));
+btnOf(rowOf("Upper chest, right"), "Try again").click();
+check("try again -> still analysing", rowOf("Upper chest, right").textContent.includes("Still analysing"), $("overallTitle").textContent);
+await sleep(800);
+check("try again -> answer shown without leaving the screen", rowOf("Upper chest, right").className === "ok" && d.querySelectorAll("#sResults .pt.ok").length === 4 && visible("sResults"));
+const log = await (await fetch("/log")).json();
+check("8 valid WAV uploads (one retried), one session", log.length === 8 && log.every((e) => e.wav_ok && e.seconds > 4.5) && new Set(log.map((e) => e.session_id)).size === 1);
+check("date, a waveform per recording, earlier checks", /^Checked on \d+ \w+/.test($("checkDate").textContent) && d.querySelectorAll("#resultList .wave path").length === 7
+  && !$("earlier").hidden && $("earlierList").textContent.includes("No unusual sounds") && JSON.parse(localStorage.getItem("respirai-checks")).length === 2, $("checkDate").textContent + " / " + $("earlierList").textContent);
+const w = frame.contentWindow;
+let shared = null;
+Object.defineProperty(w.navigator, "canShare", { value: () => true, configurable: true });
+Object.defineProperty(w.navigator, "share", { value: async (x) => { shared = x; }, configurable: true });
+$("btnShare").click(); await sleep(200);
+check("share: summary and the 7 recordings as WAV", shared && shared.files.length === 7 && shared.files.every((f) => f.type === "audio/wav" && f.size > 40000)
+  && shared.text.includes("Upper chest, left: Possible crackles (80% confidence)") && shared.text.includes("Not a diagnosis"), shared && shared.files[1].name + " | " + shared.text);
+check("'diagnosis' only in the disclaimer", (d.body.innerText.match(/diagnos/gi) || []).length === 1);
+
+// Listen: one recording at a time, Listen <-> Stop
+const listenBtns = () => [...d.querySelectorAll("[data-listen]")];
+const labels = () => listenBtns().map((b) => b.textContent.trim()).join(",");
+check("listen buttons on recorded places", listenBtns().length === 7, labels());
+listenBtns()[0].click();
+check("listen -> stop, waveform shows progress", listenBtns()[0].closest("li").classList.contains("playing") && listenBtns()[0].textContent.trim() === "Stop" && listenBtns().filter((b) => b.textContent.trim() === "Stop").length === 1, labels());
+listenBtns()[2].click();
+check("another listen stops the first", listenBtns()[0].textContent.trim() === "Listen" && listenBtns()[2].textContent.trim() === "Stop", labels());
+listenBtns()[2].click();
+check("stop -> listen", listenBtns().every((b) => b.textContent.trim() === "Listen"), labels());
+listenBtns()[1].click();
+
+$("demo").value = "wheezes"; $("demo").dispatchEvent(new Event("change"));
+[...d.querySelectorAll("#resultList li")].find((li) => li.textContent.includes("Right side")).querySelector(".acts .btn:last-child").click();
+await sleep(500);
+await untilResults();
+const log2 = await (await fetch("/log")).json();
+check("record again in demo mode", log2.length === 9 && log2[8].demo === "true" && log2[8].point === "Lr");
+const row = [...d.querySelectorAll("#resultList li")].find((li) => li.textContent.includes("Right side"));
+check("row updated", row.className === "warn" && row.textContent.includes("example recording"), row.textContent.replace(/\s+/g, " "));
+check("no Listen on an example result, playback stopped by leaving the screen", !row.querySelector("[data-listen]") && listenBtns().every((b) => b.textContent.trim() === "Listen"), labels());
+
+$("demo").value = ""; $("demo").dispatchEvent(new Event("change"));
+$("btnRestart").click(); $("btnRestart").click(); await sleep(500);
+check("new check asks for a second tap, a double-tap is one tap", visible("sResults") && /Tap again/.test($("btnRestart").textContent), $("btnRestart").textContent);
+$("btnRestart").click(); await sleep(600);
+check("new check → ready", visible("sReady") && $("btnBegin").textContent === "Begin");
+$("btnBegin").click(); await sleep(1000); frame.contentWindow.history.back(); await sleep(800);
+check("phone back button during a recording → back to ready, page kept", visible("sReady") && frame.contentWindow.location.pathname === "/index.html");
+$("btnBegin").click(); await sleep(1000); $("btnStop").click(); await sleep(500);
+check("stop → back to ready", visible("sReady"));
+$("textSize").value = "130"; $("textSize").dispatchEvent(new Event("change"));
+check("text size setting", d.documentElement.style.fontSize === "130%" && parseFloat(getComputedStyle(d.body).fontSize) > 24, getComputedStyle(d.body).fontSize);
+$("textSize").value = "100"; $("textSize").dispatchEvent(new Event("change"));
+$("btnVoice").click();
+check("voice toggle remembered", $("btnVoice").getAttribute("aria-pressed") === "true" && JSON.parse(localStorage.getItem("respirai")).voice === true);
+$("btnVoice").click();
+$("seconds").value = "50"; $("seconds").dispatchEvent(new Event("change"));
+check("settings show the value actually used", $("seconds").value === "20", $("seconds").value);
+document.getElementById("out").textContent = out.join("\n") + "\nDONE";
+</script>

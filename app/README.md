@@ -13,6 +13,7 @@ Wording rule: the UI never says "diagnosis". Use "finding", "screening", "possib
 | `device.js` | the device over Web Bluetooth ([contract 1](../docs/ARCHITECTURE.md#1-firmware--app-ble)) | A1, A9 |
 | `fake-bluetooth.js` | a fake device behind a fake Web Bluetooth API, so the real Bluetooth code runs without hardware (practice run, `?fakebt`) | — |
 | `audio.js` | packets → audio (sequence numbers, gap filling, packet size learned from the first packet), WAV encoding, playback | A2, A6, A11 |
+| `tests/` | browser tests and their runner, see *Automated tests* | — |
 | `i18n/` | translations: English, Română, Español, Français, Deutsch (see *Languages* below) | — |
 | `app.js` | waveform, torso diagram, guided flow, upload to `/analyze` ([contract 2](../docs/ARCHITECTURE.md#2-app--ai-http)), results | A3–A8 |
 
@@ -61,11 +62,27 @@ It serves the app and answers the AI's API. If the AI code (`ai/`) is in the sam
 
 **With the real AI server:** `cd ai && uvicorn server:app --host 0.0.0.0 --port 8000`. Once `ai/` and `app/` are in the same checkout it serves the app too.
 
-**Demo setup, phone + laptop, no internet (task H):**
-1. Phone on the laptop's hotspot. Find the laptop's address on the hotspot (e.g. `192.168.137.1`).
-2. On the laptop, start both commands above.
-3. On the phone, open `chrome://flags/#unsafely-treat-insecure-origin-as-secure`, add `http://192.168.137.1:8080`, set it to **Enabled**, and relaunch Chrome. Without this, Chrome refuses Web Bluetooth on a plain `http://` page.
-4. Open `http://192.168.137.1:8080`. The AI server address defaults to the same host on port 8000. Check it with the settings icon → **Test the AI server**.
-5. Press **Connect the device** once now, so Chrome asks for the *Nearby devices* permission during setup and not during the demo.
+Either server also answers the API at the same address, and the app uses the address it was opened from (Settings → *AI server address* is empty), so one address is all the phone needs.
 
-Don't host the page on GitHub Pages for the demo. An `https://` page can't call the laptop's `http://` server.
+**On a phone, same Wi-Fi or the laptop's hotspot, no internet needed (task H):**
+1. Start a server on the laptop with `--host 0.0.0.0` (the dev server) or `--host 0.0.0.0 --port 8000` (uvicorn). Find the laptop's address on that network (Windows: `ipconfig`, e.g. `192.168.137.1`).
+2. On the phone, open `chrome://flags/#unsafely-treat-insecure-origin-as-secure`, add `http://192.168.137.1:8000`, set it to **Enabled**, and relaunch Chrome. Without this, Chrome refuses Web Bluetooth on a plain `http://` page (the practice run works without it).
+3. Open `http://192.168.137.1:8000`. Check the AI with the settings icon → **Test the AI server**.
+4. Press **Connect the device** once now, so Chrome asks for the *Nearby devices* permission during setup and not during the demo.
+
+**On a phone, anywhere, over https (no Chrome flag):** a free Cloudflare quick tunnel gives the laptop's server a temporary `https://…trycloudflare.com` address.
+```bash
+cloudflared tunnel --url http://localhost:8000     # prints the https address; open it on the phone
+```
+Get `cloudflared` from [Cloudflare's releases](https://github.com/cloudflare/cloudflared/releases) (Windows: `cloudflared-windows-amd64.exe`, no install or account needed). The address changes every time and works only while the laptop and the command are running. Anyone with the address can open the app, so stop the tunnel (Ctrl+C) after use. It needs internet on both sides, so for the demo itself prefer the hotspot setup above. On https the app can also be installed (*Add to Home screen*) and opens without a connection.
+
+Don't host only the page somewhere else (e.g. GitHub Pages): an `https://` page can't call the laptop's `http://` AI server. Serve both from the laptop, as above.
+
+## Automated tests
+
+```bash
+python app/tests/run.py                               # 75 checks, each suite against a fresh stand-in AI server
+python app/tests/run.py --real http://localhost:8000  # a whole check against a running real AI server (15 checks)
+```
+Plain Python and the installed Chrome (set `CHROME` if it isn't found); nothing to install. The suites in [`tests/`](tests/) drive the real app in headless Chrome, fast-forwarding time, so a 7-place check takes seconds:
+`flow` (the whole check, results, Listen, share, restart, back button, settings), `bluetooth` (small packets, lost packets, reconnect, device switched off), `no-audio`, `languages` (every language complete, a check in Romanian, dark mode) and `real-server` (contract 2, checked on every answer of a real server, with or without a model).

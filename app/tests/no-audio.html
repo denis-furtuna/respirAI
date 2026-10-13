@@ -1,0 +1,27 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>no-audio test</title>
+<!-- A device that connects but sends no sound: the app says so and uploads nothing. Run with app/tests/run.py. -->
+<pre id="out">running</pre>
+<iframe id="app" style="width:390px;height:844px"></iframe>
+<script type="module">
+const out = [];
+const check = (name, ok, extra = "") => out.push(`${ok ? "PASS" : "FAIL"} ${name} ${extra}`);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+localStorage.setItem("respirai", JSON.stringify({ server: location.origin, seconds: 5, demo: "", welcomed: true, lang: "en" }));
+const frame = document.getElementById("app");
+frame.src = "/index.html";
+await new Promise((r) => (frame.onload = r));
+const w = frame.contentWindow, d = frame.contentDocument, $ = (id) => d.getElementById(id);
+const orig = w.setInterval.bind(w);
+w.setInterval = (fn, ms, ...a) => (ms === 10 ? 0 : orig(fn, ms, ...a));   // practice device connects but never streams
+await sleep(300);
+$("btnPractice").click(); await sleep(1000);
+$("btnBegin").click(); await sleep(2500);
+check("warns there is no sound", $("signalText").parentElement.classList.contains("none"), $("signalText").textContent);
+for (let i = 0; i < 600 && $("sResults").hidden; i++) { if (!$("btnNow").hidden) $("btnNow").click(); await sleep(300); }
+const rows = [...d.querySelectorAll("#resultList li")].map((li) => li.querySelector("small").textContent);
+check("every place says no sound arrived", rows.length === 7 && rows.every((t) => t.startsWith("No sound arrived")), rows[0]);
+check("nothing uploaded", (await (await fetch("/log")).json()).length === 0);
+document.getElementById("out").textContent = out.join("\n") + "\nDONE";
+</script>
