@@ -296,7 +296,7 @@ Web page in Chrome, using Web Bluetooth. Works on desktop Chrome and Android Chr
 **Hosting — the mixed-content trap.** Web Bluetooth normally requires an HTTPS page, but an HTTPS page may not call a plain `http://192.168.x.x` server. "GitHub Pages + FastAPI on the laptop" therefore does **not** work as-is. Two options:
 
 - **Demo setup (use this on stage):** serve the page from the laptop over plain HTTP and enable `chrome://flags/#unsafely-treat-insecure-origin-as-secure` on the phone, adding the laptop's address. Web Bluetooth then works on an HTTP page and everything runs on our own hotspot with no internet at all. Configure once, rehearse with it.
-- **Development setup:** GitHub Pages for the page + a free Cloudflare tunnel giving FastAPI an HTTPS address. Convenient, but depends on venue internet — never rely on it on stage.
+- **Development setup:** the same, on the phone's own hotspot, or a USB cable with Chrome port forwarding (`chrome://inspect`), which needs no flag and no network. No public tunnels: they put the laptop's server on the internet. See `app/README.md` → *On a phone*.
 
 Grant Chrome the "Nearby devices" permission during setup, not during the demo.
 

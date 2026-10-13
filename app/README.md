@@ -64,19 +64,25 @@ It serves the app and answers the AI's API. If the AI code (`ai/`) is in the sam
 
 Either server also answers the API at the same address, and the app uses the address it was opened from (Settings → *AI server address* is empty), so one address is all the phone needs.
 
-**On a phone, same Wi-Fi or the laptop's hotspot, no internet needed (task H):**
-1. Start a server on the laptop with `--host 0.0.0.0` (the dev server) or `--host 0.0.0.0 --port 8000` (uvicorn). Find the laptop's address on that network (Windows: `ipconfig`, e.g. `192.168.137.1`).
-2. On the phone, open `chrome://flags/#unsafely-treat-insecure-origin-as-secure`, add `http://192.168.137.1:8000`, set it to **Enabled**, and relaunch Chrome. Without this, Chrome refuses Web Bluetooth on a plain `http://` page (the practice run works without it).
-3. Open `http://192.168.137.1:8000`. Check the AI with the settings icon → **Test the AI server**.
-4. Press **Connect the device** once now, so Chrome asks for the *Nearby devices* permission during setup and not during the demo.
+### On a phone
 
-**On a phone, anywhere, over https (no Chrome flag):** a free Cloudflare quick tunnel gives the laptop's server a temporary `https://…trycloudflare.com` address.
-```bash
-cloudflared tunnel --url http://localhost:8000     # prints the https address; open it on the phone
-```
-Get `cloudflared` from [Cloudflare's releases](https://github.com/cloudflare/cloudflared/releases) (Windows: `cloudflared-windows-amd64.exe`, no install or account needed). The address changes every time and works only while the laptop and the command are running. Anyone with the address can open the app and use the AI server, and the traffic passes through Cloudflare, so: only for testing, only with test recordings (never a real patient's), not on a work laptop whose IT rules forbid tunnels, and stop it (Ctrl+C) right after use. It needs internet on both sides, so for the demo itself prefer the hotspot setup above. On https the app can also be installed (*Add to Home screen*) and opens without a connection.
+Two safe ways, both without internet and without putting anything online. Never use a public tunnel (ngrok, Cloudflare and the like): it puts the laptop's server on the internet for anyone with the address.
 
-Don't host only the page somewhere else (e.g. GitHub Pages): an `https://` page can't call the laptop's `http://` AI server. Serve both from the laptop, as above.
+**A. Your own hotspot (easiest).** Only the phone and the laptop are on the network.
+1. Turn on the **phone's hotspot** (with a password) and connect the laptop to it. Not the hackathon or café Wi-Fi: there, everyone on the network could reach the server.
+2. On the laptop: `python app/dev/dev_server.py --host 0.0.0.0` (or `uvicorn server:app --host 0.0.0.0 --port 8000` in `ai/`). Find the laptop's address on the hotspot: `ipconfig` → *Wireless LAN adapter Wi-Fi* → *IPv4 Address*, e.g. `10.39.40.62`.
+3. On the phone, once: open `chrome://flags/#unsafely-treat-insecure-origin-as-secure`, type `http://10.39.40.62:8000` (your address), set it to **Enabled**, tap **Relaunch**. This lets that one address use Bluetooth; nothing else changes. (The practice run works without it.)
+4. Open `http://10.39.40.62:8000` on the phone. Check the AI with the settings icon → **Test the AI server**, and press **Connect the device** once, so Chrome asks for the *Nearby devices* permission now and not during the demo.
+5. Afterwards, stop the server (Ctrl+C). Without `--host 0.0.0.0` it only listens to the laptop itself.
+
+**B. USB cable (safest: nothing on any network).** The phone reaches the laptop through the cable, and the server never leaves the laptop.
+1. On the phone, once: *Settings → About phone → Software information*, tap *Build number* 7 times; then *Settings → Developer options → USB debugging* on.
+2. On the laptop: `python app/dev/dev_server.py` (no `--host`: it stays on the laptop). In Chrome open `chrome://inspect/#devices`, connect the phone by USB and accept the prompt on the phone.
+3. Click **Port forwarding…**, add port `8000` → `localhost:8000`, tick *Enable port forwarding*, **Done**.
+4. On the phone open `http://localhost:8000`. `localhost` counts as secure, so Bluetooth works with no Chrome flag, and the app can be added to the home screen.
+5. Afterwards, turn *USB debugging* off again. Windows may need Samsung's USB driver to see the phone (a work laptop may not allow installing it); if the phone never appears in `chrome://inspect`, use A.
+
+Both servers only ever serve files from `app/` (the dev server's file paths are checked, FastAPI does it itself), and the app reaches the AI at the same address it was opened from.
 
 ## Automated tests
 

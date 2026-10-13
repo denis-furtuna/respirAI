@@ -40,7 +40,7 @@ const bluetooth = params.has("fakebt") ? (window.fakeBt = fakeBluetooth(Object.f
 
 // ---------- settings (remembered on this phone, behind the icon; voice is on the "before we start" screen) ----------
 // server "": the AI server is the one that served this page (ai/server.py and app/dev/dev_server.py serve both),
-// so the same setting works on the laptop, on a phone over Wi-Fi, and through an https tunnel.
+// so the same setting works on the laptop, on a phone over a hotspot, and on a phone over USB (localhost).
 const settings = { server: "", seconds: 15, demo: "", textSize: "100", theme: "auto", voice: false, lang: "", welcomed: false };
 try { Object.assign(settings, JSON.parse(localStorage.getItem("respirai") || "{}")); } catch (e) { /* private mode */ }
 const sameServer = (v) => (v === location.origin ? "" : v);
