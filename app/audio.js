@@ -13,10 +13,7 @@ export class PacketStream {
   }
 
   reset() {
-    this.lastSeq = null;
-    this.packetSamples = null;
-    this.received = 0;
-    this.lost = 0;
+    Object.assign(this, { lastSeq: null, packetSamples: null, received: 0, lost: 0 });
   }
 
   push(view) {
@@ -33,9 +30,7 @@ export class PacketStream {
     }
     this.lastSeq = seq;
     this.received++;
-    const samples = new Int16Array(n);
-    for (let i = 0; i < n; i++) samples[i] = view.getInt16(2 + 2 * i, true);
-    this.onSamples(samples);
+    this.onSamples(Int16Array.from({ length: n }, (_, i) => view.getInt16(2 + 2 * i, true)));
   }
 }
 
@@ -82,8 +77,7 @@ let audioCtx = null;
 export function play(samples) {
   audioCtx = audioCtx || new AudioContext();
   const buffer = audioCtx.createBuffer(1, samples.length, SAMPLE_RATE);
-  const channel = buffer.getChannelData(0);
-  samples.forEach((s, i) => { channel[i] = s / 32768; });
+  buffer.copyToChannel(Float32Array.from(samples, (s) => s / 32768), 0);
   const source = audioCtx.createBufferSource();
   source.buffer = buffer;
   source.connect(audioCtx.destination);
