@@ -111,7 +111,7 @@ function send(bytes) {
 }
 
 function showDeviceStatus({ battery, state }) {
-  $("battery").hidden = false;
+  $("battery").hidden = battery > 100;   // 255 = the device can't measure it (no battery sense wired)
   $("battery").textContent = `Battery ${battery}%`;
   if (state === 2) showNotice("The device reported a problem. Switch it off and on again.");
 }
@@ -162,7 +162,6 @@ async function recordPoint(code) {
   $("pointWhere").textContent = p.where;
   drawProgress();
   drawBody($("body"), p.view, (c) => (c === code ? "here" : ""));
-  send(CMD.guide(p.n));
 
   // 1. Time to place the chest piece (or tap "start now").
   $("btnNow").hidden = false;
@@ -173,6 +172,7 @@ async function recordPoint(code) {
 
   // 2. Record while the circle paces the breathing.
   recording = new Recording(settings.seconds);
+  send(CMD.guide(p.n));   // the device's LEDs start breathing now, in step with the circle on screen
   const finished = await countdown(settings.seconds, (t, total) => {
     const phase = t % (BREATH_IN + BREATH_OUT);
     const inhale = phase < BREATH_IN;
