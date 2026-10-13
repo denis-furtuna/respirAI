@@ -67,7 +67,7 @@ Sent every 2 s, and immediately on `0x20`.
 
 | Byte | Content |
 |---|---|
-| 0 | battery percent, 0–100 |
+| 0 | battery percent, 0–100; 255 = unknown (no battery sense wired) |
 | 1 | state: `0` idle, `1` streaming, `2` error |
 | 2–3 | packets sent since last status, uint16 LE |
 
