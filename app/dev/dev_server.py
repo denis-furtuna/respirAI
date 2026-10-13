@@ -18,6 +18,7 @@ from array import array
 from email import policy
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import unquote
 
 ROOT = Path(__file__).resolve().parents[2]
 APP, DEMO_CLIPS = ROOT / "app", ROOT / "ai" / "demo_clips"
@@ -87,10 +88,11 @@ class Handler(SimpleHTTPRequestHandler):
                       ".ogg": "audio/ogg", ".wav": "audio/wav", ".json": "application/json", ".webmanifest": "application/manifest+json"}
 
     def translate_path(self, path):
-        path = path.split("?", 1)[0].split("#", 1)[0]
-        if path.startswith("/demo_clips/"):
-            return str(DEMO_CLIPS / path[len("/demo_clips/"):])
-        return str(APP / path.lstrip("/"))
+        """URL path -> file, only ever inside app/ or ai/demo_clips/ (no "../" or "..\\" way out)."""
+        path = unquote(path.split("?", 1)[0].split("#", 1)[0])
+        root, rest = (DEMO_CLIPS, path[len("/demo_clips/"):]) if path.startswith("/demo_clips/") else (APP, path)
+        target = (root / rest.lstrip("/\\")).resolve()
+        return str(target) if target.is_relative_to(root.resolve()) else str(APP / "not-found")
 
     def send_json(self, status, body):
         data = json.dumps(body).encode()
@@ -134,7 +136,8 @@ class Handler(SimpleHTTPRequestHandler):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--port", type=int, default=8000)
-    parser.add_argument("--host", default="0.0.0.0", help="0.0.0.0 lets a phone on the same network connect")
+    parser.add_argument("--host", default="127.0.0.1",
+                        help="127.0.0.1: this computer only (default); 0.0.0.0: also phones on the same network")
     args = parser.parse_args()
     print(f"AI: {'the real AI code in ai/' if not AI_PROBLEM else 'FAKE answers (' + AI_PROBLEM + ')'}")
     print(f"App: http://localhost:{args.port}/   fake device: http://localhost:{args.port}/?fakebt&wav=crackles.wav")
