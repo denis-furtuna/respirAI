@@ -74,7 +74,7 @@ Either server also answers the API at the same address, and the app uses the add
 ```bash
 cloudflared tunnel --url http://localhost:8000     # prints the https address; open it on the phone
 ```
-Get `cloudflared` from [Cloudflare's releases](https://github.com/cloudflare/cloudflared/releases) (Windows: `cloudflared-windows-amd64.exe`, no install or account needed). The address changes every time and works only while the laptop and the command are running. Anyone with the address can open the app, so stop the tunnel (Ctrl+C) after use. It needs internet on both sides, so for the demo itself prefer the hotspot setup above. On https the app can also be installed (*Add to Home screen*) and opens without a connection.
+Get `cloudflared` from [Cloudflare's releases](https://github.com/cloudflare/cloudflared/releases) (Windows: `cloudflared-windows-amd64.exe`, no install or account needed). The address changes every time and works only while the laptop and the command are running. Anyone with the address can open the app and use the AI server, and the traffic passes through Cloudflare, so: only for testing, only with test recordings (never a real patient's), not on a work laptop whose IT rules forbid tunnels, and stop it (Ctrl+C) right after use. It needs internet on both sides, so for the demo itself prefer the hotspot setup above. On https the app can also be installed (*Add to Home screen*) and opens without a connection.
 
 Don't host only the page somewhere else (e.g. GitHub Pages): an `https://` page can't call the laptop's `http://` AI server. Serve both from the laptop, as above.
 
