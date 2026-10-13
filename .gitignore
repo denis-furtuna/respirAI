@@ -44,6 +44,7 @@ dist/
 # --- Recordings made during testing (demo clips are committed on purpose) ---
 *.wav
 !ai/demo_clips/*.wav
+!app/dev/recordings/*.wav
 
 # --- OS / editor ---
 .DS_Store

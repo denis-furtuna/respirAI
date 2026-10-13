@@ -32,17 +32,18 @@ Three fakes, from quickest to most realistic:
 | Fake | How | What it tests |
 |---|---|---|
 | Practice run | the *No device? Try a practice run* button | the screens, recording, upload and results. Skips Bluetooth entirely. |
-| Fake Web Bluetooth | open the page with **`?fakebt`**, then *Connect the device* | the real Bluetooth code (`BleDevice`): UUIDs, subscribing, commands, packet sizes, disconnects. Options: `&mtu=25` (small packets), `&drop=0.02` (lost packets), `&disconnectAfter=30`, `&battery=64`. In the browser console: `fakeBt.disconnect()`. |
-| Fake device over real Bluetooth | on a Windows laptop with Bluetooth: `python dev/fake_device.py` (add `--crackles` for clicks while breathing in). Install its packages first; the list is at the top of the file. | everything, over the air: the phone's Chrome connects to the laptop as if it were the device. Windows advertises under the computer's name, so pick that name in the device list. The laptop can't connect to itself, so use the phone. |
+| Fake Web Bluetooth | open the page with **`?fakebt`**, then *Connect the device* | the real Bluetooth code (`BleDevice`): UUIDs, subscribing, commands, packet sizes, disconnects. **`&wav=crackles.wav`** or **`&wav=wheeze.wav`** streams a real lung recording (from [`dev/recordings/`](dev/recordings/CREDITS.md)) instead of generated breathing. Other options: `&mtu=25` (small packets), `&drop=0.02` (lost packets), `&disconnectAfter=30`, `&battery=64`. In the browser console: `fakeBt.disconnect()`. |
+| Fake device over real Bluetooth | on a Windows laptop with Bluetooth: `python dev/fake_device.py --file dev/recordings/crackles.wav` (or no `--file` for generated breathing). Install its packages first; the list is at the top of the file. | everything, over the air: the phone's Chrome connects to the laptop as if it were the device. Windows advertises under the computer's name, so pick that name in the device list. The laptop can't connect to itself, so use the phone. |
 
 ## Run it
 
-**Development, on one computer:**
+**Development, on one computer, one command, plain Python (works where FastAPI is blocked):**
 ```bash
-cd app && python -m http.server 8080          # the page:  http://localhost:8080
-cd ai  && uvicorn server:app --host 0.0.0.0 --port 8000   # the AI server (dummy mode is fine)
+python app/dev/dev_server.py      # then open http://localhost:8000/?fakebt&wav=crackles.wav
 ```
-`localhost` counts as secure, so Web Bluetooth works with no extra setup. Use **No device? Try a practice run** if there is no hardware.
+It serves the app and answers the AI's API. If the AI code (`ai/`) is in the same checkout it runs it (the real model, or the AI's dummy mode); otherwise it gives clearly fake answers ("dev-fake"), so every result says *Clear*. `localhost` counts as secure, so Web Bluetooth works with no extra setup.
+
+**With the real AI server:** `cd ai && uvicorn server:app --host 0.0.0.0 --port 8000`. Once `ai/` and `app/` are in the same checkout it serves the app too.
 
 **Demo setup, phone + laptop, no internet (task H):**
 1. Phone on the laptop's hotspot. Find the laptop's address on the hotspot (e.g. `192.168.137.1`).

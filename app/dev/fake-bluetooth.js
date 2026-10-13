@@ -8,6 +8,8 @@
 //   &drop=0.02                lose 2 % of packets
 //   &disconnectAfter=30       drop the connection after 30 s of streaming
 //   &battery=64               battery level to report (default 255 = unknown)
+//   &wav=crackles.wav         stream a real recording on a loop instead of generated breathing:
+//                             a file in dev/recordings/, or a path like demo_clips/crackles_Al.wav
 // From the console: fakeBt.disconnect()
 
 const params = new URLSearchParams(location.search);
@@ -15,6 +17,47 @@ const MTU = Number(params.get("mtu") || 185);
 const DROP = Number(params.get("drop") || 0);
 const DISCONNECT_AFTER = Number(params.get("disconnectAfter") || 0);
 const BATTERY = Number(params.get("battery") || 255);
+const WAV = params.get("wav");
+let recording = null;   // loaded in the background; never holds up the app
+const recordingReady = WAV ? loadRecording(WAV).then((r) => { recording = r; }) : Promise.resolve();
+
+// A 16-bit WAV, or any file the browser can decode, at the device's 8 kHz and scaled to half of full range.
+async function loadRecording(name) {
+  try {
+    const res = await fetch(name.includes("/") ? name : `dev/recordings/${name}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const buf = await res.arrayBuffer();
+    const x = readWav(buf) || (await new OfflineAudioContext(1, 1, 8000).decodeAudioData(buf)).getChannelData(0);
+    const peak = x.reduce((m, v) => Math.max(m, Math.abs(v)), 1e-6);
+    console.log(`[fakebt] streaming ${name}: ${(x.length / 8000).toFixed(1)} s, looped`);
+    return Int16Array.from(x, (v) => Math.round((v / peak) * 0.5 * 32767));
+  } catch (e) {
+    console.warn(`[fakebt] could not load ${name} (${e.message}); using generated breathing instead`);
+    return null;
+  }
+}
+
+// 16-bit PCM WAV -> first channel at 8 kHz, or null if the file isn't one.
+function readWav(buf) {
+  const v = new DataView(buf);
+  if (buf.byteLength < 44 || v.getUint32(0) !== 0x52494646 || v.getUint32(8) !== 0x57415645) return null;  // "RIFF", "WAVE"
+  let at = 12, rate = 8000, channels = 1, bits = 16;
+  while (at + 8 <= buf.byteLength) {
+    const id = v.getUint32(at), size = v.getUint32(at + 4, true), body = at + 8;
+    if (id === 0x666d7420) {   // "fmt "
+      channels = v.getUint16(body + 2, true);
+      rate = v.getUint32(body + 4, true);
+      bits = v.getUint16(body + 14, true);
+    } else if (id === 0x64617461) {   // "data"
+      if (bits !== 16) return null;
+      const n = Math.floor(Math.min(size, buf.byteLength - body) / (2 * channels));
+      const at8k = Math.floor((n * 8000) / rate);   // nearest-sample resampling: rough, fine for testing
+      return Float32Array.from({ length: at8k }, (_, i) => v.getInt16(body + 2 * channels * Math.floor((i * rate) / 8000), true) / 32768);
+    }
+    at = body + size + (size & 1);
+  }
+  return null;
+}
 
 const uuid = (n) => `7b8c9d00-000${n}-4b5e-8f00-1a2b3c4d5e6f`;
 const SERVICE = uuid(1), AUDIO = uuid(2), CONTROL = uuid(3), STATUS = uuid(4);
@@ -86,12 +129,16 @@ class Device extends EventTarget {
     if (bytes[0] === 0x20) this.status();
   }
 
-  tick() {   // 10 ms of breath-like noise, split into packets as the firmware would
+  tick() {   // 10 ms of audio (the recording, or breath-like noise), split into packets as the firmware would
     if (DISCONNECT_AFTER && performance.now() - this.streamingSince > DISCONNECT_AFTER * 1000) return this.drop();
     const samples = new Int16Array(80);
     for (let i = 0; i < 80; i++, this.t++) {
-      const breath = 0.15 + 0.85 * Math.max(0, Math.sin((2 * Math.PI * this.t) / 64000));
-      samples[i] = (Math.random() * 2 - 1) * 4000 * breath;
+      if (recording) {
+        samples[i] = recording[this.t % recording.length];
+      } else {
+        const breath = 0.15 + 0.85 * Math.max(0, Math.sin((2 * Math.PI * this.t) / 64000));
+        samples[i] = (Math.random() * 2 - 1) * 4000 * breath;
+      }
     }
     this.pending = this.pending ? Int16Array.from([...this.pending, ...samples]) : samples;
     while (this.pending.length >= this.samplesPerPacket) {
@@ -126,16 +173,17 @@ class Device extends EventTarget {
 
 let current = null;
 const fakeBluetooth = {
-  requestDevice(options = {}) {
+  async requestDevice(options = {}) {
     const filters = options.filters || [];
     const matches = filters.some((f) => f.name === "respirAI" || (f.services || []).includes(SERVICE));
     if (!matches) return fail("NotFoundError", "No device matched the filters (fake respirAI device).");
+    await Promise.race([recordingReady, new Promise((r) => setTimeout(r, 5000))]);   // like the device picker taking a moment
     if (current) current.drop();
     current = new Device([...(options.optionalServices || []), ...filters.flatMap((f) => f.services || [])]);
-    return Promise.resolve(current);
+    return current;
   },
 };
 // Chrome's navigator.bluetooth is read-only, so shadow it rather than assign it.
 Object.defineProperty(navigator, "bluetooth", { value: fakeBluetooth, configurable: true });
-window.fakeBt = { disconnect: () => current && current.drop() };
+window.fakeBt = { disconnect: () => current && current.drop(), get source() { return recording ? WAV : "generated breathing"; } };
 console.log(`[fakebt] fake Bluetooth device ready: MTU ${MTU} -> ${2 + 2 * Math.min(80, ((MTU - 5) >> 1) & ~1)}-byte packets, drop ${DROP}`);

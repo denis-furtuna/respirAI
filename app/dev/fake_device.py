@@ -7,6 +7,8 @@ for real, so the whole Bluetooth path is tested before the hardware exists.
                 winrt-Windows.Storage.Streams winrt-Windows.Foundation winrt-Windows.Foundation.Collections
     python fake_device.py              # breath-like noise
     python fake_device.py --crackles   # with crackle-like clicks while breathing in
+    python fake_device.py --file recordings/crackles.wav   # a real recording, looped
+                                       # 8 kHz 16-bit WAVs need nothing extra; other files: pip install numpy scipy soundfile
 
 Then in the app press "Connect the device". Windows advertises under the computer's own
 Bluetooth name, not "respirAI"; the app finds it by the service ID. A phone can't connect
@@ -47,8 +49,8 @@ def from_buffer(buffer) -> bytes:
 
 
 class FakeDevice:
-    def __init__(self, crackles: bool, battery: int):
-        self.crackles, self.battery = crackles, battery
+    def __init__(self, crackles: bool, battery: int, recording=None):
+        self.crackles, self.battery, self.recording = crackles, battery, recording
         self.streaming = False
         self.seq = 0
         self.t = 0
@@ -137,7 +139,11 @@ class FakeDevice:
             print(f"Unknown command 0x{cmd:02x}")
 
     def block(self):
-        """10 ms of breath-like noise at 8 kHz, as int16."""
+        """10 ms of audio at 8 kHz as int16: the recording, or breath-like noise."""
+        if self.recording:
+            out = [self.recording[(self.t + i) % len(self.recording)] for i in range(80)]
+            self.t += 80
+            return out
         out = []
         for _ in range(80):
             phase = math.sin(2 * math.pi * self.t / 64000)          # ~8 s breathing cycle
@@ -185,12 +191,41 @@ class FakeDevice:
                 await self.send_status()
 
 
+def load_recording(path):
+    """Audio file -> 8 kHz int16 samples. 8 kHz 16-bit mono WAVs need only the standard library."""
+    import wave
+    try:
+        with wave.open(path) as w:
+            if (w.getframerate(), w.getsampwidth(), w.getnchannels()) == (8000, 2, 1):
+                samples = list(struct.unpack(f"<{w.getnframes()}h", w.readframes(w.getnframes())))
+                print(f"Streaming {path}: {len(samples) / 8000:.1f} s, looped")
+                return samples
+    except wave.Error:
+        pass   # not a plain WAV: decode it below
+
+    from math import gcd
+
+    import numpy as np
+    import soundfile as sf
+    from scipy.signal import resample_poly
+
+    x, sr = sf.read(path, dtype="float32", always_2d=True)
+    x = x.mean(axis=1)
+    g = gcd(int(sr), 8000)
+    x = resample_poly(x, 8000 // g, int(sr) // g)
+    x = x / max(1e-9, float(np.abs(x).max())) * 0.5
+    print(f"Streaming {path}: {len(x) / 8000:.1f} s, looped")
+    return (x * 32767).astype(np.int16).tolist()
+
+
 async def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--crackles", action="store_true", help="add crackle-like clicks while breathing in")
     parser.add_argument("--battery", type=int, default=87, help="battery %% to report (255 = unknown)")
+    parser.add_argument("--file", help="stream this audio file (looped) instead of generated breathing")
     args = parser.parse_args()
-    await FakeDevice(args.crackles, args.battery).start()
+    recording = load_recording(args.file) if args.file else None
+    await FakeDevice(args.crackles, args.battery, recording).start()
     await asyncio.Event().wait()
 
 
