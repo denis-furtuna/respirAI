@@ -1,6 +1,6 @@
 // respirAI web app: one screen at a time. Connect → before we start → each place → analysing → results.
 import { BleDevice, CMD } from "./device.js";
-import { PacketStream, Recording, SAMPLE_RATE, play, toWav } from "./audio.js";
+import { PacketStream, Recording, SAMPLE_RATE, play, stopPlayback, toWav } from "./audio.js";
 import { fakeBluetooth } from "./fake-bluetooth.js";
 
 // n is the contract number (0-6). x/y place the dot on the front or back drawing.
@@ -25,6 +25,7 @@ const ICONS = {
   alert: '<path d="M12 7v6m0 3.5v.5"/>',
   retry: '<path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3M4.5 4.5v3.7h3.7"/>',
   play: '<path d="M8 5.5v13l10.5-6.5z"/>',
+  stop: '<rect x="7" y="7" width="10" height="10" rx="1.5"/>',
 };
 const icon = (name) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>`;
 const $ = (id) => document.getElementById(id);
@@ -45,14 +46,14 @@ for (const [id, parse] of [
 ]) {
   $(id).value = settings[id];
   $(id).addEventListener("change", () => {
-    settings[id] = parse($(id).value);
+    $(id).value = settings[id] = parse($(id).value);   // show the value actually used (e.g. 50 s -> 20 s)
     try { localStorage.setItem("respirai", JSON.stringify(settings)); } catch (e) { /* not essential */ }
     if (!$("sReady").hidden) showReady();
   });
 }
 
 // ---------- device + audio ----------
-let device = null, recording = null, lastAudioAt = 0;
+let device = null, recording = null, lastAudioAt = 0, batteryWarned = false;
 const ring = new Float32Array(SAMPLE_RATE);  // last second, for the small waveform
 let ringPos = 0;
 
@@ -63,8 +64,9 @@ const stream = new PacketStream((samples) => {
   if (recording) recording.add(samples);
 });
 
-async function connect(bt) {
+async function connect(bt, button) {
   notice();
+  batteryWarned = false;
   const old = device;
   device = null;
   if (old) old.disconnect();
@@ -74,9 +76,15 @@ async function connect(bt) {
       $("battery").hidden = battery > 100;   // 255 = the device can't measure it (no battery sense wired)
       $("battery").textContent = `Battery ${battery}%`;
       if (state === 2) notice("The device reported a problem. Switch it off and on again.");
+      else if (battery <= 15 && !batteryWarned) {
+        batteryWarned = true;
+        notice(`The device battery is low (${battery}%). Charge it soon.`);
+      }
     },
     onDisconnect: () => { if (d === device) lostDevice(); },
   });
+  const label = button.textContent;
+  button.textContent = "Connecting…";
   $("btnConnect").disabled = $("btnPractice").disabled = true;
   try {
     await d.connect();
@@ -89,6 +97,7 @@ async function connect(bt) {
   } catch (e) {
     if (e.name !== "NotFoundError") notice(e.message);  // NotFoundError: the device picker was closed
   } finally {
+    button.textContent = label;
     $("btnConnect").disabled = $("btnPractice").disabled = false;
   }
 }
@@ -114,7 +123,12 @@ function send(bytes) {
 
 // ---------- session ----------
 let session = null;   // { id, results: {code: response}, audio: {code: Int16Array}, pending: [] }
-let running = false, cancel = false, skip = false;
+let running = false, cancel = false, skip = false, lock = null;
+
+// Keep the screen on during a session, also after switching away and back. Never waited for.
+const keepAwake = () => navigator.wakeLock?.request("screen").then((l) => { if (running) lock = l; else l.release(); }).catch(() => {});
+document.addEventListener("visibilitychange", () => { if (running && !document.hidden) keepAwake(); });
+addEventListener("beforeunload", (e) => { if (running) { e.preventDefault(); e.returnValue = ""; } });   // ask before leaving mid-recording
 
 const remaining = () => (session ? ORDER.filter((c) => !session.results[c]) : ORDER);
 const newSession = () => { session = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), results: {}, audio: {}, pending: [] }; };
@@ -124,8 +138,7 @@ async function runSession(codes) {
   cancel = false;
   notice();
   show("sPoint");
-  let lock = null;   // keep the screen on; never wait for it, so a slow answer can't hold up the session
-  navigator.wakeLock?.request("screen").then((l) => { lock = l; }).catch(() => {});
+  keepAwake();
   try {
     for (const code of codes) if (!cancel) await recordPoint(code);
     if (!cancel) {
@@ -137,6 +150,7 @@ async function runSession(codes) {
     running = false;
     recording = null;
     if (lock) lock.release();
+    lock = null;
     send(CMD.idle);
     if (cancel) !device ? show("sConnect") : remaining().length ? showReady() : showResults();
   }
@@ -229,6 +243,8 @@ function describeFetchError(e) {
 
 // ---------- screens ----------
 function show(id) {
+  stopPlayback();
+  playing = null;
   document.querySelectorAll(".screen").forEach((s) => { s.hidden = s.id !== id; });
   window.scrollTo(0, 0);
 }
@@ -280,12 +296,46 @@ function showResults() {
     li.className = v.cls;
     li.innerHTML = `<span class="mark">${icon(MARK[v.cls])}</span><div class="what"><b></b><span class="chip"></span><small></small></div><div class="acts"></div>`;
     [li.querySelector("b").textContent, li.querySelector(".chip").textContent, li.querySelector("small").textContent] = [POINTS[code].title, v.chip, v.detail || ""];
-    const audio = session.audio[code];
-    if (audio && audio.length) li.querySelector(".acts").append(button("play", "Listen", () => play(audio)));
+    const audio = session.audio[code], r = session.results[code];
+    if (audio && audio.length && !(r && r.demo)) {   // a demo result was about an example, not this recording
+      const b = button("play", "Listen", () => listen(code));
+      b.dataset.listen = code;
+      li.querySelector(".acts").append(b);
+    }
     li.querySelector(".acts").append(button("retry", "Record again", () => { if (!needDevice()) runSession([code]); }));
     return li;
   }));
+  resetRestart();
   show("sResults");
+}
+
+// Listen / Stop: one recording at a time.
+let playing = null;
+function listen(code) {
+  if (playing === code) {
+    stopPlayback();
+    playing = null;
+  } else {
+    play(session.audio[code], () => { playing = null; listenButtons(); });
+    playing = code;
+  }
+  listenButtons();
+}
+
+function listenButtons() {
+  document.querySelectorAll("[data-listen]").forEach((b) => {
+    const on = b.dataset.listen === playing;
+    b.innerHTML = on ? `${icon("stop")} Stop` : `${icon("play")} Listen`;
+    b.setAttribute("aria-pressed", on);
+  });
+}
+
+// "Start a new check" clears the results, so it asks for a second tap.
+let restartTimer = null;
+function resetRestart() {
+  clearTimeout(restartTimer);
+  restartTimer = null;
+  $("btnRestart").textContent = "Start a new check";
 }
 
 function button(iconName, label, onClick) {
@@ -343,8 +393,8 @@ setInterval(() => {
 }, 1000);
 
 // ---------- buttons ----------
-$("btnConnect").addEventListener("click", () => connect(bluetooth));
-$("btnPractice").addEventListener("click", () => connect(fakeBluetooth({ battery: 87, drop: 0.005 })));
+$("btnConnect").addEventListener("click", () => connect(bluetooth, $("btnConnect")));
+$("btnPractice").addEventListener("click", () => connect(fakeBluetooth({ battery: 87, drop: 0.005 }), $("btnPractice")));
 $("btnBegin").addEventListener("click", () => {
   if (needDevice()) return;
   if (!session || !remaining().length) newSession();
@@ -352,14 +402,27 @@ $("btnBegin").addEventListener("click", () => {
 });
 $("btnNow").addEventListener("click", () => { skip = true; });
 $("btnStop").addEventListener("click", () => { cancel = true; });
-$("btnRestart").addEventListener("click", () => { newSession(); showReady(); });
+$("btnRestart").addEventListener("click", () => {
+  if (!restartTimer) {
+    $("btnRestart").textContent = "Tap again to clear these results";
+    restartTimer = setTimeout(resetRestart, 4000);
+    return;
+  }
+  resetRestart();
+  newSession();
+  showReady();
+});
 $("btnSettings").addEventListener("click", () => $("settings").showModal());
+$("settings").addEventListener("click", (e) => { if (e.target === $("settings")) $("settings").close(); });   // tap outside closes
 $("btnTest").addEventListener("click", async () => {
+  $("btnTest").disabled = true;
   $("testResult").textContent = "Checking…";
   try {
     const h = await (await fetch(`${settings.server}/health`, { signal: AbortSignal.timeout(5000) })).json();
     $("testResult").textContent = `OK · model ${h.model_version}${h.dummy ? " (dummy answers)" : ""} · ${h.demo_clips} demo clips`;
   } catch (e) {
     $("testResult").textContent = describeFetchError(e);
+  } finally {
+    $("btnTest").disabled = false;
   }
 });

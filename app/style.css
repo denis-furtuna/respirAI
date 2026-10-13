@@ -19,6 +19,7 @@
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html { -webkit-text-size-adjust: 100%; }
+button { touch-action: manipulation; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }   /* no double-tap zoom or text selection */
 body { margin: 0; background: var(--bg); color: var(--ink); font: 400 19px/1.5 var(--font); }
 h1, h2, p { margin: 0; }
 h1 { font-size: 1.75rem; line-height: 1.2; font-weight: 700; letter-spacing: -0.01em; text-wrap: balance; }

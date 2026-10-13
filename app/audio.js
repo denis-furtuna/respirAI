@@ -72,14 +72,24 @@ export function toWav(samples) {
   return new Blob([view], { type: "audio/wav" });
 }
 
-let audioCtx = null;
+// One recording at a time: starting another, or calling stopPlayback(), stops the current one.
+let audioCtx = null, source = null;
 
-export function play(samples) {
+export function play(samples, onEnded) {
+  stopPlayback();
   audioCtx = audioCtx || new AudioContext();
+  audioCtx.resume();   // phones may start it suspended
   const buffer = audioCtx.createBuffer(1, samples.length, SAMPLE_RATE);
-  buffer.copyToChannel(Float32Array.from(samples, (s) => s / 32768), 0);
-  const source = audioCtx.createBufferSource();
-  source.buffer = buffer;
-  source.connect(audioCtx.destination);
-  source.start();
+  buffer.copyToChannel(Float32Array.from(samples, (v) => v / 32768), 0);
+  const s = (source = audioCtx.createBufferSource());
+  s.buffer = buffer;
+  s.connect(audioCtx.destination);
+  s.onended = () => { if (source === s) { source = null; onEnded(); } };
+  s.start();
+}
+
+export function stopPlayback() {
+  const s = source;
+  source = null;   // so its onended doesn't report a stop we asked for
+  if (s) s.stop();
 }
