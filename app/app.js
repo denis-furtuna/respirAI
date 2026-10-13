@@ -2,6 +2,9 @@
 import { BleDevice, CMD, MockDevice } from "./device.js";
 import { PacketStream, Recording, SAMPLE_RATE, play, toWav } from "./audio.js";
 
+// Testing without hardware: open the page with ?fakebt to put a fake Bluetooth device behind "Connect the device".
+if (new URLSearchParams(location.search).has("fakebt")) await import("./dev/fake-bluetooth.js");
+
 // n is the contract number (0-6). x/y place the dot on the front or back drawing.
 // Left/right are the patient's: on the front view their left is on the viewer's right.
 const POINTS = {
@@ -77,6 +80,7 @@ async function connect(Kind) {
     stream.reset();
     device = d;
     await d.send(CMD.start);   // stream all the time, so the signal is live while placing the chest piece
+    d.send(CMD.status).catch(() => {});   // battery now, not in 2 s
     afterConnect();
   } catch (e) {
     if (e.name !== "NotFoundError") showNotice(e.message);  // NotFoundError: the device picker was closed

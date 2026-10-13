@@ -25,6 +25,16 @@ Designed so an elderly person can follow it: one screen at a time, large text an
 
 **Settings** (the sliders icon, top right; for the team, remembered on the phone): the AI server's address, the seconds per place, and **demo mode**. Demo mode sends `demo=true` with the chosen case instead of the audio.
 
+## Testing without the hardware
+
+Three fakes, from quickest to most realistic:
+
+| Fake | How | What it tests |
+|---|---|---|
+| Practice run | the *No device? Try a practice run* button | the screens, recording, upload and results. Skips Bluetooth entirely. |
+| Fake Web Bluetooth | open the page with **`?fakebt`**, then *Connect the device* | the real Bluetooth code (`BleDevice`): UUIDs, subscribing, commands, packet sizes, disconnects. Options: `&mtu=25` (small packets), `&drop=0.02` (lost packets), `&disconnectAfter=30`, `&battery=64`. In the browser console: `fakeBt.disconnect()`. |
+| Fake device over real Bluetooth | on a Windows laptop with Bluetooth: `python dev/fake_device.py` (add `--crackles` for clicks while breathing in). Install its packages first; the list is at the top of the file. | everything, over the air: the phone's Chrome connects to the laptop as if it were the device. Windows advertises under the computer's name, so pick that name in the device list. The laptop can't connect to itself, so use the phone. |
+
 ## Run it
 
 **Development, on one computer:**

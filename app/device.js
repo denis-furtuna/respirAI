@@ -10,6 +10,7 @@ export const CMD = {
   guide: (n) => [0x10, n],   // LED breathing guide for chest point n
   done: [0x11],
   idle: [0x12],
+  status: [0x20],
 };
 
 // handlers: { onPacket(DataView), onStatus({battery, state}), onDisconnect() }
@@ -25,7 +26,11 @@ export class BleDevice {
       throw new Error("Web Bluetooth isn't available here. Use Chrome on Android or a computer. " +
         "If the page is served over http://, add its address to chrome://flags/#unsafely-treat-insecure-origin-as-secure.");
     }
-    this.device = await navigator.bluetooth.requestDevice({ filters: [{ name: "respirAI" }], optionalServices: [SERVICE] });
+    // By name, or by our service ID (a Windows test peripheral can't change its name).
+    this.device = await navigator.bluetooth.requestDevice({
+      filters: [{ name: "respirAI" }, { services: [SERVICE] }],
+      optionalServices: [SERVICE],
+    });
     this.device.addEventListener("gattserverdisconnected", () => this.h.onDisconnect());
     const service = await (await this.device.gatt.connect()).getPrimaryService(SERVICE);
     this.control = await service.getCharacteristic(CONTROL);
@@ -65,13 +70,12 @@ export class MockDevice {
     this.t = 0;
   }
 
-  async connect() {
-    setTimeout(() => this.h.onStatus({ battery: 87, state: 0 }), 200);
-  }
+  async connect() {}
 
   send(bytes) {
     if (bytes[0] === CMD.start[0] && !this.timer) this.timer = setInterval(() => this.tick(), 10);
     if (bytes[0] === CMD.stop[0]) this.stopTimer();
+    if (bytes[0] === CMD.status[0]) setTimeout(() => this.h.onStatus({ battery: 87, state: this.timer ? 1 : 0 }), 50);
     return Promise.resolve();
   }
 
