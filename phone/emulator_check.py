@@ -47,6 +47,15 @@ def screenshot(title):   # small, in pieces: GitHub keeps 4096 characters of a n
         print(f"::notice title=screenshot {title} {i + 1}/{len(parts)}::{part}", flush=True)
 
 
+def describe(arg):   # a console argument as text, objects with their properties
+    if "value" in arg:
+        return json.dumps(arg["value"]) if not isinstance(arg["value"], str) else arg["value"]
+    preview = arg.get("preview")
+    if preview:
+        return "{" + ", ".join(f"{p['name']}: {p.get('value', p.get('type'))}" for p in preview.get("properties", [])) + "}"
+    return arg.get("description", arg.get("type", "?"))
+
+
 class Page:
     def __init__(self):
         for _ in range(90):
@@ -68,12 +77,15 @@ class Page:
         print("WebView page:", pages[0]["url"], flush=True)
         self.ws = websocket.create_connection(pages[0]["webSocketDebuggerUrl"], timeout=60, suppress_origin=True)
         self.n = 0
+        self.errors = []   # console.error calls, with their arguments in full (Runtime.consoleAPICalled)
 
     def send(self, method, params):
         self.n += 1
         self.ws.send(json.dumps({"id": self.n, "method": method, "params": params}))
         while True:
             message = json.loads(self.ws.recv())
+            if message.get("method") == "Runtime.consoleAPICalled" and message["params"]["type"] == "error":
+                self.errors.append(" ".join(describe(a) for a in message["params"]["args"]))
             if message.get("id") == self.n:
                 return message.get("result", {})
 
@@ -117,19 +129,14 @@ def main(apk):
     time.sleep(1)
     screenshot("welcome")
 
-    # From the next load on, keep what console.error is given in full (Android's log shows only "[object Object]")
-    page.send("Page.addScriptToEvaluateOnNewDocument", {"source": """
-      window.__errors = [];
-      const original = console.error.bind(console);
-      console.error = (...args) => {
-        try { window.__errors.push(args.map((a) => { try { return typeof a === "object" ? JSON.stringify(a) : String(a); } catch (e) { return String(a); } }).join(" ")); } catch (e) {}
-        original(...args);
-      };"""})
+    # From here on, every console.error arrives in full (Android's log shows only "[object Object]")
+    page.send("Runtime.enable", {})
     page.js("localStorage.setItem('respirai', JSON.stringify({ seconds: 5, welcomed: true, lang: 'en' })); location.reload(); true")
     time.sleep(2)
     page.ready()
     time.sleep(2)
-    print(f"::notice title=console.error at start-up::{(page.js('JSON.stringify(window.__errors || null)') or '')[:3800]}", flush=True)
+    page.js("true")   # collects the events that arrived meanwhile
+    print(f"::notice title=console.error at start-up::{' | '.join(page.errors)[:3800] or 'none'}", flush=True)
     page.js("document.getElementById('btnTest').click(); true")
     test = page.until("(t => /Checking|^$/.test(t) ? null : t)(document.getElementById('testResult').textContent)", 30)
     check("Test: the AI on the phone answers", test == "OK · model dummy-0.0 (dummy answers) · 0 demo clips", repr(test))
