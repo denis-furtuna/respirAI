@@ -125,8 +125,6 @@ def main(apk):
     check("the app starts and its page loads", bool(page.ready()))
     time.sleep(2)
     page.js("true")
-    print(f"::notice title=console.error at first start::{' | '.join(page.errors)[:3800] or 'none'}", flush=True)
-    page.errors = []
     check("runs as the phone app (Capacitor, native platform)", page.js("!!window.Capacitor && Capacitor.isNativePlatform()") is True)
     check("first start: the welcome screen", page.js("!document.getElementById('sWelcome').hidden") is True)
     check("phone features loaded (native.js: the team's server field is hidden)",
@@ -144,7 +142,6 @@ def main(apk):
     page.ready()
     time.sleep(2)
     page.js("true")   # collects the events that arrived meanwhile
-    print(f"::notice title=console.error at start-up::{' | '.join(page.errors)[:3800] or 'none'}", flush=True)
     page.js("document.getElementById('btnTest').click(); true")
     test = page.until("(t => /Checking|^$/.test(t) ? null : t)(document.getElementById('testResult').textContent)", 30)
     check("Test: the AI on the phone answers", test == "OK · model dummy-0.0 (dummy answers) · 0 demo clips", repr(test))
@@ -184,6 +181,9 @@ def main(apk):
     check("dark mode follows the phone", page.until("document.documentElement.dataset.theme === 'dark'", 10) is True)
     screenshot("dark")
     adb("shell", "cmd", "uimode", "night", "no")
+
+    page.js("true")
+    print(f"::notice title=console.error during the check::{' | '.join(page.errors)[:3800] or 'none'}", flush=True)
 
     # The app's log so far (read before the probe below, whose own failures are only reported)
     log = adb("logcat", "-d", "-s", "Capacitor/Console:*", "Capacitor:*", "chromium:*")
