@@ -35,13 +35,16 @@ def adb(*args):
     return subprocess.run(["adb", *args], capture_output=True, text=True, timeout=120).stdout
 
 
-def screenshot(title):
+def screenshot(title):   # small, in pieces: GitHub keeps 4096 characters of a notice, and 10 notices per step
     png = subprocess.run(["adb", "exec-out", "screencap", "-p"], capture_output=True, timeout=60).stdout
     img = Image.open(io.BytesIO(png)).convert("RGB")
-    img = img.resize((270, int(270 * img.height / img.width)), Image.LANCZOS)
+    img = img.resize((180, int(180 * img.height / img.width)), Image.LANCZOS)
     buf = io.BytesIO()
-    img.save(buf, "JPEG", quality=55)
-    print(f"::notice title=screenshot {title}::{base64.b64encode(buf.getvalue()).decode()}", flush=True)
+    img.save(buf, "JPEG", quality=50)
+    data = base64.b64encode(buf.getvalue()).decode()
+    parts = [data[i:i + 4000] for i in range(0, len(data), 4000)]
+    for i, part in enumerate(parts):
+        print(f"::notice title=screenshot {title} {i + 1}/{len(parts)}::{part}", flush=True)
 
 
 class Page:
@@ -104,8 +107,11 @@ def main(apk):
     check("first start: the welcome screen", page.js("!document.getElementById('sWelcome').hidden") is True)
     check("phone features loaded (native.js: the team's server field is hidden)",
           page.js("document.getElementById('server').closest('label').hidden") is True)
-    insets = page.js("JSON.stringify([getComputedStyle(document.body).paddingTop, getComputedStyle(document.body).paddingBottom])")
-    check("the page keeps clear of the status bar (edge to edge)", float(json.loads(insets)[0].rstrip("px")) > 0, insets)
+    # Clear of the status bar: either the page pads itself (env(safe-area-inset-*), WebView 140+) or Android places
+    # the WebView below the bar (older WebViews). Edge to edge with no padding would be wrong.
+    view = json.loads(page.js("JSON.stringify({ pad: parseFloat(getComputedStyle(document.body).paddingTop), inner: innerHeight, "
+                              "screen: screen.height, ua: navigator.userAgent })"))
+    check("the page keeps clear of the status bar", view["pad"] > 0 or view["inner"] < view["screen"] - 20, json.dumps(view))
     time.sleep(1)
     screenshot("welcome")
 
@@ -123,7 +129,6 @@ def main(apk):
     page.until("!document.getElementById('sPoint').hidden && document.getElementById('btnNow').hidden === false", 10)
     page.js("document.getElementById('btnNow').click(); true")
     time.sleep(4)
-    screenshot("breathing")
     clicker = ("(() => { const $ = (i) => document.getElementById(i);"
                " if (!$('sPoint').hidden && !$('btnNow').hidden) $('btnNow').click();"
                " return !$('sResults').hidden && !document.querySelector('#resultList li.todo'); })()")
@@ -153,7 +158,8 @@ def main(apk):
     adb("shell", "cmd", "uimode", "night", "no")
 
     log = adb("logcat", "-d", "-s", "Capacitor/Console:*", "Capacitor:*", "chromium:*")
-    errors = [l for l in log.splitlines() if re.search(r"\bE (Capacitor|chromium)|Uncaught|TypeError|ReferenceError|SyntaxError", l)]
+    errors = [l for l in log.splitlines() if re.search(r"\bE (Capacitor|chromium)|Uncaught|TypeError|ReferenceError|SyntaxError", l)
+              and "Unable to open asset URL: https://localhost/model/" not in l]   # no trained model yet: dummy mode, as intended
     check("no errors in the app's log", not errors, " | ".join(errors[:5]))
     print(f"{sum(results)} passed, {len(results) - sum(results)} failed")
     print(f"::notice title=Emulator check::{sum(results)} passed, {len(results) - sum(results)} failed", flush=True)

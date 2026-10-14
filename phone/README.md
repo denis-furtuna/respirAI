@@ -16,7 +16,7 @@ Android's WebView lacks a few browser features, so the app uses the phone's own 
 | Share sheet with files | Android's share sheet, recordings as WAV files | `@capacitor/share`, `@capacitor/filesystem` |
 | Vibration | Android's vibration | `@capacitor/haptics` |
 | Back button | back through the app's own screens (a check stops, as in Chrome); at the start, the app goes to the background instead of closing | `@capacitor/app` |
-| Status bar | light or dark icons to match the theme; the page keeps clear of the bars (`--safe-area-inset-*` in `style.css`) | Capacitor's System Bars |
+| Status bar | light or dark icons to match the theme; the page keeps clear of the bars (`env(safe-area-inset-*)` in `style.css`) | Capacitor's System Bars |
 | "AI server address" (team setting) | hidden: the app always analyses on the phone, so nothing it records leaves the phone | |
 
 ## Files

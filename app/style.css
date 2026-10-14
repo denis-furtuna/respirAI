@@ -51,7 +51,8 @@
 [hidden] { display: none !important; }
 html { -webkit-text-size-adjust: 100%; }
 /* The phone app draws edge to edge (Android 15+): keep clear of the status bar, the navigation bar and any cut-out.
-   Capacitor sets --safe-area-inset-*; in a browser they fall back to env(), which is 0 unless the page reaches the edges. */
+   The WebView reports them as env(safe-area-inset-*) (Capacitor's "native" insets; an older WebView is placed below the
+   bars instead, and reports 0). In a browser they are 0 unless the page reaches the edges. */
 :root { --inset-top: var(--safe-area-inset-top, env(safe-area-inset-top, 0px)); --inset-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
   --inset-left: var(--safe-area-inset-left, env(safe-area-inset-left, 0px)); --inset-right: var(--safe-area-inset-right, env(safe-area-inset-right, 0px)); }
 button { touch-action: manipulation; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }   /* no double-tap zoom or text selection */
