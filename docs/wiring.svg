@@ -36,14 +36,14 @@
 <rect x="832.0" y="592.0" width="16" height="16" rx="0" fill="#fab005" stroke="#1e1e1e" stroke-width="1.5"/>
 <text xml:space="preserve" x="824" y="603.0" font-family="Consolas, 'Cascadia Code', monospace" font-size="14" fill="#1e1e1e" text-anchor="end">GPIO44  D7</text>
 <text xml:space="preserve" x="854" y="324.0" font-family="Helvetica, Arial, sans-serif" font-size="12" fill="#868e96">not used (live only on USB)</text>
-<text xml:space="preserve" x="648" y="637.0" font-family="Helvetica, Arial, sans-serif" font-size="11" fill="#495057">pads on the back (read labels):</text>
+<text xml:space="preserve" x="648" y="637.0" font-family="Helvetica, Arial, sans-serif" font-size="11" fill="#495057">back pads: BAT− nearer USB-C</text>
 <rect x="675.0" y="672.0" width="30" height="16" rx="0" fill="#fab005" stroke="#1e1e1e" stroke-width="1.5"/>
 <rect x="755.0" y="672.0" width="30" height="16" rx="0" fill="#fab005" stroke="#1e1e1e" stroke-width="1.5"/>
 <text xml:space="preserve" x="668" y="661.0" font-family="Consolas, 'Cascadia Code', monospace" font-size="13" fill="#1e1e1e">BAT−</text>
 <text xml:space="preserve" x="752" y="661.0" font-family="Consolas, 'Cascadia Code', monospace" font-size="13" fill="#1e1e1e">BAT+</text>
 <rect x="1150" y="300" width="230" height="270" rx="8" fill="#ebfbee" stroke="#1e1e1e" stroke-width="2"/>
 <text xml:space="preserve" x="1150" y="256.0" font-family="Helvetica, Arial, sans-serif" font-size="20" fill="#1e1e1e" font-weight="bold">INMP441 microphone</text>
-<text xml:space="preserve" x="1150" y="274.0" font-family="Helvetica, Arial, sans-serif" font-size="12" fill="#495057">in the chest piece; 5 wires go through the cable</text>
+<text xml:space="preserve" x="1150" y="274.0" font-family="Helvetica, Arial, sans-serif" font-size="12" fill="#495057">inside the puck, sealed onto the stethoscope tube</text>
 <rect x="1142.0" y="322.0" width="16" height="16" rx="0" fill="#fab005" stroke="#1e1e1e" stroke-width="1.5"/>
 <text xml:space="preserve" x="1166" y="333.0" font-family="Consolas, 'Cascadia Code', monospace" font-size="14" fill="#1e1e1e">L/R</text>
 <rect x="1142.0" y="367.0" width="16" height="16" rx="0" fill="#fab005" stroke="#1e1e1e" stroke-width="1.5"/>
@@ -184,6 +184,9 @@
 <polyline points="260,815 330,815" fill="none" stroke="#f08c00" stroke-width="2.5" stroke-linejoin="round" stroke-dasharray="8 6"/>
 <text xml:space="preserve" x="336" y="816.0" font-family="Consolas, 'Cascadia Code', monospace" font-size="12" fill="#495057">D1 (GPIO2)</text>
 <text xml:space="preserve" x="336" y="831.0" font-family="Consolas, 'Cascadia Code', monospace" font-size="12" fill="#495057">PIN_BATTERY = 2</text>
+<text xml:space="preserve" x="336" y="846.0" font-family="Consolas, 'Cascadia Code', monospace" font-size="12" fill="#495057">+ 100 nF D1 → GND</text>
+<text xml:space="preserve" x="300" y="877.0" font-family="Helvetica, Arial, sans-serif" font-size="11" fill="#e03131">Never wire BAT+ straight to D1:</text>
+<text xml:space="preserve" x="300" y="890.75" font-family="Helvetica, Arial, sans-serif" font-size="11" fill="#e03131">a full battery is 4.2 V, pins take 3.6 V</text>
 <text xml:space="preserve" x="56" y="945.0" font-family="Consolas, 'Cascadia Code', monospace" font-size="11" fill="#1e1e1e">AD8232 ECG:  OUTPUT → D0, LO+ → D2, 3.3v → 3V3, GND → GND</text>
 <text xml:space="preserve" x="56" y="958.75" font-family="Consolas, 'Cascadia Code', monospace" font-size="11" fill="#1e1e1e">             LO− and SDN unconnected (no pin left)</text>
 <text xml:space="preserve" x="56" y="972.5" font-family="Consolas, 'Cascadia Code', monospace" font-size="11" fill="#1e1e1e">MAX30102:    SDA → D4, SCL → D5, VIN → 3V3, GND → GND, INT unconnected</text>
@@ -203,7 +206,7 @@
 <text xml:space="preserve" x="1440" y="438.0" font-family="Helvetica, Arial, sans-serif" font-size="20" fill="#1e1e1e" font-weight="bold">Before you power it</text>
 <text xml:space="preserve" x="1440" y="463.0" font-family="Helvetica, Arial, sans-serif" font-size="13" fill="#495057">• Match pins by the name printed on each board.</text>
 <text xml:space="preserve" x="1440" y="479.25" font-family="Helvetica, Arial, sans-serif" font-size="13" fill="#495057">  The order here keeps the wires straight.</text>
-<text xml:space="preserve" x="1440" y="495.5" font-family="Helvetica, Arial, sans-serif" font-size="13" fill="#495057">• Mic on 3V3 only. 5V destroys the INMP441.</text>
+<text xml:space="preserve" x="1440" y="495.5" font-family="Helvetica, Arial, sans-serif" font-size="13" fill="#495057">• Mic on 3V3 only (max 3.63 V). 5V destroys it.</text>
 <text xml:space="preserve" x="1440" y="511.75" font-family="Helvetica, Arial, sans-serif" font-size="13" fill="#495057">• Every LED has its own resistor. Two LEDs on</text>
 <text xml:space="preserve" x="1440" y="528.0" font-family="Helvetica, Arial, sans-serif" font-size="13" fill="#495057">  one resistor never light evenly.</text>
 <text xml:space="preserve" x="1440" y="544.25" font-family="Helvetica, Arial, sans-serif" font-size="13" fill="#495057">• LED long leg (anode) to the resistor; short</text>
@@ -220,6 +223,10 @@
 <text xml:space="preserve" x="1440" y="723.0" font-family="Helvetica, Arial, sans-serif" font-size="13" fill="#495057">  is normal: D6 also carries the boot messages.</text>
 <text xml:space="preserve" x="1440" y="739.25" font-family="Helvetica, Arial, sans-serif" font-size="13" fill="#495057">• L/R to GND = left channel, as the firmware</text>
 <text xml:space="preserve" x="1440" y="755.5" font-family="Helvetica, Arial, sans-serif" font-size="13" fill="#495057">  reads it.</text>
-<text xml:space="preserve" x="1440" y="771.75" font-family="Helvetica, Arial, sans-serif" font-size="13" fill="#495057">• Every ground symbol (three bars) is GND;</text>
-<text xml:space="preserve" x="1440" y="788.0" font-family="Helvetica, Arial, sans-serif" font-size="13" fill="#495057">  they are all joined together.</text>
+<text xml:space="preserve" x="1440" y="771.75" font-family="Helvetica, Arial, sans-serif" font-size="13" fill="#495057">• Arduino IDE: keep USB CDC On Boot = Enabled.</text>
+<text xml:space="preserve" x="1440" y="788.0" font-family="Helvetica, Arial, sans-serif" font-size="13" fill="#495057">  D6/D7 are also the serial pins.</text>
+<text xml:space="preserve" x="1440" y="804.25" font-family="Helvetica, Arial, sans-serif" font-size="13" fill="#495057">• Charging runs at 100 mA: an empty battery</text>
+<text xml:space="preserve" x="1440" y="820.5" font-family="Helvetica, Arial, sans-serif" font-size="13" fill="#495057">  needs about a day (switch ON, USB in).</text>
+<text xml:space="preserve" x="1440" y="836.75" font-family="Helvetica, Arial, sans-serif" font-size="13" fill="#495057">• Every ground symbol (three bars) is GND;</text>
+<text xml:space="preserve" x="1440" y="853.0" font-family="Helvetica, Arial, sans-serif" font-size="13" fill="#495057">  they are all joined together.</text>
 </svg>

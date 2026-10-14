@@ -94,13 +94,13 @@ All on the XIAO ESP32-S3. Pin budget: **6 of 11 GPIO** for the core build (D3, D
 | Mic SCK | D8 | 7 | |
 | Mic WS | D9 | 8 | |
 | Mic SD | D10 | 9 | |
-| Mic VDD | 3V3 | — | **never 5V** |
+| Mic VDD | 3V3 | — | **never 5V** (INMP441 absolute maximum 3.63 V) |
 | Mic GND + L/R | GND | — | L/R tied low = left channel |
 | LED trachea | D6 | 43 | through its own 100 Ω |
 | LED lung lobes (×2) | D7 | 44 | two LEDs in parallel, **one 100 Ω each, never one shared** |
 | LED "AI" of the wordmark | D3 | 4 | through its own 100 Ω; power and status light |
 | LED cathodes (short leg, flat side) | GND | — | |
-| Battery level (optional) | D1 | 2 | 2 × 100 kΩ divider from BAT+ (after the switch) to GND; then `PIN_BATTERY = 2` |
+| Battery level (optional) | D1 | 2 | 2 × 100 kΩ divider from BAT+ (after the switch) to GND, + 100 nF from D1 to GND; then `PIN_BATTERY = 2`. **Never wire BAT+ straight to D1:** a full battery is 4.2 V, the pins take 3.6 V |
 | ECG output (optional) | D0 | 1 | ADC1 |
 | ECG lead-off LO+ (optional) | D2 | 3 | LO− stays unwired (no pin left); lead-off can also be seen in the signal |
 | MAX30102 SDA/SCL (optional) | D4 / D5 | 5 / 6 | |
@@ -114,9 +114,10 @@ All on the XIAO ESP32-S3. Pin budget: **6 of 11 GPIO** for the core build (D3, D
 - Power budget (estimate, measured in E6): XIAO streaming over Bluetooth ~100–120 mA, mic 1.4 mA, LEDs ≤ 20 mA → ~140 mA, roughly 17 h on 2500 mAh. LEDs that are off draw nothing.
 - The XIAO's 5V pin is **only live when USB is connected**, and its 3V3 pin is not for anything big. Power a future add-on from the battery terminals, wired as a star.
 - The switch cuts BAT+, and BAT+ is also the charging path: **the battery charges over USB-C only with the switch ON.** Whether an awake ESP32 slows the charging is measured in F7, not assumed.
-- D6 and D7 are also the chip's serial pins: a short flicker of the trachea LED at power-on is normal.
+- D6 and D7 are also the chip's serial pins: a short flicker of the trachea LED at power-on is normal, and the Arduino IDE must keep **USB CDC On Boot: Enabled** so the serial port stays on USB.
+- Charging runs at 100 mA (Seeed), so an empty 2500 mAh battery needs about a day. Charge two nights before a demo.
 
-**Battery connection chain:** battery JST plug → socket-socket adapter → open-end cable → switch on the positive wire → soldered to BAT+ / BAT−.
+**Battery connection chain:** battery JST plug → socket-socket adapter → open-end cable → switch on the positive wire → soldered to BAT+ / BAT−. **BAT− is the pad nearer the USB-C port** (Seeed); the board has no reverse-polarity protection.
 Check polarity with a multimeter before the first solder; mark the positive wire with tape.
 
 ---

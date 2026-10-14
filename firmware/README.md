@@ -21,7 +21,7 @@ Audio runs in its own task on core 1, so Bluetooth and the LEDs can't make it mi
 1. *File → Preferences → Additional boards manager URLs:* `https://espressif.github.io/arduino-esp32/package_esp32_index.json`
 2. *Boards Manager:* install **esp32 by Espressif** (3.x).
 3. *Library Manager:* install **NimBLE-Arduino** (2.x). The LEDs need no library: they use the core's `ledcAttach` / `ledcWrite` (esp32 core 3.x).
-4. *Tools → Board:* **XIAO_ESP32S3**. *Tools → USB CDC On Boot:* **Enabled** (so the serial monitor works).
+4. *Tools → Board:* **XIAO_ESP32S3**. *Tools → USB CDC On Boot:* **Enabled** (so the serial monitor works over USB, and the serial port stays off D6/D7, which drive the LEDs).
 5. Open `firmware/respirai/respirai.ino`, upload, open the serial monitor at 115200.
 
 **Or from the command line:**
