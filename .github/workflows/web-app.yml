@@ -53,6 +53,6 @@ jobs:
           cat tests.log
           echo "::notice title=Web app tests::$(grep -E '^[a-z-]+: ' tests.log | paste -sd ';')"
           echo "::notice title=Details::$(grep -E '^    INFO' tests.log | sed 's/^ *INFO //' | paste -sd ';')"
-          grep -E '^    FAIL' tests.log | head -10 | while read -r line; do echo "::error title=Failed check::${line}"; done
+          { grep -E '^    FAIL' tests.log || true; } | head -10 | while read -r line; do echo "::error title=Failed check::${line}"; done   # none: fine
           { echo "### Web app tests"; echo '```'; cat tests.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           exit "$status"
