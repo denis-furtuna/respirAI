@@ -48,7 +48,11 @@ jobs:
       - name: Run app/tests/run.py
         run: |
           google-chrome --version
-          python app/tests/run.py 2>&1 | tee tests.log
+          status=0
+          python app/tests/run.py > tests.log 2>&1 || status=$?
+          cat tests.log
           echo "::notice title=Web app tests::$(grep -E '^[a-z-]+: ' tests.log | paste -sd ';')"
           echo "::notice title=Details::$(grep -E '^    INFO' tests.log | sed 's/^ *INFO //' | paste -sd ';')"
+          grep -E '^    FAIL' tests.log | head -10 | while read -r line; do echo "::error title=Failed check::${line}"; done
           { echo "### Web app tests"; echo '```'; cat tests.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"

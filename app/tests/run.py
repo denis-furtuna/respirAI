@@ -56,6 +56,7 @@ def run_page(url):
 
 
 def main():
+    sys.stdout.reconfigure(encoding="utf-8")   # check names have arrows; a Windows console would refuse them
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("suites", nargs="*", default=SUITES, help=f"any of: {', '.join(SUITES)}")
     parser.add_argument("--real", metavar="URL", help="test a real AI server that serves the app at URL")
