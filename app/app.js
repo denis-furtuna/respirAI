@@ -46,6 +46,10 @@ const bluetooth = params.has("fakebt") ? (window.fakeBt = fakeBluetooth(Object.f
 // instead (contract 2: ai/server.py, or app/dev/dev_server.py), e.g. the laptop's own address when it serves the app.
 const settings = { server: "", seconds: 18, demo: "", textSize: "100", theme: "auto", voice: false, lang: "", welcomed: false };
 try { Object.assign(settings, JSON.parse(localStorage.getItem("respirai") || "{}")); } catch (e) { /* private mode */ }
+if (native) {   // the phone app always analyses on the phone: nothing it records ever leaves it (Google Play's data safety form)
+  settings.server = "";
+  $("server").closest("label").hidden = true;
+}
 const api = (path) => settings.server + path;
 
 const darkSystem = matchMedia("(prefers-color-scheme: dark)");

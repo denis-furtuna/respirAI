@@ -29,6 +29,12 @@ Not committed: datasets (`ai/data/`) and trained models (`ai/weights/`). Committ
 
 The notebook clones this repo from GitHub to get the code, so **push your changes before running it**.
 
+## On the phone
+
+The app runs this same AI on the phone, with no server: [`app/ai/pipeline.js`](../app/ai/pipeline.js) is `preprocess.py`, `quality.py` and `combine()` in JavaScript, and the model runs with ONNX Runtime Web. To give the phone the trained model, copy `resp_cnn.onnx` and `resp_cnn.json` (and `demo_clips/`, if any) into [`app/model/`](../app/model/README.md) and push.
+
+**Change the preprocessing or the quality check here, and `pipeline.js` must change the same way.** GitHub checks it on every push: [`app/tests/make_golden.py`](../app/tests/make_golden.py) runs these Python files on a set of recordings, and `app/tests/ai.html` fails if the JavaScript gives different numbers anywhere. The app also refuses a model whose `resp_cnn.json` preprocessing settings differ from its own.
+
 ## Run the server
 
 ```bash

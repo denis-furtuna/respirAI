@@ -7,6 +7,7 @@
                                                app/dev/dev_server.py), which must serve the app at that address
 
 Each suite is a page in this folder that drives the real app in an iframe and writes PASS/FAIL lines.
+The `ai` suite needs files made on GitHub (see make_golden.py and .github/workflows/web-app.yml); without them it is skipped.
 Chrome is found automatically, or set CHROME to its path. Exits with 1 if anything failed.
 """
 import argparse

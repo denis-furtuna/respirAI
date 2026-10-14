@@ -13,6 +13,7 @@ const realWait = () => fetch("/health");   // the test browser fast-forwards tim
 const bytes = (b64) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)).buffer;
 const maxDiff = (a, b) => { let m = 0; for (let i = 0; i < a.length; i++) m = Math.max(m, Math.abs(a[i] - b[i])); return m; };
 const g = await (await fetch("/tests/golden/golden.json")).json();
+const worst = { audio: 0, specs: 0, quality: 0, confidence: 0, probs: 0 };   // the largest differences, reported at the end
 
 check("same preprocessing settings as preprocess.params()", JSON.stringify(pp.params()) === JSON.stringify(g.params), JSON.stringify(g.params));
 
@@ -38,13 +39,16 @@ for (const r of g.recordings) {
   const x = new Int16Array(bytes(r.samples));
   const q = pp.quality(x, r.sr);
   const checksOk = Object.keys(r.quality.checks).every((k) => Math.abs(q.checks[k] - r.quality.checks[k]) <= 0.011);
+  worst.quality = Math.max(worst.quality, Math.abs(q.score - r.quality.score));
   check(`${r.name}: quality`, Math.abs(q.score - r.quality.score) <= 0.011 && checksOk, `js ${JSON.stringify(q)} py ${JSON.stringify(r.quality)}`);
   if (r.specs) {
     const clean = pp.clean(x, r.sr), pyClean = new Float32Array(bytes(r.clean));
     const peak = pyClean.reduce((m, v) => Math.max(m, Math.abs(v)), 1e-9);
+    worst.audio = Math.max(worst.audio, maxDiff(clean, pyClean) / peak);
     check(`${r.name}: resampled + band-passed audio`, clean.length === pyClean.length && maxDiff(clean, pyClean) / peak < 1e-4,
       `length ${clean.length}/${pyClean.length}, max diff ${(maxDiff(clean, pyClean) / peak).toExponential(2)} of peak`);
     const { specs, count, starts } = pp.recordingToSpecs(x, r.sr), pySpecs = new Float32Array(bytes(r.specs));
+    worst.specs = Math.max(worst.specs, maxDiff(specs, pySpecs));
     check(`${r.name}: ${r.count} windows, same starts, log-mel spectrograms`, count === r.count && JSON.stringify(starts) === JSON.stringify(r.starts)
       && specs.length === pySpecs.length && maxDiff(specs, pySpecs) < 2e-3, `max diff ${maxDiff(specs, pySpecs).toExponential(2)} (standardised dB)`);
   }
@@ -54,6 +58,7 @@ for (const r of g.recordings) {
     continue;
   }
   const js = answer.result || {}, py = r.service;
+  worst.confidence = Math.max(worst.confidence, Math.abs(js.confidence - py.confidence));
   check(`${r.name}: the whole answer (POST /analyze)`, js.finding === py.finding && Math.abs(js.confidence - py.confidence) <= 0.011
     && Math.abs(js.quality - py.quality) <= 0.011 && js.model_version === py.model_version && js.point === py.point,
     `js ${JSON.stringify(js)} py ${JSON.stringify(py)}`);
@@ -66,6 +71,7 @@ const session = await ort.InferenceSession.create("/tests/golden/model/resp_cnn.
 const r0 = g.recordings.find((r) => r.name === "breath-18s");
 const logits = (await session.run({ spec: new ort.Tensor("float32", new Float32Array(bytes(r0.specs)), [r0.count, 1, pp.N_MELS, pp.N_FRAMES]) })).logits.data;
 const probs = pp.softmax(logits);
+worst.probs = maxDiff(probs, r0.window_probs.flat());
 check("model probabilities per window (ONNX Runtime Web vs onnxruntime)", maxDiff(probs, r0.window_probs.flat()) < 1e-4, `max diff ${maxDiff(probs, r0.window_probs.flat()).toExponential(2)}`);
 const mine = pp.finding(pp.combine(probs));
 check("windows combined into the same answer", mine.finding === r0.analysis.finding && Math.abs(mine.confidence - r0.analysis.confidence) <= 0.011
@@ -76,5 +82,7 @@ check("demo mode with a model: the demo clip, analysed", demo.result?.demo === t
   && Math.abs(demo.result.quality - g.demo.quality) <= 0.011 && Math.abs(demo.result.confidence - g.demo.confidence) <= 0.011, `js ${JSON.stringify(demo.result)} py ${JSON.stringify(g.demo)}`);
 const noClip = await ask({ type: "analyze", point: "Tc", demo: true, demoCase: "crackles" });
 check("demo mode, no clip for that place: refused like the server (404)", noClip.error?.status === 404, JSON.stringify(noClip));
+out.push(`INFO largest differences, JavaScript vs Python: audio ${worst.audio.toExponential(1)} of peak, spectrogram ${worst.specs.toExponential(1)} (standardised dB), `
+  + `quality ${worst.quality}, confidence ${worst.confidence.toFixed(3)}, model probabilities ${worst.probs.toExponential(1)}`);
 document.getElementById("out").textContent = out.join("\n") + "\nDONE";
 </script>

@@ -50,4 +50,5 @@ jobs:
           google-chrome --version
           python app/tests/run.py 2>&1 | tee tests.log
           echo "::notice title=Web app tests::$(grep -E '^[a-z-]+: ' tests.log | paste -sd ';')"
+          echo "::notice title=Details::$(grep -E '^    INFO' tests.log | sed 's/^ *INFO //' | paste -sd ';')"
           { echo "### Web app tests"; echo '```'; cat tests.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"

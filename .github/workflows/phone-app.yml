@@ -85,9 +85,32 @@ jobs:
           cp phone/store/* out/
           ls -l out
           echo "::notice title=Phone app::version code ${RESPIRAI_VERSION_CODE}; $(ls out | paste -sd ';'); APK $(du -h out/*.apk | cut -f1)"
+          # What Android and Google Play will see: package, SDK levels, permissions (location must stop at Android 11)
+          aapt2="$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)aapt2"
+          "$aapt2" dump badging out/*.apk | grep -E "^(package|minSdkVersion|targetSdkVersion|uses-permission|application-label:)" | tee badging.txt
+          echo "::notice title=APK manifest::$(sed "s/'//g" badging.txt | paste -sd ';')"
+          unzip -l out/*.apk | grep -oE "assets/public/(index.html|app.js|native.js|native/plugins.js|ai/worker.js|privacy.html|vendor/onnxruntime-web/ort-wasm-simd-threaded.wasm)$" | tee files.txt
+          test "$(wc -l < files.txt)" -eq 7 || { echo "::error title=APK::the web app's files are not all in the APK"; exit 1; }
 
       - uses: actions/upload-artifact@v7
         with:
           name: respirAI-android-${{ github.run_number }}
           path: out/
           retention-days: 30
+
+      # The test APK in an Android emulator: phone/emulator_check.py drives the app inside its WebView.
+      - name: Let the emulator use the processor's virtualisation (KVM)
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          pip install --quiet websocket-client==1.9.2
+
+      - name: Check the app in an Android 15 emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          script: python phone/emulator_check.py out/respirAI-test-${{ github.run_number }}.apk
