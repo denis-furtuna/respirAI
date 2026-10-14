@@ -17,6 +17,10 @@ export default {
   "connect.connecting": "Connexion…",
   "connect.noBluetooth": "Ce navigateur ne peut pas utiliser le Bluetooth. Ouvrez cette page dans Chrome sur un téléphone Android ou un ordinateur, ou faites un essai.",
   "connect.bluetoothOff": "Le Bluetooth est désactivé. Activez-le, puis connectez l'appareil.",
+  "picker.scanning": "Recherche de l'appareil…",
+  "picker.cancel": "Annuler",
+  "picker.devices": "Choisissez votre appareil respirAI",
+  "picker.none": "Aucun appareil trouvé. Est-il allumé ?",
 
   "device.battery": "Batterie {pct}",
   "device.problem": "L'appareil ne reçoit aucun son de son microphone. Éteignez-le, puis rallumez-le. Si cela continue, vérifiez les fils du microphone.",
@@ -81,12 +85,14 @@ export default {
 
   "error.noSound": "Aucun son n'est arrivé de l'appareil. Vérifiez qu'il est allumé, puis enregistrez de nouveau.",
   "error.server": "Le serveur d'analyse a rencontré un problème. Réessayez dans un instant.",
+  "error.local": "L'analyse sur ce téléphone a rencontré un problème. Réessayez dans un instant.",
   "error.rejected": "L'enregistrement n'a pas pu être analysé. Veuillez l'enregistrer de nouveau.",
   "error.badAnswer": "Le serveur d'analyse a envoyé une réponse que l'application ne comprend pas.",
   "error.timeout": "Le serveur d'analyse a mis trop de temps à répondre.",
   "error.unreachable": "Impossible de joindre le serveur respirAI. Vérifiez la connexion internet et réessayez.",
   "error.bluetoothOff": "Le Bluetooth est désactivé. Activez-le, puis réessayez.",
   "error.notAllowed": "Cette page n'a pas le droit d'utiliser le Bluetooth. Autorisez-le dans les paramètres du navigateur, puis réessayez.",
+  "error.notAllowedApp": "respirAI n'a pas le droit d'utiliser le Bluetooth. Dans les paramètres du téléphone, autorisez respirAI à rechercher les appareils à proximité, puis réessayez.",
   "error.connect": "Impossible de connecter l'appareil. Vérifiez qu'il est allumé et proche du téléphone, puis réessayez.",
 
   "chip.notRecorded": "Non enregistré",
@@ -144,6 +150,7 @@ export default {
   "settings.theme.dark": "Sombre",
   "settings.team": "Pour l'équipe. Inutile pour un contrôle normal.",
   "settings.server": "Adresse du serveur d'IA",
+  "settings.onPhone": "Vide : l'IA fonctionne sur ce téléphone",
   "settings.seconds": "Secondes par endroit",
   "settings.demo": "Mode démo",
   "settings.demo.off": "Désactivé : analyser les vrais enregistrements",

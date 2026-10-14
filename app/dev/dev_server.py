@@ -85,7 +85,8 @@ else:
 # ---------- HTTP ----------
 class Handler(SimpleHTTPRequestHandler):
     extensions_map = {**SimpleHTTPRequestHandler.extensions_map, ".js": "text/javascript", ".css": "text/css",
-                      ".ogg": "audio/ogg", ".wav": "audio/wav", ".json": "application/json", ".webmanifest": "application/manifest+json"}
+                      ".ogg": "audio/ogg", ".wav": "audio/wav", ".json": "application/json", ".webmanifest": "application/manifest+json",
+                      ".mjs": "text/javascript", ".wasm": "application/wasm"}   # ONNX Runtime Web (the AI on the phone)
 
     def translate_path(self, path):
         """URL path -> file, only ever inside app/ or ai/demo_clips/ (no "../" or "..\\" way out)."""

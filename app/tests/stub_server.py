@@ -20,7 +20,7 @@ APP = Path(__file__).resolve().parents[1]
 
 class Handler(SimpleHTTPRequestHandler):
     extensions_map = {**SimpleHTTPRequestHandler.extensions_map, ".js": "text/javascript", ".wav": "audio/wav",
-                      ".webmanifest": "application/manifest+json"}
+                      ".webmanifest": "application/manifest+json", ".mjs": "text/javascript", ".wasm": "application/wasm"}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(APP), **kwargs)

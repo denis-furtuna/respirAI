@@ -17,6 +17,10 @@ export default {
   "connect.connecting": "Wird verbunden…",
   "connect.noBluetooth": "Dieser Browser kann kein Bluetooth verwenden. Öffnen Sie die Seite in Chrome auf einem Android-Telefon oder Computer, oder starten Sie einen Probelauf.",
   "connect.bluetoothOff": "Bluetooth ist ausgeschaltet. Schalten Sie es ein und verbinden Sie dann das Gerät.",
+  "picker.scanning": "Gerät wird gesucht…",
+  "picker.cancel": "Abbrechen",
+  "picker.devices": "Wählen Sie Ihr respirAI-Gerät",
+  "picker.none": "Kein Gerät gefunden. Ist es eingeschaltet?",
 
   "device.battery": "Akku {pct}",
   "device.problem": "Das Gerät empfängt keinen Ton vom Mikrofon. Schalten Sie es aus und wieder ein. Wenn das bleibt, prüfen Sie die Kabel des Mikrofons.",
@@ -81,12 +85,14 @@ export default {
 
   "error.noSound": "Vom Gerät kam kein Ton an. Prüfen Sie, ob es eingeschaltet ist, und nehmen Sie erneut auf.",
   "error.server": "Der Analyseserver hatte ein Problem. Versuchen Sie es gleich noch einmal.",
+  "error.local": "Bei der Analyse auf diesem Telefon ist ein Problem aufgetreten. Versuchen Sie es gleich noch einmal.",
   "error.rejected": "Die Aufnahme konnte nicht ausgewertet werden. Bitte nehmen Sie sie erneut auf.",
   "error.badAnswer": "Der Analyseserver hat eine Antwort gesendet, die die App nicht versteht.",
   "error.timeout": "Der Analyseserver hat zu lange gebraucht.",
   "error.unreachable": "Der respirAI-Server ist nicht erreichbar. Prüfen Sie die Internetverbindung und versuchen Sie es erneut.",
   "error.bluetoothOff": "Bluetooth ist ausgeschaltet. Schalten Sie es ein und versuchen Sie es erneut.",
   "error.notAllowed": "Diese Seite darf Bluetooth nicht verwenden. Erlauben Sie es in den Browser-Einstellungen und versuchen Sie es erneut.",
+  "error.notAllowedApp": "respirAI darf Bluetooth nicht verwenden. Erlauben Sie respirAI in den Telefoneinstellungen, Geräte in der Nähe zu finden, und versuchen Sie es erneut.",
   "error.connect": "Das Gerät konnte nicht verbunden werden. Prüfen Sie, ob es eingeschaltet ist und nahe am Telefon liegt, und versuchen Sie es erneut.",
 
   "chip.notRecorded": "Nicht aufgenommen",
@@ -144,6 +150,7 @@ export default {
   "settings.theme.dark": "Dunkel",
   "settings.team": "Für das Team. Für einen normalen Check nicht nötig.",
   "settings.server": "Adresse des KI-Servers",
+  "settings.onPhone": "Leer: Die KI läuft auf diesem Telefon",
   "settings.seconds": "Sekunden pro Stelle",
   "settings.demo": "Demomodus",
   "settings.demo.off": "Aus: echte Aufnahmen auswerten",

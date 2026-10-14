@@ -1,0 +1,80 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>AI equivalence test</title>
+<!-- The on-phone AI (ai/pipeline.js, ai/worker.js with ONNX Runtime Web) against the Python AI, number for number,
+     on the recordings and stand-in model that make_golden.py wrote to golden/. Needs golden/ and vendor/onnxruntime-web/,
+     which the GitHub workflow makes; run.py skips this suite when they are missing. -->
+<pre id="out">running</pre>
+<script type="module">
+import * as pp from "/ai/pipeline.js";
+const out = [];
+const check = (name, ok, extra = "") => out.push(`${ok ? "PASS" : "FAIL"} ${name} ${extra}`);
+const realWait = () => fetch("/health");   // the test browser fast-forwards timers; the worker runs in real time
+const bytes = (b64) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)).buffer;
+const maxDiff = (a, b) => { let m = 0; for (let i = 0; i < a.length; i++) m = Math.max(m, Math.abs(a[i] - b[i])); return m; };
+const g = await (await fetch("/tests/golden/golden.json")).json();
+
+check("same preprocessing settings as preprocess.params()", JSON.stringify(pp.params()) === JSON.stringify(g.params), JSON.stringify(g.params));
+
+// The worker, pointed at the stand-in model (the app's own is app/model/).
+const worker = new Worker("/ai/worker.js?model=/tests/golden/model/", { type: "module" });
+let next = 0;
+const ask = (message) => new Promise(async (resolve) => {
+  const id = ++next;
+  let answer = null;
+  const listen = ({ data }) => { if (data.id === id) answer = data; };
+  worker.addEventListener("message", listen);
+  worker.postMessage({ id, ...message });
+  for (let i = 0; i < 3000 && !answer; i++) await realWait();
+  worker.removeEventListener("message", listen);
+  resolve(answer || { error: { status: 0, message: "no answer" } });
+});
+
+const health = await ask({ type: "health" });
+check("worker loads the model with ONNX Runtime Web", health.result?.model_version === "golden-test" && health.result?.dummy === false && health.result?.demo_clips === 1,
+  JSON.stringify(health));
+
+for (const r of g.recordings) {
+  const x = new Int16Array(bytes(r.samples));
+  const q = pp.quality(x, r.sr);
+  const checksOk = Object.keys(r.quality.checks).every((k) => Math.abs(q.checks[k] - r.quality.checks[k]) <= 0.011);
+  check(`${r.name}: quality`, Math.abs(q.score - r.quality.score) <= 0.011 && checksOk, `js ${JSON.stringify(q)} py ${JSON.stringify(r.quality)}`);
+  if (r.specs) {
+    const clean = pp.clean(x, r.sr), pyClean = new Float32Array(bytes(r.clean));
+    const peak = pyClean.reduce((m, v) => Math.max(m, Math.abs(v)), 1e-9);
+    check(`${r.name}: resampled + band-passed audio`, clean.length === pyClean.length && maxDiff(clean, pyClean) / peak < 1e-4,
+      `length ${clean.length}/${pyClean.length}, max diff ${(maxDiff(clean, pyClean) / peak).toExponential(2)} of peak`);
+    const { specs, count, starts } = pp.recordingToSpecs(x, r.sr), pySpecs = new Float32Array(bytes(r.specs));
+    check(`${r.name}: ${r.count} windows, same starts, log-mel spectrograms`, count === r.count && JSON.stringify(starts) === JSON.stringify(r.starts)
+      && specs.length === pySpecs.length && maxDiff(specs, pySpecs) < 2e-3, `max diff ${maxDiff(specs, pySpecs).toExponential(2)} (standardised dB)`);
+  }
+  const answer = await ask({ type: "analyze", point: "Al", samples: x });
+  if (r.service_error) {
+    check(`${r.name}: refused like the server (${r.service_error})`, answer.error?.status === r.service_error, JSON.stringify(answer));
+    continue;
+  }
+  const js = answer.result || {}, py = r.service;
+  check(`${r.name}: the whole answer (POST /analyze)`, js.finding === py.finding && Math.abs(js.confidence - py.confidence) <= 0.011
+    && Math.abs(js.quality - py.quality) <= 0.011 && js.model_version === py.model_version && js.point === py.point,
+    `js ${JSON.stringify(js)} py ${JSON.stringify(py)}`);
+}
+
+// The model's numbers on the Python spectrograms, with ONNX Runtime Web in this page (no worker), then combined.
+const ort = await import("/vendor/onnxruntime-web/ort.wasm.min.mjs");
+Object.assign(ort.env.wasm, { wasmPaths: "/vendor/onnxruntime-web/", numThreads: 1 });
+const session = await ort.InferenceSession.create("/tests/golden/model/resp_cnn.onnx", { executionProviders: ["wasm"] });
+const r0 = g.recordings.find((r) => r.name === "breath-18s");
+const logits = (await session.run({ spec: new ort.Tensor("float32", new Float32Array(bytes(r0.specs)), [r0.count, 1, pp.N_MELS, pp.N_FRAMES]) })).logits.data;
+const probs = pp.softmax(logits);
+check("model probabilities per window (ONNX Runtime Web vs onnxruntime)", maxDiff(probs, r0.window_probs.flat()) < 1e-4, `max diff ${maxDiff(probs, r0.window_probs.flat()).toExponential(2)}`);
+const mine = pp.finding(pp.combine(probs));
+check("windows combined into the same answer", mine.finding === r0.analysis.finding && Math.abs(mine.confidence - r0.analysis.confidence) <= 0.011
+  && Object.keys(mine.probabilities).every((k) => Math.abs(mine.probabilities[k] - r0.analysis.probabilities[k]) <= 0.0011), `js ${JSON.stringify(mine)} py ${JSON.stringify(r0.analysis)}`);
+
+const demo = await ask({ type: "analyze", point: "Al", demo: true, demoCase: "crackles" });
+check("demo mode with a model: the demo clip, analysed", demo.result?.demo === true && demo.result.finding === g.demo.finding
+  && Math.abs(demo.result.quality - g.demo.quality) <= 0.011 && Math.abs(demo.result.confidence - g.demo.confidence) <= 0.011, `js ${JSON.stringify(demo.result)} py ${JSON.stringify(g.demo)}`);
+const noClip = await ask({ type: "analyze", point: "Tc", demo: true, demoCase: "crackles" });
+check("demo mode, no clip for that place: refused like the server (404)", noClip.error?.status === 404, JSON.stringify(noClip));
+document.getElementById("out").textContent = out.join("\n") + "\nDONE";
+</script>

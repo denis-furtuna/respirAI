@@ -22,7 +22,9 @@ from pathlib import Path
 import stub_server
 
 HERE = Path(__file__).resolve().parent
-SUITES = ["flow", "bluetooth", "no-audio", "languages"]   # against the stub; real-server.html needs --real
+SUITES = ["flow", "bluetooth", "no-audio", "languages", "on-phone", "native", "ai"]   # against the stub; real-server.html needs --real
+# ai.html needs files made on GitHub (make_golden.py needs NumPy, SciPy, ONNX; ONNX Runtime Web comes from npm):
+AI_FILES = [HERE / "golden" / "golden.json", HERE.parent / "vendor" / "onnxruntime-web" / "ort.wasm.min.mjs"]
 CHROMES = [
     os.environ.get("CHROME"),
     r"C:\Program Files\Google\Chrome\Application\chrome.exe",
@@ -59,11 +61,18 @@ def main():
     args = parser.parse_args()
 
     runs = [("real-server", f"{args.real.rstrip('/')}/tests/real-server.html")] if args.real else []
+    failed = 0
     for name in [] if args.real else args.suites:
+        if name == "ai" and not all(f.exists() for f in AI_FILES):
+            if os.environ.get("CI"):   # on GitHub the workflow makes them: missing is a failure, not a skip
+                failed += 1
+                print("ai: FAILED, missing " + ", ".join(str(f) for f in AI_FILES if not f.exists()))
+            else:
+                print("ai: skipped (its files are made on GitHub; see make_golden.py)")
+            continue
         stub = stub_server.start()
         runs.append((name, f"http://127.0.0.1:{stub.server_port}/tests/{name}.html"))
 
-    failed = 0
     for name, url in runs:
         run_page_lines = run_page(url).splitlines()
         lines = [l for l in run_page_lines if l.startswith(("PASS", "FAIL"))]

@@ -1,0 +1,94 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>on-phone AI test</title>
+<!-- The AI on the phone (ai/). Part 1: the sound processing behaves as designed (filter edges, resampling,
+     windows, spectrogram, quality, combining windows). Part 2: a whole check with no AI server, in dummy mode
+     (no model in app/model/), and demo mode. That it matches the Python code number for number is checked by
+     ai.html, which needs the Python packages and runs on GitHub. Run with app/tests/run.py. -->
+<pre id="out">running</pre>
+<iframe id="app" style="width:390px;height:844px"></iframe>
+<script type="module">
+import * as pp from "/ai/pipeline.js";
+const out = [];
+const check = (name, ok, extra = "") => out.push(`${ok ? "PASS" : "FAIL"} ${name} ${extra}`);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// --- 1. the processing ---
+const tone = (hz, seconds = 6, amp = 0.25, sr = 8000) => Int16Array.from({ length: seconds * sr }, (_, i) => Math.round(amp * 32767 * Math.sin((2 * Math.PI * hz * i) / sr)));
+const level = (x) => {   // amplitude of a steady tone, away from the ends
+  const mid = x.subarray(Math.floor(x.length / 4), Math.floor((3 * x.length) / 4));
+  return Math.sqrt(mid.reduce((s, v) => s + v * v, 0) / mid.length) * Math.SQRT2;
+};
+const gain = (hz) => level(pp.clean(tone(hz), 8000)) / 0.25;
+const g = Object.fromEntries([30, 100, 600, 1200, 1800, 3500].map((hz) => [hz, gain(hz)]));
+check("8 kHz -> 4 kHz: half the samples", pp.clean(tone(600), 8000).length === 24000);
+check("pass band kept (600, 1200 Hz)", Math.abs(g[600] - 1) < 0.02 && Math.abs(g[1200] - 1) < 0.02, JSON.stringify(g));
+// Butterworth band edges: -3 dB, applied twice (forwards and backwards). At 1800 Hz the 8 -> 4 kHz resampling filter,
+// which rolls off towards 2 kHz, takes a little more (SciPy's does the same; ai.html compares the two exactly).
+check("band edges: 100 Hz at half amplitude, 1800 Hz just under", Math.abs(g[100] - 0.5) < 0.01 && g[1800] > 0.42 && g[1800] < 0.5, JSON.stringify(g));
+check("heartbeat rumble removed (30 Hz)", g[30] < 0.01);
+check("3.5 kHz removed before halving the rate (no alias at 500 Hz)", g[3500] < 0.01);
+const win = (s) => pp.windows(pp.clean(tone(600, s), 8000)).windows.length;
+check("4 s windows, 2 s apart, tail kept: 18 s -> 8, 5 s -> 2, 3 s -> 1", win(18) === 8 && win(5) === 2 && win(3) === 1, `${win(18)} ${win(5)} ${win(3)}`);
+const spec = pp.logMel(pp.windows(pp.clean(tone(600, 4), 8000)).windows[0]);
+const mean = spec.reduce((a, b) => a + b, 0) / spec.length, sd = Math.sqrt(spec.reduce((a, b) => a + (b - mean) ** 2, 0) / spec.length);
+check("spectrogram 64 x 251, standardised", spec.length === 64 * 251 && Math.abs(mean) < 1e-4 && Math.abs(sd - 1) < 1e-3, `${mean} ${sd}`);
+let loudest = 0;
+for (let m = 0; m < 64; m++) if (spec[m * 251 + 125] > spec[loudest * 251 + 125]) loudest = m;
+const melHz = (m) => { const mel = (f) => (f >= 1000 ? 15 + Math.log(f / 1000) / (Math.log(6.4) / 27) : f / (200 / 3)); const lo = mel(100), hi = mel(1800); const x = lo + ((m + 1) * (hi - lo)) / 65; return x >= 15 ? 1000 * Math.exp((Math.log(6.4) / 27) * (x - 15)) : (x * 200) / 3; };
+check("a 600 Hz tone lights up the 600 Hz mel band", Math.abs(melHz(loudest) - 600) < 40, `band ${loudest} = ${melHz(loudest).toFixed(0)} Hz`);
+
+const noise = (seconds, amp) => Int16Array.from({ length: seconds * 8000 }, () => Math.round((Math.random() * 2 - 1) * amp));
+const q = (x) => pp.quality(x, 8000);
+check("quality: steady breath-like sound -> 1", q(noise(18, 3000)).score === 1, JSON.stringify(q(noise(18, 3000))));
+check("quality: silence -> 0", q(new Int16Array(5 * 8000)).score === 0);
+const clipped = noise(18, 3000); for (let i = 0; i < clipped.length; i += 50) clipped[i] = 32767;
+check("quality: 2 % clipped -> 0", q(clipped).checks.clipping === 0);
+const gappy = noise(18, 3000); for (let i = 0; i < gappy.length; i += 800) gappy.fill(0, i, i + 240);
+check("quality: 30 % lost packets -> 0", q(gappy).checks.dropouts === 0, JSON.stringify(q(gappy).checks));
+const bumped = noise(18, 300); for (let i = 0; i < bumped.length; i += 1200) bumped.fill(30000, i, i + 400);
+check("quality: knocks and rubbing -> 0", q(bumped).checks.handling_noise === 0, JSON.stringify(q(bumped).checks));
+check("quality: 1 s only -> 0.2", q(noise(1, 3000)).score === 0.2);
+const probs = new Float64Array([0.9, 0.05, 0.05, 0, 0.2, 0.7, 0.1, 0, 0.8, 0.1, 0.1, 0]);   // 3 windows
+const c = pp.combine(probs);
+// crackles per window 0.05, 0.7, 0.1 -> top two 0.4; wheezes 0.05, 0.1, 0.1 -> 0.1
+check("windows combined: the two most abnormal windows decide", Math.abs(c.crackles - 0.36) < 1e-9 && Math.abs(c.normal - 0.54) < 1e-9 && Math.abs(c.wheezes - 0.06) < 1e-9 && Math.abs(c.both - 0.04) < 1e-9, JSON.stringify(c));
+check("answer shape", JSON.stringify(pp.finding(c)) === JSON.stringify({ finding: "normal", confidence: 0.54, probabilities: { normal: 0.54, crackles: 0.36, wheezes: 0.06, both: 0.04 } }), JSON.stringify(pp.finding(c)));
+
+// --- 2. a whole check with the AI on the phone (no server set) ---
+localStorage.setItem("respirai", JSON.stringify({ server: "", seconds: 5, demo: "", welcomed: true, lang: "en" }));
+const frame = document.getElementById("app");
+frame.src = "/index.html";
+await new Promise((r) => (frame.onload = r));
+await sleep(300);
+const d = frame.contentDocument, $ = (id) => d.getElementById(id), visible = (id) => !$(id).hidden;
+check("settings say the AI runs on this phone", $("server").value === "" && $("server").placeholder === "Empty: the AI runs on this phone", $("server").placeholder);
+$("btnTest").click();
+// The test browser fast-forwards timers, but the AI worker runs in real time: wait with real round trips.
+const realWait = () => fetch("/health");
+for (let i = 0; i < 300 && /Checking|^$/.test($("testResult").textContent); i++) await realWait();
+check("Test: the on-phone AI answers (dummy mode until a model is added)", $("testResult").textContent === "OK · model dummy-0.0 (dummy answers) · 0 demo clips", $("testResult").textContent);
+async function untilResults() {
+  for (let i = 0; i < 600 && !visible("sResults"); i++) {
+    if (visible("sPoint") && !$("btnNow").hidden) $("btnNow").click();
+    await sleep(300);
+  }
+  for (let i = 0; i < 300 && d.querySelector("#resultList li.todo"); i++) await realWait();
+}
+$("btnPractice").click(); await sleep(1000);
+$("btnBegin").click(); await sleep(500);
+await untilResults();
+const rows = [...d.querySelectorAll("#resultList li")].map((li) => `${li.className}:${li.querySelector(".chip").textContent}:${li.querySelector("small").textContent}`);
+check("results for all 7 places, from the phone: clear, 50 % (dummy answers)", rows.length === 7 && rows.every((r) => r === "ok:Clear:50% confidence"), rows.join(" | "));
+check("overall: no unusual sounds", $("overall").className.includes("ok"), $("overallTitle").textContent);
+check("nothing sent to any server", (await (await fetch("/log")).json()).length === 0);
+
+$("demo").value = "wheezes"; $("demo").dispatchEvent(new Event("change"));
+[...d.querySelectorAll("#resultList li")].find((li) => li.textContent.includes("Right side")).querySelector(".acts .btn:last-child").click();
+await sleep(500);
+await untilResults();
+const row = [...d.querySelectorAll("#resultList li")].find((li) => li.textContent.includes("Right side"));
+check("demo mode on the phone: the example's finding", row.className === "warn" && row.textContent.includes("example recording"), row.textContent.replace(/\s+/g, " "));
+check("still nothing sent to any server", (await (await fetch("/log")).json()).length === 0);
+document.getElementById("out").textContent = out.join("\n") + "\nDONE";
+</script>

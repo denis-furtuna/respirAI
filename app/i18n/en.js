@@ -17,6 +17,10 @@ export default {
   "connect.connecting": "Connecting…",
   "connect.noBluetooth": "This browser can't use Bluetooth. Open this page in Chrome on an Android phone or a computer, or try a practice run.",
   "connect.bluetoothOff": "Bluetooth is switched off. Turn it on, then connect the device.",
+  "picker.scanning": "Looking for the device…",
+  "picker.cancel": "Cancel",
+  "picker.devices": "Choose your respirAI device",
+  "picker.none": "No device found. Is it switched on?",
 
   "device.battery": "Battery {pct}",
   "device.problem": "The device gets no sound from its microphone. Switch it off and on again. If this stays, check the microphone's wires.",
@@ -81,12 +85,14 @@ export default {
 
   "error.noSound": "No sound arrived from the device. Check it is switched on, then record again.",
   "error.server": "The AI server had a problem. Try again in a moment.",
+  "error.local": "The analysis on this phone had a problem. Try again in a moment.",
   "error.rejected": "The recording couldn't be analysed. Please record it again.",
   "error.badAnswer": "The AI server sent an answer this app doesn't understand.",
   "error.timeout": "The AI server took too long to answer.",
   "error.unreachable": "Can't reach the respirAI server. Check the internet connection and try again.",
   "error.bluetoothOff": "Bluetooth is switched off. Turn it on, then try again.",
   "error.notAllowed": "This page isn't allowed to use Bluetooth. Allow it in the browser's settings, then try again.",
+  "error.notAllowedApp": "respirAI isn't allowed to use Bluetooth. In the phone's settings, allow respirAI to find nearby devices, then try again.",
   "error.connect": "Couldn't connect to the device. Make sure it is switched on and close to the phone, then try again.",
 
   "chip.notRecorded": "Not recorded",
@@ -144,6 +150,7 @@ export default {
   "settings.theme.dark": "Dark",
   "settings.team": "For the team. Not needed for a normal check.",
   "settings.server": "AI server address",
+  "settings.onPhone": "Empty: the AI runs on this phone",
   "settings.seconds": "Seconds per place",
   "settings.demo": "Demo mode",
   "settings.demo.off": "Off: analyse the real recordings",

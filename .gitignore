@@ -37,6 +37,17 @@ build/
 node_modules/
 dist/
 .cache/
+# made by the builds and tests on GitHub (phone/README.md, app/tests/make_golden.py), never committed
+app/vendor/
+app/native/
+app/tests/golden/
+phone/www/
+phone/android/
+phone/store/
+site/
+# the upload key for Google Play stays out of the repository
+*.jks
+*.keystore
 
 # --- CAD: slicer output (commit STL/STEP, not G-code) ---
 *.gcode
@@ -46,6 +57,7 @@ dist/
 *.wav
 !ai/demo_clips/*.wav
 !app/dev/recordings/*.wav
+!app/model/demo_clips/*.wav
 
 # --- OS / editor ---
 .DS_Store

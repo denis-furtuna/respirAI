@@ -1,0 +1,23 @@
+{
+  "appId": "ro.respirai.app",
+  "appName": "respirAI",
+  "webDir": "www",
+  "backgroundColor": "#f3f6f9",
+  "android": {
+    "allowMixedContent": false
+  },
+  "plugins": {
+    "SystemBars": {
+      "insetsHandling": "css",
+      "style": "DEFAULT"
+    },
+    "BluetoothLe": {
+      "displayStrings": {
+        "scanning": "Looking for the device…",
+        "cancel": "Cancel",
+        "availableDevices": "Choose your respirAI device",
+        "noDeviceFound": "No device found. Is it switched on?"
+      }
+    }
+  }
+}

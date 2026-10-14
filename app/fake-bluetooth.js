@@ -43,10 +43,12 @@ export function fakeBluetooth({ mtu = 185, drop = 0, disconnectAfter = 0, batter
       if (bytes[0] === 0x20) status();
     }
 
-    function tick() {   // 10 ms of audio (the recording, or breath-like noise), split into packets like the firmware
+    // 10 ms of audio (the recording, or breath-like noise), split into packets like the firmware. The noise swells
+    // over 8 s; its quiet part stays above 1/6 of its loud part, so the AI's quality check never takes it for knocks.
+    function tick() {
       if (disconnectAfter && performance.now() - since > disconnectAfter * 1000) return device.gatt.disconnect();
       const block = Int16Array.from({ length: 80 }, () => recording ? recording[t++ % recording.length]
-        : (Math.random() * 2 - 1) * 4000 * (0.15 + 0.85 * Math.max(0, Math.sin((2 * Math.PI * t++) / 64000))));
+        : (Math.random() * 2 - 1) * 4000 * (0.4 + 0.6 * Math.max(0, Math.sin((2 * Math.PI * t++) / 64000))));
       pending = Int16Array.from([...pending, ...block]);
       for (; pending.length >= samplesPerPacket; pending = pending.slice(samplesPerPacket)) {
         const view = new DataView(new ArrayBuffer(2 + 2 * samplesPerPacket));

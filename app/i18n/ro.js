@@ -17,6 +17,10 @@ export default {
   "connect.connecting": "Se conectează…",
   "connect.noBluetooth": "Acest browser nu poate folosi Bluetooth. Deschideți pagina în Chrome pe un telefon Android sau pe un calculator, sau faceți o probă.",
   "connect.bluetoothOff": "Bluetooth este oprit. Porniți-l, apoi conectați dispozitivul.",
+  "picker.scanning": "Se caută dispozitivul…",
+  "picker.cancel": "Anulare",
+  "picker.devices": "Alegeți dispozitivul respirAI",
+  "picker.none": "Nu s-a găsit niciun dispozitiv. Este pornit?",
 
   "device.battery": "Baterie {pct}",
   "device.problem": "Dispozitivul nu primește sunet de la microfon. Opriți-l și porniți-l din nou. Dacă problema rămâne, verificați firele microfonului.",
@@ -86,12 +90,14 @@ export default {
 
   "error.noSound": "Nu a ajuns niciun sunet de la dispozitiv. Verificați dacă este pornit, apoi înregistrați din nou.",
   "error.server": "Serverul de analiză a avut o problemă. Încercați din nou peste puțin timp.",
+  "error.local": "Analiza pe acest telefon a avut o problemă. Încercați din nou peste câteva momente.",
   "error.rejected": "Înregistrarea nu a putut fi analizată. Vă rugăm să o faceți din nou.",
   "error.badAnswer": "Serverul de analiză a trimis un răspuns pe care aplicația nu îl înțelege.",
   "error.timeout": "Serverul de analiză nu a răspuns la timp.",
   "error.unreachable": "Serverul respirAI nu poate fi contactat. Verificați conexiunea la internet și încercați din nou.",
   "error.bluetoothOff": "Bluetooth este oprit. Porniți-l, apoi încercați din nou.",
   "error.notAllowed": "Pagina nu are voie să folosească Bluetooth. Permiteți acest lucru din setările browserului, apoi încercați din nou.",
+  "error.notAllowedApp": "respirAI nu are voie să folosească Bluetooth. Din setările telefonului, permiteți aplicației respirAI să găsească dispozitive din apropiere, apoi încercați din nou.",
   "error.connect": "Dispozitivul nu s-a putut conecta. Verificați dacă este pornit și aproape de telefon, apoi încercați din nou.",
 
   "chip.notRecorded": "Neînregistrat",
@@ -149,6 +155,7 @@ export default {
   "settings.theme.dark": "Întunecat",
   "settings.team": "Pentru echipă. Nu sunt necesare pentru o verificare obișnuită.",
   "settings.server": "Adresa serverului AI",
+  "settings.onPhone": "Gol: analiza se face pe acest telefon",
   "settings.seconds": "Secunde pentru fiecare loc",
   "settings.demo": "Mod demo",
   "settings.demo.off": "Oprit: se analizează înregistrările reale",

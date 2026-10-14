@@ -1,12 +1,14 @@
-# Runs the web app's browser tests (app/tests/run.py: flow, Bluetooth, no audio, languages) in headless Chrome
-# on GitHub's machines on every push that touches the app. Plain Python, nothing else to install.
+# Runs the web app's browser tests (app/tests/run.py: flow, Bluetooth, no audio, languages, the AI on the phone,
+# the phone app's Bluetooth) in headless Chrome on GitHub's machines on every push that touches the app or the AI.
+# The `ai` suite compares the on-phone AI with the Python AI number for number: make_golden.py runs the Python side
+# (NumPy, SciPy, ONNX: installed here, never needed on a laptop) and ONNX Runtime Web comes from npm.
 name: Web app tests
 
 on:
   push:
-    paths: ["app/**", ".github/workflows/web-app.yml"]
+    paths: ["app/**", "ai/**", "phone/package.json", ".github/workflows/web-app.yml"]
   pull_request:
-    paths: ["app/**", ".github/workflows/web-app.yml"]
+    paths: ["app/**", "ai/**", "phone/package.json", ".github/workflows/web-app.yml"]
   workflow_dispatch:
 
 permissions:
@@ -16,7 +18,7 @@ jobs:
   test:
     name: Browser tests
     runs-on: ubuntu-24.04   # pinned: ubuntu-latest moves to a new release on its own
-    timeout-minutes: 20
+    timeout-minutes: 30
     defaults:
       run:
         shell: bash
@@ -26,6 +28,22 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: The Python AI's reference answers (app/tests/make_golden.py)
+        run: |
+          pip install --quiet numpy==2.5.3 scipy==1.18.1 pandas==3.0.6 onnx==1.23.1 onnxruntime==1.30.0
+          python app/tests/make_golden.py
+
+      - name: ONNX Runtime Web, the version phone/package.json ships
+        run: |
+          version=$(python -c "import json; print(json.load(open('phone/package.json'))['devDependencies']['onnxruntime-web'])")
+          npm install --prefix "$RUNNER_TEMP/ort" --ignore-scripts --no-audit --no-fund "onnxruntime-web@$version"
+          mkdir -p app/vendor/onnxruntime-web
+          cp "$RUNNER_TEMP/ort/node_modules/onnxruntime-web/dist/"{ort.wasm.min.mjs,ort-wasm-simd-threaded.mjs,ort-wasm-simd-threaded.wasm} app/vendor/onnxruntime-web/
 
       - name: Run app/tests/run.py
         run: |

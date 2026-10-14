@@ -1,0 +1,93 @@
+# Builds the Android app (phone/README.md) on GitHub's machines: nothing to install on a laptop.
+# Every push: a test APK to install on a phone (Actions -> this run -> Artifacts).
+# With the upload key in the repository's secrets: also the signed bundle (.aab) for Google Play.
+name: Phone app
+
+on:
+  push:
+    branches: [phone-app]
+    paths: ["app/**", "phone/**", ".github/workflows/phone-app.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    name: Android build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: bash
+    env:
+      HAS_UPLOAD_KEY: ${{ secrets.RESPIRAI_KEYSTORE_BASE64 != '' }}
+      RESPIRAI_VERSION_CODE: ${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"   # Capacitor 8 needs 22+
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Packages (exact versions from phone/package.json, no install scripts)
+        working-directory: phone
+        run: npm install --ignore-scripts --no-audit --no-fund
+
+      - name: The web app, ONNX Runtime Web and the plugins into www/
+        working-directory: phone
+        run: |
+          python build_web.py www
+          npx esbuild plugins.js --bundle --format=esm --target=es2020 --outfile=www/native/plugins.js
+
+      - name: Android project (made fresh, then set up by android_setup.py)
+        working-directory: phone
+        run: |
+          pip install --quiet pillow==12.3.0
+          npx cap add android
+          python android_setup.py
+          npx cap sync android
+
+      - name: Test APK
+        working-directory: phone/android
+        run: ./gradlew --no-daemon assembleDebug
+
+      - name: Signed bundle for Google Play
+        if: env.HAS_UPLOAD_KEY == 'true'
+        working-directory: phone/android
+        env:
+          KEYSTORE_BASE64: ${{ secrets.RESPIRAI_KEYSTORE_BASE64 }}
+          RESPIRAI_KEYSTORE_PASSWORD: ${{ secrets.RESPIRAI_KEYSTORE_PASSWORD }}
+          RESPIRAI_KEY_ALIAS: ${{ secrets.RESPIRAI_KEY_ALIAS }}
+          RESPIRAI_KEY_PASSWORD: ${{ secrets.RESPIRAI_KEY_PASSWORD }}
+        run: |
+          export RESPIRAI_KEYSTORE="$RUNNER_TEMP/upload.jks"
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RESPIRAI_KEYSTORE"
+          ./gradlew --no-daemon bundleRelease
+          rm -f "$RESPIRAI_KEYSTORE"
+
+      - name: Name the files
+        run: |
+          mkdir -p out
+          cp phone/android/app/build/outputs/apk/debug/app-debug.apk "out/respirAI-test-${RESPIRAI_VERSION_CODE}.apk"
+          if [ -f phone/android/app/build/outputs/bundle/release/app-release.aab ]; then
+            cp phone/android/app/build/outputs/bundle/release/app-release.aab "out/respirAI-${RESPIRAI_VERSION_CODE}.aab"
+          fi
+          cp phone/store/* out/
+          ls -l out
+          echo "::notice title=Phone app::version code ${RESPIRAI_VERSION_CODE}; $(ls out | paste -sd ';'); APK $(du -h out/*.apk | cut -f1)"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: respirAI-android-${{ github.run_number }}
+          path: out/
+          retention-days: 30

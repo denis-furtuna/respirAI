@@ -17,6 +17,10 @@ export default {
   "connect.connecting": "Conectando…",
   "connect.noBluetooth": "Este navegador no puede usar Bluetooth. Abra esta página en Chrome en un teléfono Android o en un ordenador, o haga una prueba.",
   "connect.bluetoothOff": "El Bluetooth está desactivado. Actívelo y conecte el dispositivo.",
+  "picker.scanning": "Buscando el dispositivo…",
+  "picker.cancel": "Cancelar",
+  "picker.devices": "Elija su dispositivo respirAI",
+  "picker.none": "No se ha encontrado ningún dispositivo. ¿Está encendido?",
 
   "device.battery": "Batería {pct}",
   "device.problem": "El dispositivo no recibe sonido del micrófono. Apáguelo y vuelva a encenderlo. Si sigue igual, revise los cables del micrófono.",
@@ -81,12 +85,14 @@ export default {
 
   "error.noSound": "No ha llegado sonido del dispositivo. Compruebe que está encendido y vuelva a grabar.",
   "error.server": "El servidor de análisis ha tenido un problema. Vuelva a intentarlo en un momento.",
+  "error.local": "El análisis en este teléfono ha tenido un problema. Vuelva a intentarlo en un momento.",
   "error.rejected": "No se pudo analizar la grabación. Vuelva a grabarla, por favor.",
   "error.badAnswer": "El servidor de análisis envió una respuesta que esta aplicación no entiende.",
   "error.timeout": "El servidor de análisis tardó demasiado en responder.",
   "error.unreachable": "No se puede contactar con el servidor de respirAI. Compruebe la conexión a internet y vuelva a intentarlo.",
   "error.bluetoothOff": "El Bluetooth está desactivado. Actívelo y vuelva a intentarlo.",
   "error.notAllowed": "Esta página no tiene permiso para usar Bluetooth. Permítalo en los ajustes del navegador y vuelva a intentarlo.",
+  "error.notAllowedApp": "respirAI no tiene permiso para usar Bluetooth. En los ajustes del teléfono, permita que respirAI busque dispositivos cercanos y vuelva a intentarlo.",
   "error.connect": "No se pudo conectar el dispositivo. Compruebe que está encendido y cerca del teléfono, y vuelva a intentarlo.",
 
   "chip.notRecorded": "Sin grabar",
@@ -144,6 +150,7 @@ export default {
   "settings.theme.dark": "Oscura",
   "settings.team": "Para el equipo. No es necesario para una revisión normal.",
   "settings.server": "Dirección del servidor de IA",
+  "settings.onPhone": "Vacío: la IA funciona en este teléfono",
   "settings.seconds": "Segundos por punto",
   "settings.demo": "Modo demo",
   "settings.demo.off": "Desactivado: analizar las grabaciones reales",

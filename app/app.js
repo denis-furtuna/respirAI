@@ -3,6 +3,8 @@ import { BleDevice, CMD } from "./device.js";
 import { PacketStream, Recording, SAMPLE_RATE, play, stopPlayback, toWav } from "./audio.js";
 import { fakeBluetooth } from "./fake-bluetooth.js";
 import { LANGUAGES, current, dateTime, detect, percent, setLanguage, t } from "./i18n/index.js";
+import { analyzeHere, healthHere } from "./ai/local.js";
+import { native } from "./native.js";   // null in a browser; the phone app's own Bluetooth, speech... (see native.js)
 
 // n is the contract number (0-6). x/y place the dot on the front or back drawing; names are in i18n/ (point.Tc.title…).
 // Left/right are the patient's: on the front view their left is on the viewer's right.
@@ -37,17 +39,14 @@ const calm = matchMedia("(prefers-reduced-motion: reduce)");
 
 // ?fakebt puts a fake device behind "Connect the device" (options in fake-bluetooth.js).
 const params = new URLSearchParams(location.search);
-const bluetooth = params.has("fakebt") ? (window.fakeBt = fakeBluetooth(Object.fromEntries(params))) : navigator.bluetooth;
+const bluetooth = params.has("fakebt") ? (window.fakeBt = fakeBluetooth(Object.fromEntries(params))) : native ? native.bluetooth : navigator.bluetooth;
 
 // ---------- settings (remembered on this phone, behind the icon; voice is on the "before we start" screen) ----------
-// server "": the AI server is the one that served this page (ai/server.py and app/dev/dev_server.py serve both),
-// so the same setting works on the laptop, on a phone over a hotspot, and on a phone over USB (localhost).
+// server "": the AI runs on this phone (ai/local.js), no server or internet needed. An address: that AI server
+// instead (contract 2: ai/server.py, or app/dev/dev_server.py), e.g. the laptop's own address when it serves the app.
 const settings = { server: "", seconds: 18, demo: "", textSize: "100", theme: "auto", voice: false, lang: "", welcomed: false };
 try { Object.assign(settings, JSON.parse(localStorage.getItem("respirai") || "{}")); } catch (e) { /* private mode */ }
-const sameServer = (v) => (v === location.origin ? "" : v);
-settings.server = sameServer(settings.server);
-const api = (path) => (settings.server || location.origin) + path;
-$("server").placeholder = location.origin;
+const api = (path) => settings.server + path;
 
 const darkSystem = matchMedia("(prefers-color-scheme: dark)");
 function saveSettings() {
@@ -56,6 +55,7 @@ function saveSettings() {
   const theme = settings.theme === "auto" ? (darkSystem.matches ? "dark" : "light") : settings.theme;
   document.documentElement.dataset.theme = theme;
   document.querySelector('meta[name="theme-color"]').content = theme === "dark" ? "#0b1620" : "#f3f6f9";
+  native?.bars(theme);   // the phone app: light or dark status bar icons to match
   $("btnVoice").setAttribute("aria-pressed", settings.voice);
 }
 saveSettings();
@@ -64,7 +64,7 @@ darkSystem.addEventListener("change", saveSettings);
 for (const [id, parse] of [
   ["textSize", (v) => v],
   ["theme", (v) => v],
-  ["server", (v) => sameServer(v.trim().replace(/\/+$/, ""))],
+  ["server", (v) => v.trim().replace(/\/+$/, "")],
   ["seconds", (v) => Math.min(20, Math.max(5, Number(v) || 18))],   // 18 s = two whole breaths, ends at the bottom of one
   ["demo", (v) => v],
 ]) {
@@ -77,9 +77,11 @@ for (const [id, parse] of [
 }
 
 // ---------- spoken instructions (for when the eyes are not on the screen, e.g. placing on the back) ----------
-// Never while recording: the stethoscope would pick it up.
+// Never while recording: the stethoscope would pick it up. The phone app speaks with Android's own voice.
 function say(text) {
-  if (!settings.voice || !window.speechSynthesis) return Promise.resolve();
+  if (!settings.voice) return Promise.resolve();
+  if (native) return Promise.race([native.speak(text, current().locale).catch(() => {}), sleep(8000)]);
+  if (!window.speechSynthesis) return Promise.resolve();
   speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(text);
   Object.assign(u, { lang: current().locale, rate: 0.9 });
@@ -87,7 +89,7 @@ function say(text) {
   speechSynthesis.speak(u);
   return Promise.race([spoken, sleep(8000)]);
 }
-const hush = () => window.speechSynthesis?.cancel();
+const hush = () => (native ? native.hush() : window.speechSynthesis?.cancel());
 
 // ---------- device + audio ----------
 let device = null, recording = null, lastAudioAt = 0, batteryWarned = false;
@@ -170,7 +172,7 @@ function connectError(e) {
   console.warn("Could not connect:", e);
   if (/adapter/i.test(e.message)) return "error.bluetoothOff";
   if (e.name === "NotFoundError") return null;   // the device picker was closed
-  if (e.name === "SecurityError" || e.name === "NotAllowedError") return "error.notAllowed";
+  if (e.name === "SecurityError" || e.name === "NotAllowedError") return native ? "error.notAllowedApp" : "error.notAllowed";
   return "error.connect";
 }
 
@@ -226,18 +228,20 @@ const remaining = () => (session ? ORDER.filter((c) => !session.results[c]) : OR
 const newSession = () => { session = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), started: Date.now(), results: {}, audio: {}, pending: [] }; };
 
 // Keep the screen on during a session, also after switching away and back. Never waited for.
-const keepAwake = () => navigator.wakeLock?.request("screen").then((l) => { if (running) lock = l; else l.release(); }).catch(() => {});
+const keepAwake = () => native ? native.keepAwake(true)
+  : navigator.wakeLock?.request("screen").then((l) => { if (running) lock = l; else l.release(); }).catch(() => {});
 
-document.addEventListener("visibilitychange", () => {
-  if (document.hidden) {
-    stopListening();
-    hush();
-    if (running && !$("sPoint").hidden) {   // a phone call, or the screen switched off: pause rather than record nothing
-      cancel = true;
-      notice("device.paused");
-    }
-  } else if (running) keepAwake();
-});
+function away() {
+  stopListening();
+  hush();
+  if (running && !$("sPoint").hidden) {   // a phone call, or the screen switched off: pause rather than record nothing
+    cancel = true;
+    notice("device.paused");
+  }
+}
+document.addEventListener("visibilitychange", () => { if (document.hidden) away(); else if (running) keepAwake(); });
+native?.onPause(away);   // the phone app going to the background (its WebView may not report it as hidden)
+native?.onResume(() => { if (running) keepAwake(); });
 
 // Ask before leaving the page mid-check or with results that would be lost.
 addEventListener("beforeunload", (e) => {
@@ -270,6 +274,7 @@ async function runSession(codes) {
     recording = null;
     if (lock) lock.release();
     lock = null;
+    native?.keepAwake(false);
     send(CMD.idle);
     hush();
     pointCode = null;
@@ -329,7 +334,8 @@ async function recordPoint(code) {
   }
 
   // 3. A moment to see it worked, then the next place.
-  navigator.vibrate?.(120);
+  if (native) native.vibrate(120);
+  else navigator.vibrate?.(120);
   $("breath").style.transform = "scale(0.62)";
   dial(t("point.done"), t("point.wellDone"), 1);
   await countdown(1.2, () => {});
@@ -381,8 +387,8 @@ function dial(main, sub, progress) {
   $("ringBar").style.strokeDashoffset = RING * (1 - progress);
 }
 
-// ---------- AI server (contract 2) ----------
-// Sends one place in the background. A late answer never lands in a newer recording or a new check.
+// ---------- the AI: on this phone, or an AI server (contract 2) ----------
+// Analyses one place in the background. A late answer never lands in a newer recording or a new check.
 function analyze(code, samples) {
   const s = session, mine = { finding: "pending" };
   s.audio[code] = samples;
@@ -395,6 +401,7 @@ function analyze(code, samples) {
 }
 
 async function request(code, samples, sessionId) {
+  if (!settings.server) return requestHere(code, samples);
   const form = new FormData();
   form.append("point", code);
   form.append("session_id", sessionId);
@@ -427,6 +434,18 @@ async function request(code, samples, sessionId) {
 function describeFetchError(e) {
   console.warn("AI server:", e);
   return e.name === "TimeoutError" ? "error.timeout" : "error.unreachable";
+}
+
+// The same, on this phone (ai/local.js): the server's answers without a server. Its errors mean what the server's do:
+// 4xx, this recording can't be used (record it again); otherwise a fault, and the same recording can be tried again.
+async function requestHere(code, samples) {
+  try {
+    const body = await analyzeHere({ point: code, samples: settings.demo ? null : samples, demo: !!settings.demo, demoCase: settings.demo || null });
+    return FINDINGS.includes(body.finding) ? body : { finding: "error", error: "error.badAnswer", retry: true };
+  } catch (e) {
+    console.warn("On-phone AI:", e);
+    return e.status >= 400 && e.status < 500 ? { finding: "error", error: "error.rejected" } : { finding: "error", error: "error.local", retry: true };
+  }
 }
 
 // ---------- screens ----------
@@ -567,6 +586,14 @@ async function share() {
   const day = new Date(session.started).toISOString().slice(0, 10);
   const files = ORDER.filter(listenable).map((c) => new File([toWav(session.audio[c])], `respirAI ${day} ${title(c).replace(/[^\p{L}\p{N} -]+/gu, "")}.wav`, { type: "audio/wav" }));
   const sheet = { title: t("share.title"), text };
+  if (native) {   // the phone app: Android's share sheet, with the recordings (else the summary alone)
+    try {
+      await native.share({ ...sheet, files });
+    } catch (e) {
+      if (e.name !== "AbortError") { console.warn("Share failed:", e); await native.share(sheet).catch(() => {}); }
+    }
+    return;
+  }
   try {
     if (files.length && navigator.canShare?.({ files })) await navigator.share({ ...sheet, files });
     else if (navigator.share) await navigator.share(sheet);
@@ -720,11 +747,11 @@ for (const d of [$("settings"), $("languages")]) d.addEventListener("click", (e)
 $("btnTest").addEventListener("click", async () => {
   $("btnTest").disabled = true;
   $("testResult").textContent = t("settings.checking");
-  try {
-    const h = await (await fetch(api("/health"), { signal: AbortSignal.timeout(5000) })).json();
+  try {   // the AI on this phone, or the server in the setting
+    const h = settings.server ? await (await fetch(api("/health"), { signal: AbortSignal.timeout(5000) })).json() : await healthHere();
     $("testResult").textContent = t("settings.testOk", { model: h.model_version, dummy: h.dummy ? t("settings.dummy") : "", clips: h.demo_clips });
   } catch (e) {
-    $("testResult").textContent = e.name === "TimeoutError" ? t("error.timeout") : t("settings.unreachable", { server: settings.server || location.origin });
+    $("testResult").textContent = !settings.server ? t("error.local") : e.name === "TimeoutError" ? t("error.timeout") : t("settings.unreachable", { server: settings.server });
   } finally {
     $("btnTest").disabled = false;
   }
@@ -752,6 +779,8 @@ function chooseLanguage() {
 function refreshTexts() {
   $("langCode").textContent = current().code.toUpperCase();
   $("langName").textContent = current().name;
+  $("server").placeholder = t("settings.onPhone");
+  native?.pickerTexts({ scanning: t("picker.scanning"), cancel: t("picker.cancel"), availableDevices: t("picker.devices"), noDeviceFound: t("picker.none") });
   for (const o of $("demo").options) o.textContent = o.value ? t("settings.demo.on", { case: t(`case.${o.value}`) }) : t("settings.demo.off");
   notice(...noticeShown);
   connectNote(connectNoteKey);
@@ -768,5 +797,6 @@ refreshTexts();
 if (!settings.welcomed) show("sWelcome");
 document.documentElement.classList.remove("loading");
 
-// Works without a connection once opened (the AI server still needs one), and can be installed.
-if ("serviceWorker" in navigator && isSecureContext) navigator.serviceWorker.register("sw.js").catch((e) => console.warn("No offline mode:", e.message));
+// Works without a connection once opened (the AI on the phone too), and can be installed. Not in the phone app:
+// its files are on the phone already, and an old cached copy must never outlive an app update.
+if ("serviceWorker" in navigator && isSecureContext && !native) navigator.serviceWorker.register("sw.js").catch((e) => console.warn("No offline mode:", e.message));

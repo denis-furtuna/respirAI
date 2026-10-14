@@ -1,0 +1,121 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>native bluetooth test</title>
+<!-- The phone app's Bluetooth (native-bluetooth.js) under the real device.js, with a stand-in for the plugin's
+     BleClient that drives the fake device. Permission, Bluetooth off, the picker closed, streaming, commands,
+     a dropped connection and reconnect. Run with app/tests/run.py. -->
+<pre id="out">running</pre>
+<script type="module">
+import { BleDevice, CMD, SERVICE, AUDIO, CONTROL, STATUS } from "/device.js";
+import { fakeBluetooth } from "/fake-bluetooth.js";
+import { nativeBluetooth } from "/native-bluetooth.js";
+const out = [];
+const check = (name, ok, extra = "") => out.push(`${ok ? "PASS" : "FAIL"} ${name} ${extra}`);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// BleClient as the plugin's JS API offers it (same method names and arguments), over the fake device.
+function fakeBle() {
+  const web = fakeBluetooth({ battery: 80 });
+  const calls = [], listeners = new Map();
+  const state = { enabled: true, permission: true, cancel: false, onEnabled: null };
+  let device = null, server = null;
+  const char = async (s, c) => (await server.getPrimaryService(s)).getCharacteristic(c);
+  const ble = {
+    calls, web, state,
+    async initialize(o) { calls.push(["initialize", o]); if (!state.permission) throw new Error("Permission denied."); },
+    async isEnabled() { return state.enabled; },
+    async requestEnable() { calls.push(["requestEnable"]); },
+    async startEnabledNotifications(cb) { state.onEnabled = cb; },
+    async requestDevice(o) {
+      calls.push(["requestDevice", o]);
+      if (state.cancel) throw new Error("requestDevice cancelled.");
+      device = await web.requestDevice({ filters: [{ services: o.services }], optionalServices: o.services || [] });
+      return { deviceId: "AA:BB:CC:DD:EE:FF", name: "respirAI" };
+    },
+    async connect(id, onDisconnect) {
+      calls.push(["connect", id]);
+      server = await device.gatt.connect();
+      device.addEventListener("gattserverdisconnected", () => onDisconnect(id), { once: true });
+    },
+    async disconnect(id) { calls.push(["disconnect", id]); device?.gatt.disconnect(); },
+    async getServices() { return [{ uuid: SERVICE, characteristics: [AUDIO, CONTROL, STATUS].map((uuid) => ({ uuid })) }]; },
+    async requestConnectionPriority(id, p) { calls.push(["priority", p]); },
+    async startNotifications(id, s, c, cb) {   // like the plugin: a new subscription replaces the old listener
+      const ch = await char(s, c), fn = (e) => cb(e.target.value);
+      const old = listeners.get(c);
+      if (old) old[0].removeEventListener("characteristicvaluechanged", old[1]);
+      ch.addEventListener("characteristicvaluechanged", fn);
+      listeners.set(c, [ch, fn]);
+      await ch.startNotifications();
+    },
+    async write(id, s, c, view) {
+      const bytes = new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
+      calls.push(["write", [...bytes]]);
+      await (await char(s, c)).writeValueWithResponse(bytes);
+    },
+  };
+  return ble;
+}
+const memory = () => { const m = new Map(); return { getItem: (k) => m.get(k) ?? null, setItem: (k, v) => m.set(k, String(v)) }; };
+const named = (calls, name) => calls.filter((c) => c[0] === name);
+
+let ble = fakeBle(), storage = memory(), bt = nativeBluetooth(ble, storage);
+check("before Bluetooth was ever allowed: available, and nothing asked at start-up", (await bt.getAvailability()) === true && !named(ble.calls, "initialize").length);
+
+let packets = 0, statuses = [], drops = 0;
+const handlers = { onPacket: () => packets++, onStatus: (s) => statuses.push(s), onDisconnect: () => drops++ };
+let dev = new BleDevice(bt, handlers);
+await dev.connect();
+check("asks for the permission without location", JSON.stringify(named(ble.calls, "initialize")[0][1]) === '{"androidNeverForLocation":true}');
+check("device list filtered to our service", JSON.stringify(named(ble.calls, "requestDevice")[0][1]) === JSON.stringify({ services: [SERVICE] }));
+check("high connection priority for streaming", named(ble.calls, "priority")[0]?.[1] === 1);
+await dev.send(CMD.start);
+await dev.send(CMD.status);
+await sleep(600);
+check("audio packets arrive through device.js", packets > 20, `${packets} packets`);
+check("status arrives (battery 80, streaming)", statuses.length > 0 && statuses.at(-1).battery === 80 && statuses.at(-1).state === 1, JSON.stringify(statuses.at(-1)));
+await dev.send(CMD.guide(3));
+check("commands written as bytes, in order", JSON.stringify(named(ble.calls, "write").map((c) => c[1])) === "[[1],[32],[16,3]]", JSON.stringify(named(ble.calls, "write")));
+check("remembers that Bluetooth is allowed", storage.getItem("respirai-ble") === "1");
+check("then checks whether Bluetooth is on", (await bt.getAvailability()) === true);
+
+let changed = null;
+bt.addEventListener("availabilitychanged", (e) => { changed = e.value; });
+ble.state.onEnabled(false);
+check("Bluetooth switched off -> availabilitychanged false", changed === false);
+ble.state.onEnabled(true);
+
+ble.web.disconnect();   // the device drops the connection
+await sleep(50);
+check("a dropped connection reaches device.js once", drops === 1, `${drops}`);
+const before = packets;
+await dev.open();   // what app.js does to reconnect
+await dev.send(CMD.start);
+await sleep(600);
+check("reconnects and streams again, no doubled packets", packets - before > 20 && packets - before < 120, `${packets - before} packets`);
+
+dev.disconnect();
+await sleep(50);
+check("the app's own disconnect: reported once, plugin told", drops === 2 && named(ble.calls, "disconnect").length >= 1, `${drops}`);
+
+// Errors, as app.js's connectError expects them
+ble = fakeBle(); bt = nativeBluetooth(ble, memory());
+ble.state.cancel = true;
+let err = await new BleDevice(bt, handlers).connect().then(() => null, (e) => e);
+check("picker closed -> NotFoundError (the app says nothing)", err?.name === "NotFoundError", err?.message);
+
+ble = fakeBle(); bt = nativeBluetooth(ble, memory());
+ble.state.permission = false;
+err = await new BleDevice(bt, handlers).connect().then(() => null, (e) => e);
+check("permission refused -> NotAllowedError", err?.name === "NotAllowedError", err?.message);
+ble.state.permission = true;
+err = await new BleDevice(bt, handlers).connect().then(() => null, (e) => e);
+check("allowed on the next tap -> connects", err === null, err?.message);
+
+ble = fakeBle(); bt = nativeBluetooth(ble, memory());
+ble.state.enabled = false;
+err = await new BleDevice(bt, handlers).connect().then(() => null, (e) => e);
+check("Bluetooth off -> Android's prompt, then the 'adapter' error", named(ble.calls, "requestEnable").length === 1 && /adapter/i.test(err?.message), err?.message);
+
+document.getElementById("out").textContent = out.join("\n") + "\nDONE";
+</script>
