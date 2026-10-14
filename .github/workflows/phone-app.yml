@@ -71,9 +71,9 @@ jobs:
           RESPIRAI_KEY_PASSWORD: ${{ secrets.RESPIRAI_KEY_PASSWORD }}
         run: |
           export RESPIRAI_KEYSTORE="$RUNNER_TEMP/upload.jks"
+          trap 'rm -f "$RESPIRAI_KEYSTORE"' EXIT   # gone after this step, even if the build fails
           echo "$KEYSTORE_BASE64" | base64 -d > "$RESPIRAI_KEYSTORE"
           ./gradlew --no-daemon bundleRelease
-          rm -f "$RESPIRAI_KEYSTORE"
 
       - name: Name the files
         run: |
@@ -107,7 +107,7 @@ jobs:
           pip install --quiet websocket-client==1.9.2
 
       - name: Check the app in an Android 15 emulator
-        uses: reactivecircus/android-emulator-runner@v2
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d   # v2.38.0, pinned: a third-party action
         with:
           api-level: 35
           arch: x86_64

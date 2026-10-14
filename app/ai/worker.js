@@ -10,7 +10,9 @@ import { CLASSES, DEVICE_SR, combine, finding, params, quality, recordingToSpecs
 const MODEL = new URL(new URL(self.location.href).searchParams.get("model") || "../model/", import.meta.url);   // ?model=: tests/ai.html
 const ORT_VERSION = "1.30.0";   // the copy in vendor/ is put there by the build (see .github/workflows); same version
 const ORT_LOCAL = new URL("../vendor/onnxruntime-web/", import.meta.url);
-const ORT_CDN = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/dist/`;   // only when there is no local copy (development)
+// Only for development on a laptop (the plain-http dev servers), which has no local copy. The phone app and the
+// website (https) never load code from anywhere else: they ship their own copy, and without it the AI says so.
+const ORT_CDN = self.location.protocol === "http:" ? `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/dist/` : null;
 const UNUSABLE_BELOW = 0.4;   // contract: below this the app asks for a re-record
 const MIN_S = 2.0, MAX_S = 60.0;
 
@@ -43,7 +45,7 @@ async function fetchJson(url) {   // null when the file isn't there
 }
 
 async function loadOrt() {
-  for (const base of [ORT_LOCAL.href, ORT_CDN]) {
+  for (const base of [ORT_LOCAL.href, ORT_CDN].filter(Boolean)) {
     try {
       const ort = await import(`${base}ort.wasm.min.mjs`);
       Object.assign(ort.env.wasm, { wasmPaths: base, numThreads: 1, proxy: false });   // already in a worker; no threads without cross-origin isolation
