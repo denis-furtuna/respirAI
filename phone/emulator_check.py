@@ -78,14 +78,20 @@ class Page:
         self.ws = websocket.create_connection(pages[0]["webSocketDebuggerUrl"], timeout=60, suppress_origin=True)
         self.n = 0
         self.errors = []   # console.error calls, with their arguments in full (Runtime.consoleAPICalled)
+        self.group = ""    # Capacitor's debug log names each native call in a group title just before its result
+        self.send("Runtime.enable", {})   # also replays what was logged before the check attached
 
     def send(self, method, params):
         self.n += 1
         self.ws.send(json.dumps({"id": self.n, "method": method, "params": params}))
         while True:
             message = json.loads(self.ws.recv())
-            if message.get("method") == "Runtime.consoleAPICalled" and message["params"]["type"] == "error":
-                self.errors.append(" ".join(describe(a) for a in message["params"]["args"]))
+            if message.get("method") == "Runtime.consoleAPICalled":
+                kind, args = message["params"]["type"], message["params"]["args"]
+                if kind == "startGroupCollapsed":
+                    self.group = re.sub(r"%c", "", describe(args[0]))
+                if kind == "error":
+                    self.errors.append(f"[{self.group}] " + " ".join(describe(a) for a in args))
             if message.get("id") == self.n:
                 return message.get("result", {})
 
@@ -117,6 +123,10 @@ def main(apk):
     adb("shell", "am", "start", "-W", "-n", f"{PKG}/.MainActivity")
     page = Page()
     check("the app starts and its page loads", bool(page.ready()))
+    time.sleep(2)
+    page.js("true")
+    print(f"::notice title=console.error at first start::{' | '.join(page.errors)[:3800] or 'none'}", flush=True)
+    page.errors = []
     check("runs as the phone app (Capacitor, native platform)", page.js("!!window.Capacitor && Capacitor.isNativePlatform()") is True)
     check("first start: the welcome screen", page.js("!document.getElementById('sWelcome').hidden") is True)
     check("phone features loaded (native.js: the team's server field is hidden)",
@@ -129,8 +139,6 @@ def main(apk):
     time.sleep(1)
     screenshot("welcome")
 
-    # From here on, every console.error arrives in full (Android's log shows only "[object Object]")
-    page.send("Runtime.enable", {})
     page.js("localStorage.setItem('respirai', JSON.stringify({ seconds: 5, welcomed: true, lang: 'en' })); location.reload(); true")
     time.sleep(2)
     page.ready()
