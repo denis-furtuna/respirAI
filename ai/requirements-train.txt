@@ -1,0 +1,13 @@
+# Training (Kaggle has all of these preinstalled except onnx/onnxruntime,
+# which the notebook installs itself).
+numpy
+scipy
+pandas
+scikit-learn
+soundfile
+matplotlib
+joblib
+torch
+torchvision
+onnx
+onnxruntime
