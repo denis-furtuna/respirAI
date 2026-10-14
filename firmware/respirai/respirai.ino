@@ -1,5 +1,5 @@
 // respirAI firmware for the Seeed XIAO ESP32-S3: mic -> 8 kHz audio -> Bluetooth, plus the LED breathing guide.
-// Implements contract 1 in docs/ARCHITECTURE.md (tasks F2-F5, F8-F10). Build notes: firmware/README.md.
+// Implements contract 1 in docs/ARCHITECTURE.md (tasks F2-F5, F8, F-LED1-F-LED5). Build notes: firmware/README.md.
 #include <NimBLEDevice.h>
 #include "config.h"
 #include "audio.h"
@@ -59,7 +59,7 @@ class ControlCallbacks : public NimBLECharacteristicCallbacks {
     switch (v[0]) {
       case CMD_START:  streaming = true;  break;
       case CMD_STOP:   streaming = false; break;
-      case CMD_GUIDE:  ledsSet(LED_GUIDE); break;   // v[1] is the chest point (0-6); the animation is the same for all
+      case CMD_GUIDE:  ledsSet(LED_GUIDE); break;   // an optional v[1] (chest point 0-6) is ignored: the phone shows the place
       case CMD_DONE:   ledsSet(LED_DONE);  break;
       case CMD_IDLE:   ledsSet(LED_IDLE);  break;
       case CMD_STATUS: statusRequested = true; break;
@@ -113,6 +113,7 @@ static void sendStatus() {
     !audioOk ? STATE_ERROR : streaming ? STATE_STREAMING : STATE_IDLE,
     (uint8_t)(packets & 0xff), (uint8_t)(packets >> 8),
   };
+  ledsStatus(status[1] == STATE_ERROR, status[0]);
   statusChr->setValue(status, sizeof(status));
   if (connected) statusChr->notify();
   Serial.printf("Status: battery %u, state %u, %u packets in the last %lu ms\n", status[0], status[1], packets, STATUS_EVERY_MS);
@@ -124,6 +125,7 @@ void setup() {
   ledsBegin();
   audioOk = audioBegin();
   if (!audioOk) Serial.println("ERROR: I2S microphone did not start. Check the wiring (docs/PLAN.md §3).");
+  ledsStatus(!audioOk, batteryPercent());
 
   NimBLEDevice::init(DEVICE_NAME);
   NimBLEDevice::setMTU(MAX_PACKET_SAMPLES * 2 + 2 + 3);   // ask for room for a full packet

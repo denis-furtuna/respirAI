@@ -23,7 +23,7 @@ The stethoscope has barely changed since Laennec invented it in 1816, and interp
 respirAI answers one question: *do these lungs sound normal, or should you see a doctor?*
 
 1. The phone shows a torso diagram marking where to place the chest piece.
-2. An LED matrix on the device paces the patient's breathing.
+2. The lungs printed on the device light up and pace the patient's breathing, in step with the circle on the phone. The phone shows where to place the chest piece; the device shows when to breathe.
 3. The device records each chest position and streams the audio to the phone over Bluetooth.
 4. A neural network screens each recording for **crackles** and **wheezes** and reports a per-position finding.
 
@@ -55,7 +55,7 @@ Everything is off the shelf. There is no custom PCB, and the whole device costs 
 | INMP441 | I²S MEMS microphone | core |
 | Stethoscope chest piece + tube | acoustic front end | core |
 | LiPo 3.7 V 2500 mAh | power | core |
-| WS2812B 8×8 matrix | breathing guide | core |
+| 4 × LED behind a printed lung panel | breathing guide (trachea + two lobes) and "AI" status light | core |
 | AD8232 | single-lead ECG | [add-on](docs/ADDONS.md) |
 | MAX30102 | pulse and SpO2 | [add-on](docs/ADDONS.md) |
 

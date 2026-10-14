@@ -56,10 +56,21 @@ Single byte, or byte + argument.
 |---|---|
 | `0x01` | start audio streaming |
 | `0x02` | stop audio streaming |
-| `0x10 <n>` | LED: show breathing guide for chest point `n` (0–6) |
-| `0x11` | LED: success / point complete animation |
-| `0x12` | LED: idle animation |
+| `0x10` | LED: start the breathing guide and loop it until `0x11` or `0x12`. A trailing chest-point byte (`0x10 <n>`) is accepted and ignored: the phone shows the place |
+| `0x11` | LED: place recorded — the lungs fade out, the "AI" flashes once |
+| `0x12` | LED: stop the guide, the lungs fade out over 300 ms |
 | `0x20` | send status now |
+
+### Breathing sync
+
+The device's lungs and the app's circle must look like one breath. This is part of the contract:
+
+- **The app owns the timer.** It sends `0x10`, starts its circle when the write is confirmed, and decides when to stop. The device only loops the breath. No animation frames go over Bluetooth, and every recording sends a fresh `0x10`, so each take starts in step.
+- **Tempo: in 4 s, out 5 s, no hold.** Written twice and kept equal: `BREATH_IN_MS` / `BREATH_OUT_MS` in `firmware/respirai/config.h` and `BREATH_IN` / `BREATH_OUT` in `app/app.js`. Changing it means changing both, and reflashing.
+- **Curve:** f(t) = (1 − cos πt) / 2, rising over breathe-in, falling over breathe-out. App: circle size linear in f, drawn every frame, no CSS easing. Device: LED duty = max · f^2.2 (gamma on the LEDs only). The trachea leads the lobes slightly (`TRACHEA_LEAD`); their average stays within a few % of the circle.
+- **Recordings are whole breaths** (default 18 s = 2), after one practice breath, so a recording ends at the bottom of a breath. The device also fades out over 300 ms whenever it stops.
+- **Safety stop:** a guide that runs 60 s stops by itself.
+- Clock drift between phone and device is ~1 ms over a recording: no resync needed.
 
 ### Status packet — 4 bytes
 
@@ -73,7 +84,7 @@ Sent every 2 s, and immediately on `0x20`.
 
 ### Chest point numbering
 
-Used by `0x10 <n>`, and matches the codes in contract 2. This is ICBHI's own listing order, so no lookup table is needed anywhere.
+Matches the codes in contract 2 (and the optional byte after `0x10`). This is ICBHI's own listing order, so no lookup table is needed anywhere.
 
 | n | Code | Position |
 |---|---|---|
@@ -190,7 +201,7 @@ These are nominal and are **not** in the CSV on purpose. The CSV only gets measu
 |---|---|---|
 | XIAO ESP32-S3 | 21 × 17.8 × 3.5 mm | USB-C on one short edge |
 | INMP441 module | ~15 × 13 mm | tube barb on base |
-| WS2812B 8×8 matrix | 64 × 64 mm | top face, under diffuser |
+| LED, 3 mm diffused (×4) | Ø3 mm, ~5 mm tall + legs | on standoffs above the battery, pointing up into the light chambers |
 | LiPo 2500 mAh | 60 × 50 × 8 mm | internal |
 | Slide switch | 8.6 × 4.3 × 4 mm | side slot |
 | AD8232 (optional) | measure | 3.5 mm jack on side |
@@ -199,7 +210,7 @@ These are nominal and are **not** in the CSV on purpose. The CSV only gets measu
 
 - Holes for connectors: nominal + 0.4 mm.
 - Internal clearance around boards: 1 mm minimum.
-- Wall thickness 2 mm; LED diffuser 0.8 mm white PLA.
+- Wall thickness 2 mm; top panel 1.2–1.5 mm white PLA with 0.4 mm thin regions for the lungs and the wordmark (see ENCLOSURE.md).
 - The case is expected to need **two print rounds**. Order v1 at least 10 days before the demo.
 
 ---

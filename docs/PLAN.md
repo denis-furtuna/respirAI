@@ -18,7 +18,7 @@ The upside: abnormal-sound screening still catches the complications that matter
 
 A two-piece hybrid device:
 
-1. **The puck (left hand)** — the brain. XIAO ESP32-S3, battery, LED matrix breathing guide, and later the extra sensors.
+1. **The puck (left hand)** — the brain. XIAO ESP32-S3, battery, a backlit lung panel (four LEDs) as the breathing guide, and later the extra sensors.
 2. **The bell (right hand)** — the chest piece of a cheap mechanical stethoscope, cut off and connected to the puck by its rubber tube. The tube carries **sound**, not wires.
 
 The mic sits inside the puck, sealed onto the end of the tube. This is the easy version and it is what we build first. Moving the mic into the bell is a possible later upgrade (better high frequencies, much harder assembly).
@@ -26,8 +26,8 @@ The mic sits inside the puck, sealed onto the end of the tube. This is the easy 
 **Demo flow**
 
 1. Phone connects to the device over Bluetooth.
-2. Phone shows a torso diagram with a red target dot; the LED matrix shows the breathing rhythm.
-3. User places the bell on the marked point and breathes; ~15 s of audio is recorded per point.
+2. Phone shows a torso diagram with a red target dot; the lungs on the device light up in the breathing rhythm, in step with the circle on the phone. The phone says *where*, the device says *when*.
+3. User places the bell on the marked point, breathes along once for practice, then 18 s of audio (two full breaths) is recorded per point.
 4. Repeat for the chest points.
 5. Phone uploads the recordings, an "AI processing" animation runs, and the result is shown.
 
@@ -59,7 +59,7 @@ The product is a breathing-analysis device. ECG and pulse are **extensions to th
 | JST PH 2.0 cable, open end, 2-pin | 1 | AK-PH20-2P |
 | Slide switch ON-ON | 2 | SIS-86434-G |
 | Flux gel | 1 | AGT-047 |
-| WS2812B 8×8 RGB matrix | 1–2 | 13.31 lei each, bitmi |
+| WS2812B 8×8 RGB matrix | 1–2 | **no longer in the device**: moved to the prinsa LED game project |
 | AD8232 ECG kit + spare electrodes | 1 | optional feature |
 | MAX30102 pulse/SpO2 | 1 | optional feature |
 | Jumper wires, breadboard, multimeter, soldering iron, solder, desoldering wick, heat-shrink, tweezers, electrical tape, USB-C data cable | — | confirmed owned |
@@ -73,6 +73,8 @@ The product is a breathing-analysis device. ECG and pulse are **extensions to th
 | Wire cutters ("cleste sfic") | eMAG / bitmi | 15–30 lei |
 | Wire stripper ("cleste dezizolat") | eMAG / bitmi | 20–35 lei |
 | Calipers (borrow if possible) | — | needed for CAD measurements |
+| Diffused 3 mm LEDs, blue or teal, ×4–5 | bitmi | a few lei. **Diffused, not clear** (clear ones make hot spots behind the panel); spares to compare shades against the logo |
+| Resistor assortment (needs 47–220 Ω) | bitmi | a few lei, useful long after the hackathon |
 
 ### Services
 
@@ -80,13 +82,12 @@ The product is a breathing-analysis device. ECG and pulse are **extensions to th
 |---|---|---|
 | 3D printing | OLX locals in Timișoara | ~0.50 lei/gram → 25–40 lei per case |
 | 3D printing (online quote) | printeaza3d.ro, capib.ro | from 20–30 lei per small part |
-| Lung sticker | any copy shop, self-adhesive vinyl | a few lei per A4 |
 
 ---
 
 ## 3. Wiring reference
 
-All on the XIAO ESP32-S3. Pin budget: **4 of 11 GPIO** for the core + LED build (D6, D8, D9, D10). Add-ons take a further 3–5 — see ADDONS.
+All on the XIAO ESP32-S3. Pin budget: **6 of 11 GPIO** for the core build (D3, D6, D7 for the LEDs; D8, D9, D10 for the mic). The optional parts take the other five (D0, D1, D2, D4, D5) — see ADDONS. Full drawing: [`wiring.excalidraw`](wiring.excalidraw) (open in Excalidraw) or [`wiring.svg`](wiring.svg).
 
 | Function | XIAO pin | GPIO | Notes |
 |---|---|---|---|
@@ -95,17 +96,25 @@ All on the XIAO ESP32-S3. Pin budget: **4 of 11 GPIO** for the core + LED build 
 | Mic SD | D10 | 9 | |
 | Mic VDD | 3V3 | — | **never 5V** |
 | Mic GND + L/R | GND | — | L/R tied low = left channel |
-| LED matrix data | D6 | 43 | |
-| LED matrix power | battery + / GND | — | see power note |
-| ECG output (optional) | D0–D3 | 1–4 | must be ADC1; D4/D5 are reserved for I2C |
+| LED trachea | D6 | 43 | through its own 100 Ω |
+| LED lung lobes (×2) | D7 | 44 | two LEDs in parallel, **one 100 Ω each, never one shared** |
+| LED "AI" of the wordmark | D3 | 4 | through its own 100 Ω; power and status light |
+| LED cathodes (short leg, flat side) | GND | — | |
+| Battery level (optional) | D1 | 2 | 2 × 100 kΩ divider from BAT+ (after the switch) to GND; then `PIN_BATTERY = 2` |
+| ECG output (optional) | D0 | 1 | ADC1 |
+| ECG lead-off LO+ (optional) | D2 | 3 | LO− stays unwired (no pin left); lead-off can also be seen in the signal |
 | MAX30102 SDA/SCL (optional) | D4 / D5 | 5 / 6 | |
 | Battery | BAT+ / BAT− pads (back) | — | switch in series on the + wire |
 
 **Power notes**
 
-- The XIAO's 5V pin is **only live when USB is connected**. On battery, the LED matrix must run from the LiPo (3.7–4.2 V) or from a boost converter.
-- 64 WS2812B LEDs at full white draw ~3.8 A. **Cap brightness at ~20 %** or the battery protection circuit will cut out.
-- If the matrix glitches on 5 V USB power, put a 1N4007 diode in series with its 5 V line to drop it to ~4.3 V and match the 3.3 V data logic.
+- The LEDs run straight from GPIO pins on hardware PWM: no transistor, no boost converter, no 5 V. Blue LEDs need ~2.8–2.9 V at the 4–6 mA a soft glow behind a panel needs, so 3.3 V is enough, and the regulated 3.3 V keeps the brightness steady as the battery drains.
+- **Every LED gets its own resistor.** Two LEDs on one resistor: the one with the lower forward voltage takes most of the current and the other stays visibly dimmer. Software can't fix that.
+- **Choose the resistors by eye.** Start at 100 Ω, look through a scrap of the printed panel, go toward 47 Ω if too faint or 220 Ω if too bright. Keep D7's total under 20 mA (it drives two LEDs).
+- Power budget (estimate, measured in E6): XIAO streaming over Bluetooth ~100–120 mA, mic 1.4 mA, LEDs ≤ 20 mA → ~140 mA, roughly 17 h on 2500 mAh. LEDs that are off draw nothing.
+- The XIAO's 5V pin is **only live when USB is connected**, and its 3V3 pin is not for anything big. Power a future add-on from the battery terminals, wired as a star.
+- The switch cuts BAT+, and BAT+ is also the charging path: **the battery charges over USB-C only with the switch ON.** Whether an awake ESP32 slows the charging is measured in F7, not assumed.
+- D6 and D7 are also the chip's serial pins: a short flicker of the trachea LED at power-on is normal.
 
 **Battery connection chain:** battery JST plug → socket-socket adapter → open-end cable → switch on the positive wire → soldered to BAT+ / BAT−.
 Check polarity with a multimeter before the first solder; mark the positive wire with tape.
@@ -147,9 +156,9 @@ The app uses the sequence number to detect dropped packets and fills gaps with s
 |---|---|
 | `0x01` | start audio streaming |
 | `0x02` | stop audio streaming |
-| `0x10 <n>` | LED: show breathing guide for chest point `n` (0–6) |
-| `0x11` | LED: success / point complete animation |
-| `0x12` | LED: idle animation |
+| `0x10` | LED: start the breathing guide and loop it until `0x11` or `0x12`. A trailing chest-point byte (`0x10 <n>`) is accepted and ignored: the phone shows the place |
+| `0x11` | LED: place recorded — the lungs fade out, the "AI" flashes once |
+| `0x12` | LED: stop the guide, the lungs fade out over 300 ms |
 | `0x20` | send status now |
 
 **Status packet (4 bytes, sent every 2 s and on `0x20`)**
@@ -160,7 +169,16 @@ The app uses the sequence number to detect dropped packets and fills gaps with s
 | 1 | state: 0 idle, 1 streaming, 2 error |
 | 2–3 | packets sent since last status, uint16 LE |
 
-**Chest point numbering** — used by `0x10 <n>` and matching the codes the AI side uses. This is ICBHI's own listing order, so no lookup table is needed anywhere.
+**Breathing sync (part of this contract)**
+
+- **The app owns the timer.** It sends `0x10`, starts its circle when the write is confirmed, and decides when to stop. The device only loops the breath. No animation frames go over Bluetooth, and every recording sends a fresh `0x10`, so each take starts in step.
+- **Tempo: in 4 s, out 5 s, no hold.** Written twice and kept equal: `BREATH_IN_MS` / `BREATH_OUT_MS` in `firmware/respirai/config.h` and `BREATH_IN` / `BREATH_OUT` in `app/app.js`. Changing it means changing both, and reflashing.
+- **Curve:** f(t) = (1 − cos πt) / 2, rising over breathe-in, falling over breathe-out. App: circle size linear in f, drawn every frame, no CSS easing. Device: LED duty = max · f^2.2 (gamma on the LEDs only). On the device the trachea leads the lobes slightly (`TRACHEA_LEAD`); their average stays within a few % of the circle.
+- **Recordings are whole breaths** (default 18 s = 2), after one practice breath, so a recording ends at the bottom of a breath. The device also fades out over 300 ms whenever it stops.
+- **Safety stop:** a guide that runs 60 s stops by itself.
+- Clock drift between phone and device is ~1 ms over a recording: no resync needed.
+
+**Chest point numbering** — matches the codes the AI side uses (and the optional byte after `0x10`). This is ICBHI's own listing order, so no lookup table is needed anywhere.
 
 | n | Code | Position |
 |---|---|---|
@@ -252,7 +270,7 @@ samples = min(80, floor((mtu - 5) / 2) rounded down to even)
 |---|---|---|
 | XIAO ESP32-S3 | 21 × 17.8 × 3.5 mm | USB-C on one short edge |
 | INMP441 module | ~15 × 13 mm | tube barb on base |
-| WS2812B 8×8 matrix | 64 × 64 mm | top face, under diffuser |
+| LED, 3 mm diffused (×4) | Ø3 mm, ~5 mm tall + legs | on standoffs above the battery, pointing up into the light chambers |
 | LiPo 2500 mAh | 60 × 50 × 8 mm | internal |
 | Slide switch | 8.6 × 4.3 × 4 mm | side slot |
 | AD8232 (optional) | measure | 3.5 mm jack on side |
@@ -261,7 +279,7 @@ samples = min(80, floor((mtu - 5) / 2) rounded down to even)
 
 - Holes for connectors: nominal + 0.4 mm.
 - Internal clearance around boards: 1 mm minimum.
-- Wall thickness 2 mm; LED diffuser 0.8 mm white PLA.
+- Wall thickness 2 mm; top panel 1.2–1.5 mm white PLA with 0.4 mm thin regions for the lungs and the wordmark (see ENCLOSURE.md).
 - The case is expected to need **two print rounds**. Order v1 at least 10 days before the demo.
 
 ---
@@ -280,10 +298,14 @@ Priorities: **P0** = demo fails without it · **P1** = important · **P2** = nic
 | F4 | BLE service per **contract 4.1**, audio notify at 100 packets/s. **Log the negotiated MTU and resulting packet size; verify 10 ms packets on the actual demo phone.** | P0 |
 | F5 | Control commands: start/stop streaming | P0 |
 | F6 | Stability test: 10 min continuous streaming, no drops, no reboot | P0 |
-| F7 | Battery operation: run from LiPo, confirm charging over USB-C | P1 |
+| F7 | Battery operation: run from LiPo, confirm charging over USB-C (switch ON); measure whether an awake ESP32 slows charging | P1 |
 | F8 | Status characteristic: battery %, state | P1 |
-| F9 | LED matrix driver, breathing animation (inhale/exhale ramp), brightness capped | P1 |
-| F10 | LED animations for point complete / idle | P2 |
+| F-LED1 | Hardware PWM (LEDC) on D6 / D7 / D3, 20 kHz, 11-bit | P1 |
+| F-LED2 | Raised-cosine curve + precomputed gamma 2.2 table | P1 |
+| F-LED3 | Breathing loop: trachea leads on breathe-in, lobes lead on breathe-out | P1 |
+| F-LED4 | `0x10` / `0x11` / `0x12`, 300 ms fade-out, 60 s safety stop | P1 |
+| F-LED5 | "AI" status patterns: waiting, connected, guide, place done, low battery, error | P2 |
+| F-LED6 | Deep sleep after a few minutes with no phone connected; wake with the reset button | P2 |
 | F11 | ECG channel added to the stream | P2 |
 | F12 | MAX30102 reading | P2 |
 
@@ -306,13 +328,14 @@ Grant Chrome the "Nearby devices" permission during setup, not during the demo.
 | A2 | Reassemble packets by sequence number into a PCM buffer | P0 |
 | A3 | Live waveform display | P0 |
 | A4 | Torso diagram with the red target dot per chest point | P0 |
-| A5 | Guided recording flow: countdown → "breathe deeply" → 15 s per point → next | P0 |
+| A5 | Guided recording flow: countdown → one practice breath → 18 s (two breaths) per point → next | P0 |
 | A6 | Build WAV and POST to the AI endpoint per **contract 4.2** | P0 |
 | A7 | Results screen with per-point findings + disclaimer wording | P0 |
 | A8 | "AI processing" animation during the request | P1 |
 | A9 | Battery indicator from the status characteristic | P2 |
-| A10 | Automatic breath detection (replaces the fixed 15 s timer) | P2 |
+| A10 | Automatic breath detection (replaces the fixed timer) | P2 |
 | A11 | Audio playback of a recorded point | P2 |
+| A12 | Breathing circle drawn every frame from the shared curve (contract 4.1), in step with the device | P1 |
 
 **Explicit decision:** v1 uses a **fixed timer**, not automatic breath detection. Breath detection is a signal-processing project of its own and is not required for the demo.
 
@@ -365,7 +388,7 @@ If we attempt phase 2, train a **small** CNN rather than ResNet18 — the model 
 | E4 | Multimeter polarity check on the JST cable; mark the positive wire | P0 |
 | E5 | Solder battery cable + switch to BAT+ / BAT−; insulate with heat-shrink | P0 |
 | E6 | Battery runtime test: how many hours of continuous streaming | P1 |
-| E7 | Wire the LED matrix, verify current draw at the chosen brightness | P1 |
+| E7 | Wire the four LEDs, each with its own resistor; choose 47–220 Ω by eye through a scrap of the printed panel | P1 |
 | E8 | Measure every component with calipers → fill `components.csv` | P1 |
 | E9 | Final wiring harness cut to length for the case | P1 |
 | E10 | Keep the breadboard version assembled as the backup demo | P1 |
@@ -378,10 +401,10 @@ If we attempt phase 2, train a **small** CNN rather than ResNet18 — the model 
 | C1 | Print the **tube adapter alone** first (a few grams, a few lei) and test the acoustic seal | P0 |
 | C2 | Wait for `components.csv` — do not model before measurements exist | P0 |
 | C3 | Case v1: XIAO + battery + mic + tube barb + USB-C cutout + switch slot | P1 |
-| C4 | LED window + 0.8 mm white PLA diffuser + recessed "respirAI" text | P1 |
+| C4 | Top panel: one white PLA print, lungs + wordmark as 0.4 mm thin regions in a 1.2–1.5 mm panel, four walled light chambers; paint over "respir" so only "AI" glows | P1 |
 | C5 | Order v1 print (OLX local, ~30 lei) — **at least 10 days before the demo** | P1 |
 | C6 | Fit test, fix, order v2 | P1 |
-| C7 | Lung sticker artwork → copy shop, self-adhesive vinyl | P2 |
+| C7 | Week-1 test tile: wordmark strip + one lobe at 0.3 / 0.4 / 0.6 mm, one LED behind each | P1 |
 | C8 | Cutouts for ECG jack / MAX30102 finger recess — **only if those features work before the case is frozen** | P2 |
 
 **Freeze rule:** if a feature is not working by the day the case is designed, it does not get a hole and it does not go in the device.
@@ -423,6 +446,8 @@ If we attempt phase 2, train a **small** CNN rather than ResNet18 — the model 
 | Audio picks up room noise | Airtight seal, band-pass filter, quality metric that rejects bad recordings |
 | Model accuracy looks bad | Report honestly, emphasise the device and pipeline, not the accuracy number |
 | ~~iPhone can't run the web app~~ | **Resolved:** demo runs on a Samsung S25 Ultra (Android + Chrome) |
+| Backlit letters on the panel blotchy or unreadable | Week-1 test tile at three thicknesses; budget a second panel print |
+| Device lights and phone circle look out of step | Same tempo and curve on both sides (contract 4.1); recordings of whole breaths end at the bottom of a breath |
 | HTTPS page can't reach the HTTP laptop server | Serve the page over HTTP from the laptop + Chrome insecure-origin flag on the phone; configured and rehearsed in advance |
 
 ---
@@ -430,7 +455,6 @@ If we attempt phase 2, train a **small** CNN rather than ResNet18 — the model 
 ## 8. Reference links
 
 - Stethoscope: <https://www.drmax.ro/stetoscop-st-71-1-bucata-microlife>
-- LED matrix: <https://www.bitmi.ro/electronica/matrice-led-5050-rgb-8x8-ws2812b-compatibila-arduino-12162.html>
 - ECG kit: <https://www.bitmi.ro/module-electronice/kit-monitorizare-ekg-cu-electrozi-cablu-si-senzor-ad8232-11006.html>
 - MAX30102: <https://www.bitmi.ro/senzori-electronici/senzor-ritm-cardiac-si-spo2-max30102-12117.html>
 - 3D printing, instant quote: <https://printeaza3d.ro/>
@@ -450,6 +474,9 @@ If we attempt phase 2, train a **small** CNN rather than ResNet18 — the model 
 - [ ] Who owns the app?
 - [x] ~~Which phone is used for the demo?~~ **Samsung S25 Ultra (Android + Chrome)**
 - [x] ~~Where does inference run?~~ **Phase 1 laptop (FastAPI), phase 2 on-phone (ONNX) if time allows**
-- [ ] One LED matrix (8×8) or two chained (16×8)?
-- [ ] LED matrix powered from the LiPo directly, or via a boost converter?
+- [x] ~~One LED matrix or two? Matrix power?~~ **Neither: four discrete LEDs behind a printed lung panel, driven from GPIO pins. The matrix moves to the prinsa game project.**
+- [ ] Trachea lead (`TRACHEA_LEAD`, 15–25 % of a breath): tune on the hardware
+- [ ] LED shade, blue or teal: decide with the LEDs behind the printed test tile
+- [ ] Case: small re-layout to ~95 × 70 mm, or a bigger rethink to ~80 × 65 mm? (see ENCLOSURE.md §1)
+- [ ] Switch and charging: keep the switch on BAT+ and charge with it ON, after measuring charging with the ESP32 awake (F7)
 - [ ] Do ECG and SpO2 make the cut, decided by end of week 3?

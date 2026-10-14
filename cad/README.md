@@ -5,7 +5,7 @@ The 3D-printed enclosure.
 What belongs here:
 
 - `components.csv` — the measured size of every part, filled in by Electronics with calipers ([contract 3](../docs/ARCHITECTURE.md#3-electronics--cad-componentscsv))
-- source models (base, lid, diffuser panel, tube adapter test piece)
+- source models (base, lid, top panel with the lungs and wordmark, panel test tile, tube adapter test piece)
 - exported STL files sent to the print service
 - separate lid/base variants for the ECG and pulse add-ons, if they are built
 

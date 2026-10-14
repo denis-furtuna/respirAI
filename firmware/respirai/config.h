@@ -6,9 +6,10 @@
 constexpr int PIN_MIC_SCK = 7;    // D8
 constexpr int PIN_MIC_WS  = 8;    // D9
 constexpr int PIN_MIC_SD  = 9;    // D10
-constexpr int PIN_LEDS    = 43;   // D6
-constexpr int LED_COUNT   = 64;   // one 8x8 WS2812B matrix
-constexpr int PIN_BATTERY = -1;   // ADC pin of a 1:2 divider on BAT+ (e.g. 2 = D1). -1 = not wired: reports 255 ("unknown")
+constexpr int PIN_LED_TRACHEA = 43;   // D6, through its own 100 ohm
+constexpr int PIN_LED_LOBES   = 44;   // D7, both lobe LEDs in parallel, each with its OWN 100 ohm (never one shared)
+constexpr int PIN_LED_AI      = 4;    // D3, behind the "AI" of the wordmark: power and status light
+constexpr int PIN_BATTERY     = -1;   // ADC pin of a 1:2 divider on BAT+ (2 = D1). -1 = not wired: reports 255 ("unknown")
 
 // ---------- contract 1 ----------
 #define DEVICE_NAME   "respirAI"
@@ -27,7 +28,14 @@ enum State : uint8_t { STATE_IDLE = 0, STATE_STREAMING = 1, STATE_ERROR = 2 };
 
 // ---------- tuning ----------
 constexpr float    MIC_GAIN        = 4.0f;   // raise if lung sounds look tiny in the app, lower if the server reports clipping
-constexpr uint8_t  LED_BRIGHTNESS  = 51;     // of 255 = 20 %. Full white x 64 LEDs would trip the battery protection
-constexpr uint32_t BREATH_IN_MS    = 4000;   // same rhythm as the app's breathing circle
-constexpr uint32_t BREATH_OUT_MS   = 5000;
+constexpr uint32_t BREATH_IN_MS    = 4000;   // mirrored in app/app.js (BREATH_IN, BREATH_OUT): change both together,
+constexpr uint32_t BREATH_OUT_MS   = 5000;   // or the LEDs and the circle on the phone drift apart
+constexpr float    TRACHEA_LEAD    = 0.2f;   // the trachea leads the lobes by this share of a breath. Tune on the hardware
+constexpr float    LED_LEVEL       = 1.0f;   // lungs at the top of a breath, 0-1. Set the brightness with the resistors first
+constexpr float    AI_IDLE         = 0.38f;  // "AI" glow while connected: about 12 % duty after gamma. Dim looks calm
+constexpr uint32_t LED_PWM_HZ      = 20000;  // far above the 100-1800 Hz the AI listens to
+constexpr uint8_t  LED_PWM_BITS    = 11;     // the most the LEDC allows at 20 kHz (80 MHz / 20 kHz = 4000 steps)
+constexpr uint32_t LED_FADE_MS     = 300;    // the lungs fade out when the guide stops, so a stop never looks like a glitch
+constexpr uint32_t GUIDE_MAX_MS    = 60000;  // a guide never needs longer (one practice breath + at most 20 s): stop if the app's stop got lost
+constexpr uint8_t  BATTERY_LOW     = 15;     // percent: below this the "AI" double-blinks (needs PIN_BATTERY)
 constexpr uint32_t STATUS_EVERY_MS = 2000;
