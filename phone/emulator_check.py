@@ -202,10 +202,12 @@ def main(apk):
       return JSON.stringify(out); })()""")
     print(f"::notice title=Plugins::{probe}", flush=True)
 
-    errors = [l for l in log.splitlines() if re.search(r"\bE (Capacitor|chromium)|Uncaught|TypeError|ReferenceError|SyntaxError", l)
-              and "Unable to open asset URL: https://localhost/model/" not in l   # no trained model yet: dummy mode, as intended
-              and "beforeunload" not in l]   # this check reloads the page after a check; a user never reloads the app
-    check("no errors in the app's log", not errors, " | ".join(errors[:5]))
+    # Errors, in full from DevTools: only the share sheet this check closed itself may say it was cancelled.
+    # From Android's log: script errors, and Capacitor's own (minus the model file that isn't there yet: dummy mode).
+    errors = [e for e in page.errors if "Share canceled" not in e]
+    errors += [l for l in log.splitlines() if re.search(r"Uncaught|TypeError|ReferenceError|SyntaxError|\bE Capacitor: ", l)
+               and "Unable to open asset URL: https://localhost/model/" not in l]
+    check("no errors in the app", not errors, " | ".join(errors[:5]))
     print(f"{sum(results)} passed, {len(results) - sum(results)} failed")
     print(f"::notice title=Emulator check::{sum(results)} passed, {len(results) - sum(results)} failed", flush=True)
     sys.exit(0 if all(results) else 1)

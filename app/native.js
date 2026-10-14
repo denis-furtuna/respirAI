@@ -26,9 +26,12 @@ async function load() {
   };
 }
 
-// The phone's share sheet with the recordings as files: they are written to the app's cache first.
+// The phone's share sheet with the recordings as files: they are written to the app's cache first, in a folder of
+// their own; the previous share's folder is removed (Android may also clear the cache by itself).
+let lastShare = null;
 async function share(p, { title, text, files = [] }) {
-  await p.Filesystem.rmdir({ path: "share", directory: p.Directory.Cache, recursive: true }).catch(() => {});   // the last share's files
+  if (lastShare) await p.Filesystem.rmdir({ path: lastShare, directory: p.Directory.Cache, recursive: true }).catch(() => {});
+  const folder = (lastShare = `share-${Date.now()}`);
   const uris = [];
   for (const file of files) {
     const data = await new Promise((resolve, reject) => {
@@ -37,7 +40,7 @@ async function share(p, { title, text, files = [] }) {
       reader.onerror = () => reject(reader.error);
       reader.readAsDataURL(file);
     });
-    uris.push((await p.Filesystem.writeFile({ path: `share/${file.name}`, data, directory: p.Directory.Cache, recursive: true })).uri);
+    uris.push((await p.Filesystem.writeFile({ path: `${folder}/${file.name}`, data, directory: p.Directory.Cache, recursive: true })).uri);
   }
   try {
     await p.Share.share({ title, text, dialogTitle: title, ...(uris.length ? { files: uris } : {}) });
