@@ -65,7 +65,12 @@ check("first place: base of the neck, one red dot", visible("sPoint") && $("poin
 check("placement countdown", $("dialSub").textContent === "Recording starts in", $("dialMain").textContent);
 $("btnNow").click();
 await sleep(1500);
-check("recording: breathing guide", /Breathe (in|out)/.test($("dialMain").textContent) && /seconds left/.test($("dialSub").textContent), $("dialMain").textContent + " / " + $("dialSub").textContent);
+check("practice breath first", /Breathe (in|out)/.test($("dialMain").textContent) && $("dialSub").textContent === "Practice breath", $("dialMain").textContent + " / " + $("dialSub").textContent);
+const scale = () => $("breath").style.transform;
+const s1 = scale(); await sleep(400);
+check("circle drawn every frame, no CSS easing", scale() !== s1 && frame.contentWindow.getComputedStyle($("breath")).transitionDuration === "0s", s1 + " -> " + scale());
+await sleep(9000);
+check("then recording: breathing guide", /Breathe (in|out)/.test($("dialMain").textContent) && /seconds left/.test($("dialSub").textContent), $("dialMain").textContent + " / " + $("dialSub").textContent);
 check("signal shown", $("signalText").textContent === "Sound is coming through");
 await untilResults();
 check("results screen", visible("sResults"));
@@ -81,7 +86,7 @@ check("try again -> still analysing", rowOf("Upper chest, right").textContent.in
 await sleep(800);
 check("try again -> answer shown without leaving the screen", rowOf("Upper chest, right").className === "ok" && d.querySelectorAll("#sResults .pt.ok").length === 4 && visible("sResults"));
 const log = await (await fetch("/log")).json();
-check("8 valid WAV uploads (one retried), one session", log.length === 8 && log.every((e) => e.wav_ok && e.seconds > 4.5) && new Set(log.map((e) => e.session_id)).size === 1);
+check("8 valid WAV uploads (one retried), one session, no practice audio in them", log.length === 8 && log.every((e) => e.wav_ok && e.seconds > 4.5 && e.seconds < 5.5) && new Set(log.map((e) => e.session_id)).size === 1, JSON.stringify(log.map((e) => e.seconds)));
 check("date, a waveform per recording, earlier checks", /^Checked on \d+ \w+/.test($("checkDate").textContent) && d.querySelectorAll("#resultList .wave path").length === 7
   && !$("earlier").hidden && $("earlierList").textContent.includes("No unusual sounds") && JSON.parse(localStorage.getItem("respirai-checks")).length === 2, $("checkDate").textContent + " / " + $("earlierList").textContent);
 const w = frame.contentWindow;

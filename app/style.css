@@ -146,7 +146,7 @@ main { max-width: 520px; margin: 0 auto; padding: 12px 20px 28px; }
 .dial circle { fill: none; stroke-width: 8; }
 .dial .track { stroke: var(--primary-soft); }
 .dial .bar { stroke: var(--primary); stroke-linecap: round; stroke-dasharray: 578; transition: stroke-dashoffset 0.1s linear; }
-.breath { position: absolute; inset: 16%; border-radius: 50%; background: radial-gradient(circle at 50% 40%, var(--surface), var(--primary-soft)); box-shadow: 0 0 0 1px var(--line), 0 0 28px var(--glow); transform: scale(0.62); transition: transform 0.12s linear; }
+.breath { position: absolute; inset: 16%; border-radius: 50%; background: radial-gradient(circle at 50% 40%, var(--surface), var(--primary-soft)); box-shadow: 0 0 0 1px var(--line), 0 0 28px var(--glow); transform: scale(0.62); }   /* drawn every frame by app.js: no CSS easing */
 .dial-text { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 18%; }
 #dialMain { font-size: 3rem; line-height: 1; color: var(--primary); font-variant-numeric: tabular-nums; }
 #dialMain.word { font-size: 1.35rem; line-height: 1.15; }

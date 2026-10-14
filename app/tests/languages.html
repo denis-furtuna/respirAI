@@ -71,6 +71,8 @@ $("btnBegin").click(); await sleep(600);
 check("Romanian: recording screen", $("pointTitle").textContent === "Baza gâtului" && $("pointStep").textContent === "Locul 1 din 7" && $("dialSub").textContent === "Înregistrarea începe în",
   $("pointTitle").textContent + " / " + $("dialSub").textContent);
 $("btnNow").click(); await sleep(1500);
+check("Romanian: practice breath", /^(Inspirați|Expirați)$/.test($("dialMain").textContent) && $("dialSub").textContent === "Respirație de probă", $("dialMain").textContent + " / " + $("dialSub").textContent);
+await sleep(9000);
 check("Romanian: breathing guide, plural", /^(Inspirați|Expirați)$/.test($("dialMain").textContent) && /^au mai rămas \d secunde$/.test($("dialSub").textContent) && $("signalText").textContent === "Sunetul se aude bine",
   $("dialMain").textContent + " / " + $("dialSub").textContent);
 for (let i = 0; i < 600 && !visible("sResults"); i++) { if (visible("sPoint") && !$("btnNow").hidden) $("btnNow").click(); await sleep(300); }

@@ -18,7 +18,8 @@ const POINTS = {
 const title = (code) => t(`point.${code}.title`);
 const ORDER = ["Tc", "Al", "Ar", "Ll", "Lr", "Pl", "Pr"];  // front, sides, back
 const PLACE_SECONDS = 8;
-const BREATH_IN = 4, BREATH_OUT = 5;   // seconds; matches the device's LED guide
+const BREATH_IN = 4, BREATH_OUT = 5;   // seconds. Mirrored in firmware/respirai/config.h (BREATH_IN_MS, BREATH_OUT_MS): change both
+const BREATH = BREATH_IN + BREATH_OUT; // one breath; also the practice breath before each recording
 const MIN_QUALITY = 0.4;               // contract 2: below this, ask for a re-record
 const RING = 2 * Math.PI * 92;         // circumference of the dial's progress ring
 const FINDINGS = ["normal", "crackles", "wheezes", "both", "unusable"];
@@ -41,7 +42,7 @@ const bluetooth = params.has("fakebt") ? (window.fakeBt = fakeBluetooth(Object.f
 // ---------- settings (remembered on this phone, behind the icon; voice is on the "before we start" screen) ----------
 // server "": the AI server is the one that served this page (ai/server.py and app/dev/dev_server.py serve both),
 // so the same setting works on the laptop, on a phone over a hotspot, and on a phone over USB (localhost).
-const settings = { server: "", seconds: 15, demo: "", textSize: "100", theme: "auto", voice: false, lang: "", welcomed: false };
+const settings = { server: "", seconds: 18, demo: "", textSize: "100", theme: "auto", voice: false, lang: "", welcomed: false };
 try { Object.assign(settings, JSON.parse(localStorage.getItem("respirai") || "{}")); } catch (e) { /* private mode */ }
 const sameServer = (v) => (v === location.origin ? "" : v);
 settings.server = sameServer(settings.server);
@@ -64,7 +65,7 @@ for (const [id, parse] of [
   ["textSize", (v) => v],
   ["theme", (v) => v],
   ["server", (v) => sameServer(v.trim().replace(/\/+$/, ""))],
-  ["seconds", (v) => Math.min(20, Math.max(5, Number(v) || 15))],
+  ["seconds", (v) => Math.min(20, Math.max(5, Number(v) || 18))],   // 18 s = two whole breaths, ends at the bottom of one
   ["demo", (v) => v],
 ]) {
   $(id).value = settings[id];
@@ -301,18 +302,23 @@ async function recordPoint(code) {
   await say(t("point.sayBreathe"));   // finishes before the recording starts
   if (cancel) return;
 
-  // 2. Record while the circle paces the breathing.
-  recording = new Recording(settings.seconds);
-  send(CMD.guide(p.n));   // the device's LEDs start breathing now, in step with the circle on screen
-  const recorded = await countdown(settings.seconds, (s, total) => {
-    const phase = s % (BREATH_IN + BREATH_OUT);
-    const inhale = phase < BREATH_IN;
-    const k = inhale ? phase / BREATH_IN : 1 - (phase - BREATH_IN) / BREATH_OUT;
-    $("breath").style.transform = `scale(${0.62 + 0.38 * (1 - Math.cos(Math.PI * k)) / 2})`;
-    dial(t(inhale ? "point.in" : "point.out"), t("point.secondsLeft", { n: Math.ceil(total - s) }), s / total);
-  });
-  const samples = recording.samples.slice();
-  recording = null;
+  // 2. One practice breath, then record the next breaths. The device's lights start with the circle and loop on
+  //    their own clock (contract 4.1), so the recording starts at the bottom of a breath, in step with them.
+  send(CMD.guide(p.n));
+  const started = breathe();
+  const inhale = () => ((performance.now() - started) / 1000) % BREATH < BREATH_IN;
+  let samples, recorded;
+  try {
+    const practised = await countdown(BREATH, (s, total) => dial(t(inhale() ? "point.in" : "point.out"), t("point.practice"), s / total));
+    if (!practised) return;
+    recording = new Recording(settings.seconds);
+    recorded = await countdown(settings.seconds, (s, total) =>
+      dial(t(inhale() ? "point.in" : "point.out"), t("point.secondsLeft", { n: Math.ceil(total - s) }), s / total));
+    samples = recording.samples.slice();
+    recording = null;
+  } finally {
+    breathe(false);
+  }
   if (!recorded) return;
   send(CMD.done);
   if (!settings.demo && samples.length < 2 * SAMPLE_RATE) {   // demo mode sends no audio, so it needs none
@@ -329,11 +335,35 @@ async function recordPoint(code) {
 }
 
 // Runs onTick about 20 times a second; resolves false if the session was stopped.
+// The breathing circle, drawn every frame from the curve the device uses too: (1 - cos(pi k)) / 2 (contract 4.1).
+// breathe() starts it and returns its start time; breathe(false) stops it. drawBreath() is also called by the
+// countdown's ticks, so the circle keeps moving (in step) where the browser slows down animation frames.
+let breathing = 0, breathStart = 0;
+function drawBreath() {
+  if (!breathStart) return;
+  const phase = ((performance.now() - breathStart) / 1000) % BREATH;
+  const k = phase < BREATH_IN ? phase / BREATH_IN : 1 - (phase - BREATH_IN) / BREATH_OUT;
+  $("breath").style.transform = `scale(${0.62 + 0.38 * (1 - Math.cos(Math.PI * k)) / 2})`;
+}
+function breathe(on = true) {
+  const run = ++breathing;
+  breathStart = on ? performance.now() : 0;
+  $("breath").style.transform = "scale(0.62)";
+  const frame = () => {
+    if (run !== breathing) return;
+    drawBreath();
+    requestAnimationFrame(frame);
+  };
+  if (on) requestAnimationFrame(frame);
+  return breathStart;
+}
+
 async function countdown(seconds, onTick, skippable = false) {
   const start = performance.now();
   skip = false;
   for (let elapsed = 0; !cancel && elapsed < seconds && !(skippable && skip); elapsed = (performance.now() - start) / 1000) {
     onTick(elapsed, seconds);
+    drawBreath();
     const hearing = performance.now() - lastAudioAt < 1000;
     const clipping = hearing && ring.reduce((n, v) => n + (Math.abs(v) > 0.97), 0) > ring.length / 100;   // rubbing or knocks
     $("signalText").textContent = t(!hearing ? "signal.none" : clipping ? "signal.loud" : "signal.ok");
