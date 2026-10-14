@@ -1,0 +1,55 @@
+# Publishes the web app on GitHub Pages (https://<owner>.github.io/respirAI/): the same app as the phone app,
+# with the AI on the phone, over HTTPS, so Chrome on Android can use Bluetooth. Also the privacy policy page
+# Google Play asks for (privacy.html). Only the app's files: no tests, no data, no server.
+# The site is the gh-pages branch, rewritten by every run. Turn it on once: Settings -> Pages -> Deploy from a
+# branch -> gh-pages, / (root).
+name: Web app on GitHub Pages
+
+on:
+  push:
+    branches: [phone-app]
+    paths: ["app/**", "phone/build_web.py", "phone/package.json", ".github/workflows/pages.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write   # to update the gh-pages branch
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  site:
+    name: Build and publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: The site
+        run: |
+          npm install --prefix phone --ignore-scripts --no-audit --no-fund
+          python phone/build_web.py site --pages
+
+      - name: Publish to the gh-pages branch
+        env:
+          TOKEN: ${{ github.token }}
+        run: |
+          cd site
+          git init -q -b gh-pages
+          git add -A
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -q -m "Web app from ${GITHUB_SHA::7}"
+          git push -q -f "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" gh-pages
+          echo "::notice title=GitHub Pages::https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/ (privacy policy: privacy.html)"
