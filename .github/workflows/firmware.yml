@@ -68,7 +68,7 @@ jobs:
           arduino-cli compile --fqbn esp32:esp32:XIAO_ESP32S3:CDCOnBoot=cdc --warnings all firmware/respirai 2>&1 | tee build.log
           # Annotations show on the run page without logging in: versions, size, and warnings in our own code.
           echo "::notice title=Firmware build::esp32 core $CORE, NimBLE-Arduino $NIMBLE. $(grep -E 'Sketch uses' build.log)"
-          grep -E 'respirai/[a-z_]+\.(ino|cpp|h):[0-9]+:[0-9]+: warning:' build.log | sort -u | head -20 | while IFS= read -r w; do echo "::warning title=Compiler::$w"; done
+          { grep -E 'respirai/[a-z_]+\.(ino|cpp|h):[0-9]+:[0-9]+: warning:' build.log || true; } | sort -u | head -20 | while IFS= read -r w; do echo "::warning title=Compiler::$w"; done   # no warnings is not a failure
           echo "warnings in our code: $(grep -cE 'respirai/[a-z_]+\.(ino|cpp|h):[0-9]+:[0-9]+: warning:' build.log || true)"
           {
             echo "### Firmware build"
