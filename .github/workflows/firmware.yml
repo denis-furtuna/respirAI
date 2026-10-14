@@ -1,0 +1,75 @@
+# Compiles the firmware on GitHub's machines on every push that touches it: no toolchain needed on anyone's laptop.
+# Same setup as firmware/README.md: newest esp32 core 3.x, newest NimBLE-Arduino 2.x, board XIAO_ESP32S3, USB CDC On Boot.
+name: Firmware build
+
+on:
+  push:
+    paths: ["firmware/**", ".github/workflows/firmware.yml"]
+  pull_request:
+    paths: ["firmware/**", ".github/workflows/firmware.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compile:
+    name: Compile for XIAO ESP32-S3
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash   # explicit bash = -eo pipefail, so a failed compile can't hide behind "| tee"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: arduino/setup-arduino-cli@v2
+
+      - name: Install the esp32 core 3.x and NimBLE-Arduino 2.x
+        run: |
+          arduino-cli config init
+          arduino-cli config add board_manager.additional_urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core update-index
+          arduino-cli lib update-index
+          arduino-cli core search esp32:esp32 --all --format json > core.json
+          arduino-cli lib search NimBLE-Arduino --format json > lib.json
+          python3 - <<'EOF'
+          import json, os, re
+
+          def newest(versions, major):
+              ok = [v for v in versions if re.fullmatch(rf"{major}\.\d+\.\d+", v)]
+              if not ok:
+                  raise SystemExit(f"no {major}.x version found in {sorted(versions)[:20]}")
+              return max(ok, key=lambda v: tuple(map(int, v.split("."))))
+
+          def versions_of(entry):
+              releases = entry.get("releases") or {}
+              found = set(releases) if isinstance(releases, dict) else {r.get("version") for r in releases}
+              found |= {entry.get(k) for k in ("latest_version", "installed_version") if isinstance(entry.get(k), str)}
+              return {v for v in found if v}
+
+          core = json.load(open("core.json"))
+          platforms = core.get("platforms", core) if isinstance(core, dict) else core
+          esp32 = next(p for p in platforms if p.get("id") == "esp32:esp32")
+          libs = json.load(open("lib.json"))["libraries"]
+          nimble = next(l for l in libs if l.get("name") == "NimBLE-Arduino")
+          with open(os.environ["GITHUB_ENV"], "a") as env:
+              env.write(f"CORE={newest(versions_of(esp32), 3)}\nNIMBLE={newest(versions_of(nimble), 2)}\n")
+          EOF
+          echo "core $(grep CORE "$GITHUB_ENV"), lib $(grep NIMBLE "$GITHUB_ENV")"
+
+      - name: Install them
+        run: |
+          arduino-cli core install "esp32:esp32@$CORE"
+          arduino-cli lib install "NimBLE-Arduino@$NIMBLE"
+
+      - name: Compile firmware/respirai
+        run: |
+          arduino-cli compile --fqbn esp32:esp32:XIAO_ESP32S3:CDCOnBoot=cdc --warnings default firmware/respirai 2>&1 | tee build.log
+          {
+            echo "### Firmware build"
+            echo "- esp32 core: \`$CORE\`, NimBLE-Arduino: \`$NIMBLE\`, board: \`XIAO_ESP32S3\`, USB CDC On Boot"
+            echo '```'
+            grep -E "Sketch uses|Global variables" build.log || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -14,6 +14,10 @@ static int head = 0;
 // DC blocker: the INMP441 output sits on an offset.
 static float dcPrevIn = 0, dcPrevOut = 0;
 
+// A working INMP441 never sends identical samples for long: even in silence its noise floor moves the low bits.
+static volatile int flatBlocks = 0;
+constexpr int FLAT_LIMIT = CAPTURE_RATE / (BLOCK_SAMPLES * 2);   // blocks in 1 s
+
 bool audioBegin() {
   const float fc = 3500.0f / CAPTURE_RATE;
   float sum = 0;
@@ -31,10 +35,16 @@ bool audioBegin() {
   return i2s.begin(I2S_MODE_STD, CAPTURE_RATE, I2S_DATA_BIT_WIDTH_32BIT, I2S_SLOT_MODE_MONO, I2S_STD_SLOT_LEFT);
 }
 
+bool audioSilent() { return flatBlocks >= FLAT_LIMIT; }
+
 void audioRead(int16_t* out) {
   static int32_t raw[BLOCK_SAMPLES * 2];  // 10 ms at 16 kHz
   size_t want = sizeof(raw), got = 0;
   while (got < want) got += i2s.readBytes(reinterpret_cast<char*>(raw) + got, want - got);
+
+  bool flat = true;
+  for (int i = 1; i < BLOCK_SAMPLES * 2 && flat; i++) flat = raw[i] == raw[0];
+  flatBlocks = flat ? min(flatBlocks + 1, FLAT_LIMIT) : 0;
 
   for (int i = 0, k = 0; i < BLOCK_SAMPLES * 2; i++) {
     const float x = (raw[i] >> 8) / 256.0f;        // 24-bit -> 16-bit scale

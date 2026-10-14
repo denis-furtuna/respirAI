@@ -101,16 +101,20 @@ static void audioTask(void*) {
 // ---------- status ----------
 static uint8_t batteryPercent() {
   if (PIN_BATTERY < 0) return 255;   // not wired: "unknown"
-  const float volts = analogReadMilliVolts(PIN_BATTERY) * 2 / 1000.0f;   // 1:2 divider
+  uint32_t mv = 0;
+  for (int i = 0; i < 16; i++) mv += analogReadMilliVolts(PIN_BATTERY);   // average out the ADC noise
+  const float volts = mv / 16.0f * 2 / 1000.0f;   // 1:2 divider
   return constrain((volts - 3.3f) / (4.2f - 3.3f) * 100, 0, 100);
 }
 
 static void sendStatus() {
   const uint16_t packets = packetsSinceStatus;
   packetsSinceStatus = 0;
+  const bool silent = audioOk && audioSilent();
+  if (silent) Serial.println("WARNING: the microphone sends no sound. Check VDD on 3V3, SD on D10, SCK on D8, WS on D9, L/R on GND.");
   uint8_t status[4] = {
     batteryPercent(),
-    !audioOk ? STATE_ERROR : streaming ? STATE_STREAMING : STATE_IDLE,
+    !audioOk || silent ? STATE_ERROR : streaming ? STATE_STREAMING : STATE_IDLE,
     (uint8_t)(packets & 0xff), (uint8_t)(packets >> 8),
   };
   ledsStatus(status[1] == STATE_ERROR, status[0]);
@@ -122,6 +126,7 @@ static void sendStatus() {
 // ---------- setup / loop ----------
 void setup() {
   Serial.begin(115200);
+  Serial.println(FW_VERSION);
   ledsBegin();
   audioOk = audioBegin();
   if (!audioOk) Serial.println("ERROR: I2S microphone did not start. Check the wiring (docs/PLAN.md §3).");

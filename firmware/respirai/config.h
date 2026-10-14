@@ -13,6 +13,7 @@ constexpr int PIN_BATTERY     = -1;   // ADC pin of a 1:2 divider on BAT+ (2 = D
 
 // ---------- contract 1 ----------
 #define DEVICE_NAME   "respirAI"
+#define FW_VERSION    "respirai-fw 0.4 (4-LED lung panel)"
 #define SERVICE_UUID  "7b8c9d00-0001-4b5e-8f00-1a2b3c4d5e6f"
 #define AUDIO_UUID    "7b8c9d00-0002-4b5e-8f00-1a2b3c4d5e6f"
 #define CONTROL_UUID  "7b8c9d00-0003-4b5e-8f00-1a2b3c4d5e6f"
