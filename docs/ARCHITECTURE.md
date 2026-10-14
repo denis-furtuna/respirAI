@@ -57,7 +57,7 @@ Single byte, or byte + argument.
 | `0x01` | start audio streaming |
 | `0x02` | stop audio streaming |
 | `0x10` | LED: start the breathing guide and loop it until `0x11` or `0x12`. A trailing chest-point byte (`0x10 <n>`) is accepted and ignored: the phone shows the place |
-| `0x11` | LED: place recorded — the lungs fade out, the "AI" flashes once |
+| `0x11` | LED: place recorded — the lungs fade out |
 | `0x12` | LED: stop the guide, the lungs fade out over 300 ms |
 | `0x20` | send status now |
 

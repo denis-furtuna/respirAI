@@ -32,7 +32,7 @@ constexpr uint32_t BREATH_IN_MS    = 4000;   // mirrored in app/app.js (BREATH_I
 constexpr uint32_t BREATH_OUT_MS   = 5000;   // or the LEDs and the circle on the phone drift apart
 constexpr float    TRACHEA_LEAD    = 0.2f;   // the trachea leads the lobes by this share of a breath. Tune on the hardware
 constexpr float    LED_LEVEL       = 1.0f;   // lungs at the top of a breath, 0-1. Set the brightness with the resistors first
-constexpr float    AI_IDLE         = 0.38f;  // "AI" glow while connected: about 12 % duty after gamma. Dim looks calm
+constexpr float    AI_ON           = 1.0f;   // "AI" while connected (always on), and the peak of its blink. 0.4 = a softer glow
 constexpr uint32_t LED_PWM_HZ      = 20000;  // far above the 100-1800 Hz the AI listens to
 constexpr uint8_t  LED_PWM_BITS    = 11;     // the most the LEDC allows at 20 kHz (80 MHz / 20 kHz = 4000 steps)
 constexpr uint32_t LED_FADE_MS     = 300;    // the lungs fade out when the guide stops, so a stop never looks like a glitch

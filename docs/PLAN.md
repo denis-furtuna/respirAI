@@ -157,7 +157,7 @@ The app uses the sequence number to detect dropped packets and fills gaps with s
 | `0x01` | start audio streaming |
 | `0x02` | stop audio streaming |
 | `0x10` | LED: start the breathing guide and loop it until `0x11` or `0x12`. A trailing chest-point byte (`0x10 <n>`) is accepted and ignored: the phone shows the place |
-| `0x11` | LED: place recorded — the lungs fade out, the "AI" flashes once |
+| `0x11` | LED: place recorded — the lungs fade out |
 | `0x12` | LED: stop the guide, the lungs fade out over 300 ms |
 | `0x20` | send status now |
 
@@ -304,7 +304,7 @@ Priorities: **P0** = demo fails without it · **P1** = important · **P2** = nic
 | F-LED2 | Raised-cosine curve + precomputed gamma 2.2 table | P1 |
 | F-LED3 | Breathing loop: trachea leads on breathe-in, lobes lead on breathe-out | P1 |
 | F-LED4 | `0x10` / `0x11` / `0x12`, 300 ms fade-out, 60 s safety stop | P1 |
-| F-LED5 | "AI" status patterns: waiting, connected, guide, place done, low battery, error | P2 |
+| F-LED5 | "AI" status light: smooth blink until a phone connects, then always on; double blink on low battery, fast blink on error | P2 |
 | F-LED6 | Deep sleep after a few minutes with no phone connected; wake with the reset button | P2 |
 | F11 | ECG channel added to the stream | P2 |
 | F12 | MAX30102 reading | P2 |

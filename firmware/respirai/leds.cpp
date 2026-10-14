@@ -5,9 +5,9 @@
 // What the LEDs do:
 //   lungs (trachea + lobes)  only the breathing guide. Inhale: the trachea rises first, then the lobes fill.
 //                            Exhale: the lobes empty first, then the trachea. When the guide stops: a 300 ms fade.
-//   "AI" of the wordmark     waiting for the phone: slow blink. Connected: steady dim glow. Guide: a soft pulse with
-//                            the breath. Place done: one bright flash. Battery low: double blink every 4 s.
-//                            Error (no mic): fast blink.
+//   "AI" of the wordmark     not connected: smooth blink (fades on and off every 2 s). Connected: always on.
+//                            Only when something is wrong: double blink every 4 s on low battery, fast blink on
+//                            error (no mic).
 // The breathing curve is the raised cosine the app's circle uses; gamma goes on the LEDs only (duty = max * level^2.2),
 // so both look in step. The app owns the timer: the device loops the breath until it is told to stop.
 
@@ -64,21 +64,17 @@ static void breathe(uint32_t t) {
   }
 }
 
-static float statusLight(uint32_t now, uint32_t t) {
+static float statusLight(uint32_t now) {
   if (deviceError) return (now / 125) % 2 ? 1.0f : 0.0f;              // fast blink, 4 per second
-  if (mode == LED_DONE && t < 250) return 1.0f;                        // place recorded: one bright flash
   if (battery <= BATTERY_LOW) {                                        // never true while unknown (255)
     const uint32_t c = now % 4000;
     if (c < 120 || (c >= 300 && c < 420)) return 1.0f;                 // double blink every 4 s
   }
-  switch (mode) {
-    case LED_WAITING: {                                                // slow blink until the phone connects
-      const uint32_t c = now % 2000;
-      return 0.8f * (c < 1000 ? ease(c / 1000.0f) : 1 - ease((c - 1000) / 1000.0f));
-    }
-    case LED_GUIDE: return AI_IDLE + (0.75f - AI_IDLE) * (trachea + lobes) / 2;   // soft pulse with the breath
-    default: return AI_IDLE;                                           // connected: steady and dim
+  if (mode == LED_WAITING) {                                           // not connected: smooth blink, 2 s
+    const uint32_t c = now % 2000;
+    return AI_ON * (c < 1000 ? ease(c / 1000.0f) : 1 - ease((c - 1000) / 1000.0f));
   }
+  return AI_ON;                                                        // connected: always on
 }
 
 void ledsUpdate() {
@@ -100,5 +96,5 @@ void ledsUpdate() {
   }
   show(PIN_LED_TRACHEA, trachea * LED_LEVEL);
   show(PIN_LED_LOBES, lobes * LED_LEVEL);
-  show(PIN_LED_AI, statusLight(now, t));
+  show(PIN_LED_AI, statusLight(now));
 }
