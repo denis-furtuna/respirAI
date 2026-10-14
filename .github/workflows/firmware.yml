@@ -15,13 +15,13 @@ permissions:
 jobs:
   compile:
     name: Compile for XIAO ESP32-S3
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04   # pinned: ubuntu-latest moves to a new release on its own
     timeout-minutes: 30
     defaults:
       run:
         shell: bash   # explicit bash = -eo pipefail, so a failed compile can't hide behind "| tee"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: arduino/setup-arduino-cli@v2
 
@@ -65,7 +65,11 @@ jobs:
 
       - name: Compile firmware/respirai
         run: |
-          arduino-cli compile --fqbn esp32:esp32:XIAO_ESP32S3:CDCOnBoot=cdc --warnings default firmware/respirai 2>&1 | tee build.log
+          arduino-cli compile --fqbn esp32:esp32:XIAO_ESP32S3:CDCOnBoot=cdc --warnings all firmware/respirai 2>&1 | tee build.log
+          # Annotations show on the run page without logging in: versions, size, and warnings in our own code.
+          echo "::notice title=Firmware build::esp32 core $CORE, NimBLE-Arduino $NIMBLE. $(grep -E 'Sketch uses' build.log)"
+          grep -E 'respirai/[a-z_]+\.(ino|cpp|h):[0-9]+:[0-9]+: warning:' build.log | sort -u | head -20 | while IFS= read -r w; do echo "::warning title=Compiler::$w"; done
+          echo "warnings in our code: $(grep -cE 'respirai/[a-z_]+\.(ino|cpp|h):[0-9]+:[0-9]+: warning:' build.log || true)"
           {
             echo "### Firmware build"
             echo "- esp32 core: \`$CORE\`, NimBLE-Arduino: \`$NIMBLE\`, board: \`XIAO_ESP32S3\`, USB CDC On Boot"
