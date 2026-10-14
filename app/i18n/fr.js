@@ -19,7 +19,7 @@ export default {
   "connect.bluetoothOff": "Le Bluetooth est désactivé. Activez-le, puis connectez l'appareil.",
 
   "device.battery": "Batterie {pct}",
-  "device.problem": "L'appareil signale un problème. Éteignez-le, puis rallumez-le.",
+  "device.problem": "L'appareil ne reçoit aucun son de son microphone. Éteignez-le, puis rallumez-le. Si cela continue, vérifiez les fils du microphone.",
   "device.lowBattery": "La batterie de l'appareil est faible ({pct}). Rechargez-la bientôt.",
   "device.reconnecting": "L'appareil s'est déconnecté. Reconnexion…",
   "device.back": "L'appareil est de nouveau connecté.",

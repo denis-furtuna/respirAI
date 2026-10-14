@@ -43,7 +43,8 @@ def chrome():
 def run_page(url):
     """Opens the page headless; virtual time lets a 7-place check finish in seconds. Returns its PASS/FAIL lines."""
     with tempfile.TemporaryDirectory() as profile:
-        out = subprocess.run([chrome(), "--headless=new", "--disable-gpu", "--no-first-run", f"--user-data-dir={profile}",
+        ci = ["--no-sandbox"] if os.environ.get("CI") else []   # GitHub's Ubuntu VMs can't give Chrome its sandbox; never on a real machine
+        out = subprocess.run([chrome(), *ci, "--headless=new", "--disable-gpu", "--no-first-run", f"--user-data-dir={profile}",
                               "--autoplay-policy=no-user-gesture-required", "--virtual-time-budget=400000", "--dump-dom", url],
                              capture_output=True, text=True, encoding="utf-8", timeout=600).stdout
     found = re.search(r'<pre id="out">(.*?)</pre>', out, re.S)

@@ -7,7 +7,8 @@
 //   &battery=64           battery level to report (default 255 = unknown)
 //   &wav=crackles.wav     stream a real recording on a loop instead of generated breathing:
 //                         a file in dev/recordings/, or a path like demo_clips/crackles_Al.wav
-// From the console: fakeBt.disconnect() (a short drop: the app reconnects), fakeBt.switchOff() / fakeBt.switchOn()
+// From the console: fakeBt.disconnect() (a short drop: the app reconnects), fakeBt.switchOff() / fakeBt.switchOn(),
+// fakeBt.micFault(true / false) (the firmware's error state: its microphone sends no sound)
 import { AUDIO, CONTROL, SERVICE, STATUS } from "./device.js";
 
 const fail = (name, message) => Promise.reject(new DOMException(message, name));
@@ -16,7 +17,7 @@ export function fakeBluetooth({ mtu = 185, drop = 0, disconnectAfter = 0, batter
   const samplesPerPacket = Math.min(80, ((mtu - 5) >> 1) & ~1);
   let recording = null;   // loaded in the background; never holds up the app
   const recordingReady = wav ? loadRecording(wav).then((r) => { recording = r; }) : Promise.resolve();
-  let current = null, on = true;
+  let current = null, on = true, fault = false;
 
   function makeDevice(allowed) {
     const device = new EventTarget();
@@ -56,7 +57,7 @@ export function fakeBluetooth({ mtu = 185, drop = 0, disconnectAfter = 0, batter
       }
     }
 
-    const status = () => notify(chars[STATUS], new Uint8Array([battery, timers.length ? 1 : 0, 0, 0]));
+    const status = () => notify(chars[STATUS], new Uint8Array([battery, fault ? 2 : timers.length ? 1 : 0, 0, 0]));
     const stop = () => { timers.forEach(clearInterval); timers = []; };
 
     device.gatt = {
@@ -94,6 +95,7 @@ export function fakeBluetooth({ mtu = 185, drop = 0, disconnectAfter = 0, batter
     disconnect: () => current && current.gatt.disconnect(),
     switchOff() { on = false; this.disconnect(); },
     switchOn() { on = true; },
+    micFault(yes = true) { fault = yes; },
     get source() { return recording ? wav : "generated breathing"; },
   };
 }

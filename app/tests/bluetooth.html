@@ -54,5 +54,11 @@ w.fakeBt.switchOn();
 $("btnConnect").click(); await sleep(1500);
 check("connect again → continue", !$("sReady").hidden && /Continue/.test($("btnBegin").textContent), $("btnBegin").textContent);
 
+// 4. The firmware reports its microphone sends no sound: say so, and clear it when sound comes back
+w.fakeBt.micFault(true); await sleep(2500);
+check("mic fault → says to check the microphone", !$("notice").hidden && /no sound from its microphone/.test($("notice").textContent), $("notice").textContent);
+w.fakeBt.micFault(false); await sleep(2500);
+check("mic hears again → the message goes away", $("notice").hidden, $("notice").textContent);
+
 document.getElementById("out").textContent = out.join("\n") + "\nDONE";
 </script>

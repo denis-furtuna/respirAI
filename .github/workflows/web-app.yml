@@ -1,0 +1,35 @@
+# Runs the web app's browser tests (app/tests/run.py: flow, Bluetooth, no audio, languages) in headless Chrome
+# on GitHub's machines on every push that touches the app. Plain Python, nothing else to install.
+name: Web app tests
+
+on:
+  push:
+    paths: ["app/**", ".github/workflows/web-app.yml"]
+  pull_request:
+    paths: ["app/**", ".github/workflows/web-app.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Browser tests
+    runs-on: ubuntu-24.04   # pinned: ubuntu-latest moves to a new release on its own
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Run app/tests/run.py
+        run: |
+          google-chrome --version
+          python app/tests/run.py 2>&1 | tee tests.log
+          echo "::notice title=Web app tests::$(grep -E '^[a-z-]+: ' tests.log | paste -sd ';')"
+          { echo "### Web app tests"; echo '```'; cat tests.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"

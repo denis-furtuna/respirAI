@@ -139,7 +139,8 @@ async function connect(bt, button) {
     onStatus: (status) => {
       battery = status.battery;
       showBattery();
-      if (status.state === 2) notice("device.problem");
+      if (status.state === 2) notice("device.problem");   // the firmware's error: its microphone sends no sound
+      else if (noticeShown[0] === "device.problem") notice();   // it hears again: the message goes away by itself
       else if (battery <= 15 && !batteryWarned) {
         batteryWarned = true;
         notice("device.lowBattery", { pct: percent(battery / 100) });
@@ -334,7 +335,6 @@ async function recordPoint(code) {
   await countdown(1.2, () => {});
 }
 
-// Runs onTick about 20 times a second; resolves false if the session was stopped.
 // The breathing circle, drawn every frame from the curve the device uses too: (1 - cos(pi k)) / 2 (contract 4.1).
 // breathe() starts it and returns its start time; breathe(false) stops it. drawBreath() is also called by the
 // countdown's ticks, so the circle keeps moving (in step) where the browser slows down animation frames.
@@ -358,6 +358,7 @@ function breathe(on = true) {
   return breathStart;
 }
 
+// Runs onTick about 20 times a second; resolves false if the session was stopped.
 async function countdown(seconds, onTick, skippable = false) {
   const start = performance.now();
   skip = false;

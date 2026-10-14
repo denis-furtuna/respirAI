@@ -19,7 +19,7 @@ export default {
   "connect.bluetoothOff": "Bluetooth is switched off. Turn it on, then connect the device.",
 
   "device.battery": "Battery {pct}",
-  "device.problem": "The device reported a problem. Switch it off and on again.",
+  "device.problem": "The device gets no sound from its microphone. Switch it off and on again. If this stays, check the microphone's wires.",
   "device.lowBattery": "The device battery is low ({pct}). Charge it soon.",
   "device.reconnecting": "The device disconnected. Reconnecting…",
   "device.back": "The device is connected again.",

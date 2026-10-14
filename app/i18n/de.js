@@ -19,7 +19,7 @@ export default {
   "connect.bluetoothOff": "Bluetooth ist ausgeschaltet. Schalten Sie es ein und verbinden Sie dann das Gerät.",
 
   "device.battery": "Akku {pct}",
-  "device.problem": "Das Gerät meldet ein Problem. Schalten Sie es aus und wieder ein.",
+  "device.problem": "Das Gerät empfängt keinen Ton vom Mikrofon. Schalten Sie es aus und wieder ein. Wenn das bleibt, prüfen Sie die Kabel des Mikrofons.",
   "device.lowBattery": "Der Akku des Geräts ist schwach ({pct}). Laden Sie ihn bald auf.",
   "device.reconnecting": "Die Verbindung zum Gerät wurde getrennt. Verbindung wird wiederhergestellt…",
   "device.back": "Das Gerät ist wieder verbunden.",

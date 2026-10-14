@@ -19,7 +19,7 @@ export default {
   "connect.bluetoothOff": "Bluetooth este oprit. Porniți-l, apoi conectați dispozitivul.",
 
   "device.battery": "Baterie {pct}",
-  "device.problem": "Dispozitivul a semnalat o problemă. Opriți-l și porniți-l din nou.",
+  "device.problem": "Dispozitivul nu primește sunet de la microfon. Opriți-l și porniți-l din nou. Dacă problema rămâne, verificați firele microfonului.",
   "device.lowBattery": "Bateria dispozitivului este aproape descărcată ({pct}). Puneți-l la încărcat curând.",
   "device.reconnecting": "Dispozitivul s-a deconectat. Se reconectează…",
   "device.back": "Dispozitivul este din nou conectat.",
