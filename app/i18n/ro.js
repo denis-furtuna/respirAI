@@ -6,7 +6,7 @@ export default {
   "welcome.title": "Bun venit la respirAI",
   "welcome.lead": "respirAI vă ascultă plămânii cu stetoscopul său și vă semnalează sunetele pe care e bine să le asculte și un medic.",
   "welcome.diagnosis": "<b>Nu este un diagnostic.</b> Doar un medic poate spune ce înseamnă sunetele.",
-  "welcome.privacy": "<b>Confidențialitate:</b> înregistrările sunt trimise doar serverului de analiză respirAI, pentru a fi verificate. Telefonul păstrează numai data și rezultatul verificărilor anterioare.",
+  "welcome.privacy": "<b>Confidențialitate:</b> înregistrările sunt verificate pe acest telefon și nu sunt trimise nicăieri. Telefonul păstrează numai data și rezultatul verificărilor anterioare.",
   "welcome.emergency": "<b>În caz de urgență</b>, de exemplu dacă respirați foarte greu sau aveți dureri în piept, sunați imediat la 112.",
   "welcome.ok": "Am înțeles, continuăm",
 

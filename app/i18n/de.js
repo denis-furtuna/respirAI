@@ -6,7 +6,7 @@ export default {
   "welcome.title": "Willkommen bei respirAI",
   "welcome.lead": "respirAI hört mit seinem Stethoskop Ihre Lunge ab und zeigt Ihnen Geräusche, die Sie ärztlich abklären lassen sollten.",
   "welcome.diagnosis": "<b>Das ist keine Diagnose.</b> Nur eine Ärztin oder ein Arzt kann sagen, was die Geräusche bedeuten.",
-  "welcome.privacy": "<b>Ihre Privatsphäre:</b> Aufnahmen werden nur an den Analyseserver von respirAI gesendet, um sie zu prüfen. Dieses Telefon speichert nur Datum und Ergebnis früherer Checks.",
+  "welcome.privacy": "<b>Ihre Privatsphäre:</b> Aufnahmen werden auf diesem Telefon ausgewertet und nie hochgeladen. Es speichert nur Datum und Ergebnis früherer Checks.",
   "welcome.emergency": "<b>Im Notfall</b>, etwa bei starker Atemnot oder Brustschmerzen, rufen Sie sofort die 112 oder Ihre örtliche Notrufnummer an.",
   "welcome.ok": "Verstanden, weiter",
 

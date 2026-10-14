@@ -6,7 +6,7 @@ export default {
   "welcome.title": "Welcome to respirAI",
   "welcome.lead": "respirAI listens to your lungs through its stethoscope and points out sounds a doctor should hear.",
   "welcome.diagnosis": "<b>It is not a diagnosis.</b> Only a doctor can say what the sounds mean.",
-  "welcome.privacy": "<b>Your privacy:</b> recordings are sent only to the respirAI analysis server, to check them. This phone keeps just the date and result of earlier checks.",
+  "welcome.privacy": "<b>Your privacy:</b> recordings are checked on this phone and never uploaded. It keeps just the date and result of earlier checks.",
   "welcome.emergency": "<b>In an emergency</b>, such as severe trouble breathing or chest pain, call 112 or your local emergency number straight away.",
   "welcome.ok": "I understand, continue",
 

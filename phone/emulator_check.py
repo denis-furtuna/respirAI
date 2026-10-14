@@ -38,9 +38,9 @@ def adb(*args):
 def screenshot(title):   # small, in pieces: GitHub keeps 4096 characters of a notice, and 10 notices per step
     png = subprocess.run(["adb", "exec-out", "screencap", "-p"], capture_output=True, timeout=60).stdout
     img = Image.open(io.BytesIO(png)).convert("RGB")
-    img = img.resize((180, int(180 * img.height / img.width)), Image.LANCZOS)
+    img = img.resize((160, int(160 * img.height / img.width)), Image.LANCZOS)
     buf = io.BytesIO()
-    img.save(buf, "JPEG", quality=50)
+    img.save(buf, "JPEG", quality=42)
     data = base64.b64encode(buf.getvalue()).decode()
     parts = [data[i:i + 4000] for i in range(0, len(data), 4000)]
     for i, part in enumerate(parts):
@@ -135,6 +135,7 @@ def main(apk):
     check("a whole practice check reaches the results", bool(page.until(clicker, 300, step=1)))
     rows = page.js("[...document.querySelectorAll('#resultList li')].map(li => li.className + ':' + li.querySelector('.chip').textContent).join(' | ')")
     check("7 places, all analysed on the phone", rows is not None and rows.count("ok:Clear") == 7, rows)
+    time.sleep(2)   # let the WebView paint the results before the picture
     screenshot("results")
 
     page.js("document.getElementById('btnShare').click(); true")
@@ -157,9 +158,28 @@ def main(apk):
     screenshot("dark")
     adb("shell", "cmd", "uimode", "night", "no")
 
+    # The app's log so far (read before the probe below, whose own failures are only reported)
     log = adb("logcat", "-d", "-s", "Capacitor/Console:*", "Capacitor:*", "chromium:*")
+
+    # Every plugin the app uses, called directly: a rejected call shows here by name (Capacitor logs it as an error)
+    probe = page.js("""(async () => {
+      const P = window.Capacitor.Plugins, out = {};
+      const t = async (name, f) => { try { await f(); out[name] = "ok"; } catch (e) { out[name] = "ERR " + (e && (e.message || e.code) || JSON.stringify(e)); } };
+      await t("SystemBars.setStyle", () => P.SystemBars.setStyle({ style: "LIGHT" }));
+      await t("BluetoothLe.setDisplayStrings", () => P.BluetoothLe.setDisplayStrings({ scanning: "…", cancel: "Cancel" }));
+      await t("KeepAwake.keepAwake", () => P.KeepAwake.keepAwake());
+      await t("KeepAwake.allowSleep", () => P.KeepAwake.allowSleep());
+      await t("Haptics.vibrate", () => P.Haptics.vibrate({ duration: 10 }));
+      await t("TextToSpeech.speak", () => P.TextToSpeech.speak({ text: "test", lang: "en-GB", rate: 0.9 }));
+      await t("TextToSpeech.stop", () => P.TextToSpeech.stop());
+      return JSON.stringify(out); })()""")
+    print(f"::notice title=Plugins::{probe}", flush=True)
+
+    console = [l.split(": ", 1)[-1] for l in log.splitlines() if "Capacitor/Console" in l][:12]
+    print(f"::notice title=Console::{' | '.join(console)[:3800]}", flush=True)
     errors = [l for l in log.splitlines() if re.search(r"\bE (Capacitor|chromium)|Uncaught|TypeError|ReferenceError|SyntaxError", l)
-              and "Unable to open asset URL: https://localhost/model/" not in l]   # no trained model yet: dummy mode, as intended
+              and "Unable to open asset URL: https://localhost/model/" not in l   # no trained model yet: dummy mode, as intended
+              and "beforeunload" not in l]   # this check reloads the page after a check; a user never reloads the app
     check("no errors in the app's log", not errors, " | ".join(errors[:5]))
     print(f"{sum(results)} passed, {len(results) - sum(results)} failed")
     print(f"::notice title=Emulator check::{sum(results)} passed, {len(results) - sum(results)} failed", flush=True)

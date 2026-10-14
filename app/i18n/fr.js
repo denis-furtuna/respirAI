@@ -6,7 +6,7 @@ export default {
   "welcome.title": "Bienvenue dans respirAI",
   "welcome.lead": "respirAI écoute vos poumons grâce à son stéthoscope et vous signale les sons qu'il vaut mieux faire écouter à un médecin.",
   "welcome.diagnosis": "<b>Ce n'est pas un diagnostic.</b> Seul un médecin peut dire ce que signifient ces sons.",
-  "welcome.privacy": "<b>Votre vie privée :</b> les enregistrements sont envoyés uniquement au serveur d'analyse respirAI, pour les examiner. Ce téléphone ne garde que la date et le résultat des contrôles précédents.",
+  "welcome.privacy": "<b>Votre vie privée :</b> les enregistrements sont analysés sur ce téléphone et ne sont jamais envoyés. Il ne garde que la date et le résultat des contrôles précédents.",
   "welcome.emergency": "<b>En cas d'urgence</b>, par exemple une forte gêne respiratoire ou une douleur dans la poitrine, appelez immédiatement le 112 ou votre numéro d'urgence local.",
   "welcome.ok": "J'ai compris, continuer",
 

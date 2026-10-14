@@ -6,7 +6,7 @@ export default {
   "welcome.title": "Le damos la bienvenida a respirAI",
   "welcome.lead": "respirAI escucha sus pulmones con el estetoscopio y le señala los sonidos que conviene consultar con un médico.",
   "welcome.diagnosis": "<b>No es un diagnóstico.</b> Solo un médico puede decir qué significan los sonidos.",
-  "welcome.privacy": "<b>Su privacidad:</b> las grabaciones se envían solo al servidor de análisis de respirAI, para revisarlas. Este teléfono guarda únicamente la fecha y el resultado de las revisiones anteriores.",
+  "welcome.privacy": "<b>Su privacidad:</b> las grabaciones se analizan en este teléfono y nunca se envían. Solo guarda la fecha y el resultado de las revisiones anteriores.",
   "welcome.emergency": "<b>En caso de emergencia</b>, como una gran dificultad para respirar o dolor en el pecho, llame de inmediato al 112 o a su número de emergencias local.",
   "welcome.ok": "Entendido, continuar",
 
