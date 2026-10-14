@@ -35,8 +35,9 @@ for (let i = 0; i < 600 && $("sResults").hidden; i++) { if (!$("btnNow").hidden)
 const log = (await (await fetch("/log")).json()).slice(before);
 check("7 valid ~5 s WAVs despite small packets and losses", log.length === 7 && log.every((e) => e.wav_ok && e.seconds > 4.5), JSON.stringify(log.map((e) => e.seconds)));
 
-// 2. The device drops out in the middle of a session: the app reconnects by itself
-[d, $, w] = await open("b", "?fakebt&disconnectAfter=16");
+// 2. The device drops out in the middle of a session: the app reconnects by itself. 22 s of streaming: the first place
+//    (1.5 s connected, practice breath 9 s, recording 5 s, done 1.2 s) is finished, the second one is under way.
+[d, $, w] = await open("b", "?fakebt&disconnectAfter=22");
 $("btnConnect").click(); await sleep(1500);
 $("btnBegin").click();
 for (let i = 0; i < 600 && !/Reconnecting/.test($("notice").textContent); i++) { if (!$("btnNow").hidden) $("btnNow").click(); await sleep(50); }
