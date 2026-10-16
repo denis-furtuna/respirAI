@@ -166,6 +166,7 @@ export default {
   "settings.unreachable": "Impossible de joindre {server}.",
   "settings.stats": "Signal : {received} paquets, {lost} perdus, {bytes} octets chacun",
   "settings.noSignal": "Signal : aucun son reçu pour l'instant",
+  "settings.micTest": "Test du microphone",
   "settings.forget": "Oublier les contrôles précédents",
   "settings.done": "Terminé",
 };

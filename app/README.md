@@ -19,6 +19,7 @@ Wording rule: the UI never says "diagnosis". Use "finding", "screening", "possib
 | `ai/` | **the AI on the phone**: `pipeline.js` is `ai/preprocess.py`, `ai/quality.py` and the window combining of `ai/inference.py` in JavaScript; `worker.js` runs it with the model (ONNX Runtime Web) off the main thread and answers like `POST /analyze`; `local.js` is the app's side | — |
 | `model/` | the trained model for `ai/` (see its README); empty until trained: dummy answers, like the server without weights | — |
 | `native.js`, `native-bluetooth.js` | only in the Android app: the phone's own Bluetooth (behind the Web Bluetooth calls `device.js` uses), speech, wake lock, share sheet ([`phone/`](../phone/README.md)) | — |
+| `mic-test.html`, `mic-test.js` | the team's **microphone test**: the device's mic and Bluetooth stream, live (see *Microphone test* below) | F2–F6, E3 |
 | `privacy.html` | the privacy policy (English, Română), for Google Play | — |
 
 ## Languages
@@ -45,6 +46,16 @@ During recording the signal line also warns when the sound is clipping ("Too lou
 The check can be paused and continued without losing anything: *Stop*, the phone's back button, leaving the app, or the device disconnecting all keep the finished places, and *Continue* records only what is left. The page asks before closing if there are results. "Start a new check" needs two separate taps.
 
 **Settings** (the sliders icon, top right; remembered on the phone): **language**, **text size** and **appearance** (automatic / light / dark) for the user; for the team: an AI server's address (empty: the AI runs on the phone; not shown in the Android app), the seconds per place, and **demo mode**. Demo mode answers for the chosen case's example recording instead of the audio: on the phone from `model/demo_clips/` (a fixed example answer until there is a model), or `demo=true` to an AI server.
+
+## Microphone test
+
+For the team, while building and wiring the device: *Settings → Microphone test*, or open `mic-test.html` directly (in Chrome, on GitHub Pages, or in the Android app). It connects like the app, asks the device to stream, and shows:
+
+- the **level** in dBFS (now, peak of the last 2 s, background noise, clipped samples) and the **waveform** of the last 3 s, with auto zoom or at real scale;
+- **checks** with plain advice: packets per second, packet size (a small MTU), lost packets, a silent microphone (with the pins to check), clipping or a level that is too quiet (`MIC_GAIN`), a background too loud to be sound (SCK and WS swapped), the battery;
+- a **10 s test clip** to listen to, or to save as a WAV (8 kHz, 16-bit, the AI's format; the share sheet in the Android app) for comparing our microphone with the dataset (task D9).
+
+Nothing is analysed or uploaded. English only: it is a bench tool, not part of a check. `?fakebt` and its options work here too. To test the mic before the app or Bluetooth are involved, use the serial test sketch on the `firmware` branch (`firmware/mic_test/`).
 
 ## Testing without the hardware
 
@@ -93,10 +104,10 @@ Both servers only ever serve files from `app/` (the dev server's file paths are 
 ## Automated tests
 
 ```bash
-python app/tests/run.py                               # 120 checks, each suite against a fresh stand-in AI server
+python app/tests/run.py                               # 141 checks, each suite against a fresh stand-in AI server
 python app/tests/run.py --real http://localhost:8000  # a whole check against a running real AI server (15 checks)
 ```
 Plain Python and the installed Chrome (set `CHROME` if it isn't found); nothing to install. The suites in [`tests/`](tests/) drive the real app in headless Chrome, fast-forwarding time, so a 7-place check takes seconds:
-`flow` (the whole check, results, Listen, share, restart, back button, settings), `bluetooth` (small packets, lost packets, reconnect, device switched off), `no-audio`, `languages` (every language complete, a check in Romanian, dark mode), `on-phone` (the AI's sound processing behaves as designed; a whole check with no server), `native` (the Android app's Bluetooth under `device.js`, with a stand-in plugin) and `real-server` (contract 2, checked on every answer of a real server, with or without a model).
+`flow` (the whole check, results, Listen, share, restart, back button, settings), `bluetooth` (small packets, lost packets, reconnect, device switched off), `no-audio`, `mic-test` (the microphone test page: its checks, a mic fault, small MTU, lost packets, a clip, disconnects), `languages` (every language complete, a check in Romanian, dark mode), `on-phone` (the AI's sound processing behaves as designed; a whole check with no server), `native` (the Android app's Bluetooth under `device.js`, with a stand-in plugin) and `real-server` (contract 2, checked on every answer of a real server, with or without a model).
 
 On GitHub ([`web-app.yml`](../.github/workflows/web-app.yml)) one more suite runs, `ai`: [`make_golden.py`](tests/make_golden.py) runs the Python AI on a set of recordings with a stand-in model, and the JavaScript must give the same numbers at every stage (resampled and filtered audio, spectrograms, quality, model output, the final answer). It needs NumPy, SciPy and ONNX, so it is skipped on a laptop. The Android app is also started in an emulator on every build and checked from inside ([`phone/emulator_check.py`](../phone/emulator_check.py)).

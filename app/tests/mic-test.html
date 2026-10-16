@@ -1,0 +1,86 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>mic-test test</title>
+<!-- The team's microphone test page against the fake device: checks, mic fault, small MTU, lost packets, a 10 s clip,
+     disconnects, and the link from the app's settings. Run with app/tests/run.py. -->
+<pre id="out">running</pre>
+<iframe id="app" style="width:390px;height:844px"></iframe>
+<script type="module">
+const out = [];
+const check = (name, ok, extra = "") => out.push(`${ok ? "PASS" : "FAIL"} ${name} ${extra}`);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+localStorage.setItem("respirai", JSON.stringify({ welcomed: true, lang: "en" }));
+const frame = document.getElementById("app");
+let w, d;
+const $ = (id) => d.getElementById(id);
+async function open(path) {
+  frame.src = path;
+  await new Promise((r) => (frame.onload = r));
+  [w, d] = [frame.contentWindow, frame.contentDocument];
+  await sleep(300);
+}
+const items = () => [...d.querySelectorAll("#checks li")].map((li) => ({ state: li.className, title: li.querySelector("b").textContent, text: li.querySelector("span").textContent }));
+const item = (title) => items().find((c) => c.title === title) || { state: "missing", text: "" };
+const connect = async (ms = 3000) => { $("btnConnect").click(); await sleep(ms); };
+
+// 1. A healthy device
+await open("/mic-test.html?fakebt&battery=64");
+check("before connecting: not connected, nothing to record", $("verdict").textContent === "Not connected" && $("btnRecord").disabled);
+await connect();
+check("full 162-byte packets", item("Packet size").state === "ok" && /162 bytes per packet/.test($("device").textContent), $("device").textContent);
+check("about 100 packets per second", item("Packets").state === "ok", item("Packets").text);
+check("sound is arriving", item("Microphone").state === "ok", item("Microphone").text);
+check("level in dBFS", /^−\d+ dBFS$/.test($("level").textContent) && /^−\d+ dBFS$/.test($("peak").textContent), `${$("level").textContent} / ${$("peak").textContent}`);
+check("battery from the status packet", item("Battery").text === "64 %" && /battery 64 %/.test($("device").textContent), item("Battery").text);
+await sleep(9000);
+check("after 12 s: background measured, all OK", /dBFS/.test($("background").textContent) && $("verdict").textContent === "OK",
+  `${$("verdict").textContent} ${JSON.stringify(items().filter((c) => c.state !== "ok"))}`);
+
+// 2. The firmware's mic fault: silent packets and state 2
+w.fakeBt.micFault(true); await sleep(2500);
+check("mic fault → problem, with the pins to check", item("Microphone").state === "bad" && /SD on D10/.test(item("Microphone").text) && $("verdict").textContent === "Problem", item("Microphone").text);
+w.fakeBt.micFault(false); await sleep(2500);
+check("sound back → the problem clears", item("Microphone").state === "ok" && $("verdict").textContent === "OK", $("verdict").textContent);
+
+// 3. A 10 s clip: listen, save
+$("btnRecord").click(); await sleep(500);
+check("recording shows its progress", /^Recording… \d\.\d of 10 s$/.test($("clipText").textContent) && $("btnRecord").disabled, $("clipText").textContent);
+await sleep(11000);
+check("clip: 10 s with its level", /^10\.0 s · level −\d+ dBFS · peak −\d+ dBFS · 0 clipped samples · 0 packets lost$/.test($("clipText").textContent), $("clipText").textContent);
+check("clip: listen and save enabled", !$("btnListen").disabled && !$("btnSave").disabled);
+$("btnListen").click(); await sleep(200);
+check("listen → stop", $("btnListen").textContent === "Stop");
+$("btnListen").click(); await sleep(200);
+check("stop → listen", $("btnListen").textContent === "Listen");
+let saved = null, name = null;
+const createUrl = w.URL.createObjectURL;
+w.URL.createObjectURL = (blob) => { saved = blob; return createUrl.call(w.URL, blob); };
+w.HTMLAnchorElement.prototype.click = function () { name = this.download; };   // no real download from a test
+$("btnSave").click(); await sleep(200);
+check("save: a 10 s WAV", saved && saved.size === 44 + 2 * 80000 && saved.type === "audio/wav" && /^respirai-mic-\d{8}-\d{6}\.wav$/.test(name), `${saved?.size} ${name}`);
+
+// 4. Disconnecting: on purpose, and the device dropping
+$("btnDisconnect").click(); await sleep(500);
+check("disconnect → not connected, no alarm", $("device").textContent === "Not connected" && !$("btnConnect").hidden && $("notice").hidden, $("notice").textContent);
+await connect(1500);
+$("btnRecord").click(); await sleep(500);
+w.fakeBt.disconnect(); await sleep(300);
+check("device drops → says so, stops the recording", !$("notice").hidden && /disconnected/.test($("notice").textContent) && /stopped/.test($("clipText").textContent), $("clipText").textContent);
+
+// 5. A phone that negotiates a small MTU
+await open("/mic-test.html?fakebt&mtu=25");
+await connect();
+check("small MTU → packet size warns", item("Packet size").state === "warn" && /^22 bytes.*MTU \(25\)/.test(item("Packet size").text), item("Packet size").text);
+check("small MTU → packet rate still right", item("Packets").state === "ok" && /expected 800/.test(item("Packets").text), item("Packets").text);
+
+// 6. A weak connection
+await open("/mic-test.html?fakebt&drop=0.1");
+await connect();
+check("10 % lost → problem", item("Lost packets").state === "bad" && /closer/.test(item("Lost packets").text), item("Lost packets").text);
+
+// 7. The app's settings link here, with the same options
+await open("/index.html?fakebt&wav=crackles.wav");
+check("settings link keeps the options", $("micTest").getAttribute("href") === "mic-test.html?fakebt&wav=crackles.wav" && $("micTest").textContent === "Microphone test", $("micTest").getAttribute("href"));
+
+document.getElementById("out").textContent = out.join("\n") + "\nDONE";
+</script>

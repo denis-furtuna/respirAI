@@ -740,6 +740,7 @@ $("btnForget").addEventListener("click", () => {
   $("earlier").hidden = true;
 });
 $("btnSettings").addEventListener("click", () => $("settings").showModal());
+$("micTest").href = `mic-test.html${location.search}`;   // the team's microphone test, with the same options (e.g. ?fakebt)
 $("btnLang").addEventListener("click", chooseLanguage);
 $("btnLangRow").addEventListener("click", chooseLanguage);
 $("btnWelcome").addEventListener("click", () => {

@@ -8,7 +8,7 @@
 //   &wav=crackles.wav     stream a real recording on a loop instead of generated breathing:
 //                         a file in dev/recordings/, or a path like demo_clips/crackles_Al.wav
 // From the console: fakeBt.disconnect() (a short drop: the app reconnects), fakeBt.switchOff() / fakeBt.switchOn(),
-// fakeBt.micFault(true / false) (the firmware's error state: its microphone sends no sound)
+// fakeBt.micFault(true / false) (the firmware's error state: its microphone sends no sound, so the packets are silent)
 import { AUDIO, CONTROL, SERVICE, STATUS } from "./device.js";
 
 const fail = (name, message) => Promise.reject(new DOMException(message, name));
@@ -45,9 +45,10 @@ export function fakeBluetooth({ mtu = 185, drop = 0, disconnectAfter = 0, batter
 
     // 10 ms of audio (the recording, or breath-like noise), split into packets like the firmware. The noise swells
     // over 8 s; its quiet part stays above 1/6 of its loud part, so the AI's quality check never takes it for knocks.
+    // A mic fault sends silence, as the firmware does: its packets keep coming, but all zero.
     function tick() {
       if (disconnectAfter && performance.now() - since > disconnectAfter * 1000) return device.gatt.disconnect();
-      const block = Int16Array.from({ length: 80 }, () => recording ? recording[t++ % recording.length]
+      const block = Int16Array.from({ length: 80 }, () => fault ? 0 : recording ? recording[t++ % recording.length]
         : (Math.random() * 2 - 1) * 4000 * (0.4 + 0.6 * Math.max(0, Math.sin((2 * Math.PI * t++) / 64000))));
       pending = Int16Array.from([...pending, ...block]);
       for (; pending.length >= samplesPerPacket; pending = pending.slice(samplesPerPacket)) {

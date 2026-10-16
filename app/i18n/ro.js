@@ -171,6 +171,7 @@ export default {
   "settings.unreachable": "{server} nu poate fi contactat.",
   "settings.stats": "Semnal: {received} pachete, {lost} pierdute, câte {bytes} octeți",
   "settings.noSignal": "Semnal: încă nu s-a primit sunet",
+  "settings.micTest": "Testul microfonului",
   "settings.forget": "Ștergeți verificările anterioare",
   "settings.done": "Gata",
 };

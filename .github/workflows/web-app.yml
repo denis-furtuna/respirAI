@@ -1,4 +1,4 @@
-# Runs the web app's browser tests (app/tests/run.py: flow, Bluetooth, no audio, languages, the AI on the phone,
+# Runs the web app's browser tests (app/tests/run.py: flow, Bluetooth, no audio, the microphone test, languages, the AI on the phone,
 # the phone app's Bluetooth) in headless Chrome on GitHub's machines on every push that touches the app or the AI.
 # The `ai` suite compares the on-phone AI with the Python AI number for number: make_golden.py runs the Python side
 # (NumPy, SciPy, ONNX: installed here, never needed on a laptop) and ONNX Runtime Web comes from npm.

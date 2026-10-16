@@ -23,7 +23,7 @@ from pathlib import Path
 import stub_server
 
 HERE = Path(__file__).resolve().parent
-SUITES = ["flow", "bluetooth", "no-audio", "languages", "on-phone", "native", "ai"]   # against the stub; real-server.html needs --real
+SUITES = ["flow", "bluetooth", "no-audio", "mic-test", "languages", "on-phone", "native", "ai"]   # against the stub; real-server.html needs --real
 # ai.html needs files made on GitHub (make_golden.py needs NumPy, SciPy, ONNX; ONNX Runtime Web comes from npm):
 AI_FILES = [HERE / "golden" / "golden.json", HERE.parent / "vendor" / "onnxruntime-web" / "ort.wasm.min.mjs"]
 CHROMES = [

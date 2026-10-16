@@ -166,6 +166,7 @@ export default {
   "settings.unreachable": "{server} ist nicht erreichbar.",
   "settings.stats": "Signal: {received} Pakete, {lost} verloren, je {bytes} Bytes",
   "settings.noSignal": "Signal: noch kein Ton empfangen",
+  "settings.micTest": "Mikrofontest",
   "settings.forget": "Frühere Checks vergessen",
   "settings.done": "Fertig",
 };
