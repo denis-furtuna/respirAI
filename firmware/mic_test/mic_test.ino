@@ -5,6 +5,10 @@
 // At start it checks the wiring and names the likely fault. Then, every 0.5 s, one line: the level, a meter, the
 // peak, and how loud that peak would be in the app at the firmware's MIC_GAIN. Tap the chest piece: the line jumps.
 // Type p + Enter for the Serial Plotter view (level, peak and background as curves), r + Enter to check again.
+//
+// Hear it on the computer: close the Serial Monitor and run  python firmware/mic_test/listen.py  It sends a + Enter,
+// and the sketch streams the audio over the USB cable exactly as the phone would get it (8 kHz, 16-bit, the
+// firmware's filter and MIC_GAIN) until it gets x + Enter. Each frame: "RA", uint16 sequence, 80 int16 samples (LE).
 #include <ESP_I2S.h>
 
 // ---------- as firmware/respirai/config.h ----------
@@ -25,9 +29,12 @@ constexpr int BAR = 30;                     // meter width in characters: 3 dB e
 constexpr float TAP_DB = 20.0f;             // a peak this far above the background is a tap or a sound
 constexpr float LOUD_DB = -20.0f;           // a background this loud in a quiet room is a fault, not sound
 
+constexpr int BLOCK_SAMPLES = 80;           // 10 ms at 8 kHz per audio frame, as one Bluetooth packet
+
 static I2SClass i2s;
 static bool i2sOn = false;
 static bool plotter = false;
+static bool streaming = false;              // audio frames to listen.py instead of text
 static int32_t raw[WINDOW];
 static float history[HISTORY];
 static int historyCount = 0, historyHead = 0;
@@ -37,6 +44,13 @@ struct Reading {
   bool flat = true;        // every sample the same: no sound at all
   int32_t value = 0;       // that value, when flat
   uint32_t clipped = 0;
+};
+
+// A slot listened to for 1 s (defined up here: Arduino declares the functions that use it above them).
+struct Listen {
+  bool ok = false, live = false, zero = true;
+  int32_t value = 0;
+  float rmsDb = FLOOR_DB, dcPercent = 0;
 };
 
 static float dbfs(double amplitude) { return 20.0f * log10f(fmaxf((float)amplitude, 1.0f) / FULL); }
@@ -83,12 +97,68 @@ static bool readWindow(Reading& r) {
   return true;
 }
 
+// ---------- the audio stream: the same processing as respirai/audio.cpp ----------
+constexpr int TAPS = 31;     // windowed-sinc low-pass at 3.5 kHz, so keeping every second sample doesn't alias
+static float taps[TAPS], fir[TAPS];
+static int firHead = 0;
+static float dcIn = 0, dcOut = 0;
+static uint16_t seq = 0;
+
+static void filterBegin() {
+  const float fc = 3500.0f / CAPTURE_RATE;
+  float sum = 0;
+  for (int n = 0; n < TAPS; n++) {
+    const float m = n - (TAPS - 1) / 2.0f;
+    const float sinc = m == 0 ? 2 * fc : sinf(2 * PI * fc * m) / (PI * m);
+    taps[n] = sinc * (0.54f - 0.46f * cosf(2 * PI * n / (TAPS - 1)));
+    sum += taps[n];
+  }
+  for (float& t : taps) t /= sum;   // unity gain at DC
+}
+
+static void streamStart() {
+  memset(fir, 0, sizeof(fir));
+  firHead = 0;
+  dcIn = dcOut = 0;
+  seq = 0;
+  streaming = true;
+}
+
+// 10 ms of the mic -> DC removal -> low-pass -> 8 kHz -> MIC_GAIN -> one frame on the USB serial.
+static void streamFrame() {
+  static int32_t block[BLOCK_SAMPLES * 2];
+  static uint8_t frame[4 + 2 * BLOCK_SAMPLES];
+  size_t got = 0;
+  const uint32_t start = millis();
+  while (got < sizeof(block)) {
+    got += i2s.readBytes(reinterpret_cast<char*>(block) + got, sizeof(block) - got);
+    if (millis() - start > 1000) { streaming = false; return; }   // the I2S clock isn't running
+  }
+  frame[0] = 'R';
+  frame[1] = 'A';
+  frame[2] = seq & 0xff;
+  frame[3] = seq >> 8;
+  seq++;
+  for (int i = 0, k = 0; i < BLOCK_SAMPLES * 2; i++) {
+    const float x = (block[i] >> 8) / 256.0f;   // 24-bit -> 16-bit scale
+    const float y = x - dcIn + 0.995f * dcOut;
+    dcIn = x;
+    dcOut = y;
+    fir[firHead] = y;
+    firHead = (firHead + 1) % TAPS;
+    if (i & 1) {   // keep every second sample
+      float acc = 0;
+      for (int t = 0; t < TAPS; t++) acc += taps[t] * fir[(firHead + t) % TAPS];
+      const int16_t s = (int16_t)constrain(acc * MIC_GAIN, -32768.0f, 32767.0f);
+      frame[4 + 2 * k] = s & 0xff;
+      frame[5 + 2 * k] = (uint16_t)s >> 8;
+      k++;
+    }
+  }
+  Serial.write(frame, sizeof(frame));
+}
+
 // One slot for 1 s, after the mic's start-up time: does it carry sound, only zeros, or one stuck value?
-struct Listen {
-  bool ok = false, live = false, zero = true;
-  int32_t value = 0;
-  float rmsDb = FLOOR_DB, dcPercent = 0;
-};
 
 static Listen listen(i2s_std_slot_mask_t slot) {
   Listen s;
@@ -116,6 +186,7 @@ static void help() {
   Serial.println("Commands (type the letter, then Enter):");
   Serial.println("  p  switch between this report and the Serial Plotter view");
   Serial.println("  r  check the wiring again");
+  Serial.println("  a  stream the audio to listen.py (binary: close the Serial Monitor first), x to stop");
   Serial.println("  h  this help");
 }
 
@@ -158,7 +229,16 @@ static void checkWiring() {
 static void handleInput() {
   while (Serial.available()) {
     const int c = tolower(Serial.read());
-    if (c == 'p') {
+    if (streaming) {   // while streaming, only x is a command: anything else would end up in the audio
+      if (c == 'x') {
+        streaming = false;
+        Serial.println("\nAudio stream stopped. Report view.");
+      }
+      continue;
+    }
+    if (c == 'a') {
+      streamStart();
+    } else if (c == 'p') {
       plotter = !plotter;
       if (!plotter) Serial.println("\nReport view. Type p + Enter for the plotter.");
     } else if (c == 'r') {
@@ -201,6 +281,7 @@ void setup() {
   while (!Serial && millis() - start < 3000) delay(10);   // USB CDC: give the Serial Monitor a moment to attach
   Serial.println();
   Serial.println("respirAI microphone test: INMP441 on SCK D8, WS D9, SD D10, L/R on GND. No Bluetooth.");
+  filterBegin();
   checkWiring();
 }
 
@@ -208,6 +289,16 @@ void loop() {
   static Reading summary;   // the loudest of the readings since the last line
   static int count = 0;
   handleInput();
+  if (streaming) {
+    // listen.py closed the port without saying x: stop after 2 s without a host (the USB link can report a
+    // missing host for a few ms on a healthy connection, so one reading isn't enough).
+    static uint32_t hostLostAt = 0;
+    if (Serial) hostLostAt = 0;
+    else if (!hostLostAt) hostLostAt = millis();
+    else if (millis() - hostLostAt > 2000) { streaming = false; hostLostAt = 0; return; }
+    streamFrame();
+    return;
+  }
   Reading r;
   if (!readWindow(r)) {
     Serial.println("PROBLEM: no data from I2S. Type r + Enter to check again.");

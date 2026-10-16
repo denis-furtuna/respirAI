@@ -22,6 +22,12 @@ Audio runs in its own task on core 1, so Bluetooth and the LEDs can't make it mi
 1. **Wiring check** at start (keep quiet for 2 s). It names the fault instead of just failing: only zeros on SD (power, SD, SCK or WS), SD stuck at one value, the mic answering on the right slot (L/R not on GND), or a background too loud for a quiet room (SCK and WS swapped).
 2. **Live report**, one line every 0.5 s: level, a meter from −90 to 0 dBFS, the peak, and how loud that peak would be **in the app** at the firmware's `MIC_GAIN`. A tap shows `<- sound`; `CLIPPING` and `would clip in the app: lower MIC_GAIN` say when to tune.
 3. Type **`p`** + Enter for the **Serial Plotter** view (level, peak and background as curves), **`r`** to check the wiring again.
+4. **Hear it on the computer, over the cable:** close the serial monitor, then
+   ```bash
+   pip install pyserial sounddevice
+   python firmware/mic_test/listen.py          # finds the board, plays live, Ctrl+C saves mic-<date>-<time>.wav
+   ```
+   It plays exactly what the phone would get (8 kHz, the firmware's filter and `MIC_GAIN`) and shows a level meter. Use headphones; `--gain 8` plays louder, `--seconds 20` stops by itself.
 
 When the mic is right, flash `respirai/` again. The app has a matching test for the whole chain (mic → Bluetooth → phone): *Settings → Microphone test* (`app/mic-test.html`, on the `phone-app` branch).
 
