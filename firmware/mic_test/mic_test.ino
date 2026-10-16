@@ -41,8 +41,9 @@ static int historyCount = 0, historyHead = 0;
 
 struct Reading {
   float rmsDb = FLOOR_DB, peakDb = FLOOR_DB, dcPercent = 0, appPercent = 0;
-  bool flat = true;        // every sample the same: no sound at all
-  int32_t value = 0;       // that value, when flat
+  bool flat = true;        // no sound at all: one value, or a data line nobody drives
+  bool idle = true;        // nearly every sample 0 or -1: SD floats (the mic isn't talking), with clock pickup as spikes
+  int32_t value = 0;       // the value, when flat
   uint32_t clipped = 0;
 };
 
@@ -74,9 +75,11 @@ static bool readWindow(Reading& r) {
   }
   double sum = 0;
   int32_t lo = INT32_MAX, hi = INT32_MIN;
+  int idle = 0;
   for (int i = 0; i < WINDOW; i++) {
     const int32_t v = raw[i] >> 8;   // the 24-bit sample, sign kept
     sum += v;
+    idle += v == 0 || v == -1;
     lo = min(lo, v);
     hi = max(hi, v);
     if (v >= CLIP || v <= -CLIP) r.clipped++;
@@ -91,7 +94,10 @@ static bool readWindow(Reading& r) {
   r.rmsDb = dbfs(sqrt(squares / WINDOW));
   r.peakDb = dbfs(peak);
   r.dcPercent = 100.0f * (float)mean / FULL;
-  r.flat = lo == hi;
+  // A working INMP441's noise moves the low bits of every sample. A line held at 0 or 1 reads 0 or -1, with an
+  // occasional spike where the clock wires couple in: that is no sound either, so it can't pass as "varying".
+  r.idle = idle >= WINDOW * 98 / 100;
+  r.flat = lo == hi || r.idle;
   r.value = lo;
   r.appPercent = fminf(100.0f, 100.0f * (float)peak / 256.0f * MIC_GAIN / 32767.0f);   // as audio.cpp: 24 -> 16 bit, x MIC_GAIN
   return true;
@@ -172,7 +178,7 @@ static Listen listen(i2s_std_slot_mask_t slot) {
     Reading r;
     if (!readWindow(r)) return s;
     allFlat = allFlat && r.flat;
-    if (!r.flat || r.value != 0) s.zero = false;
+    if (!r.idle) s.zero = false;
     s.value = r.value;
     s.rmsDb = fmaxf(s.rmsDb, r.rmsDb);
     s.dcPercent += r.dcPercent / 10;
@@ -214,8 +220,9 @@ static void checkWiring() {
       Serial.println("  Unplug USB and tie L/R to GND. If it already is, change I2S_STD_SLOT_LEFT to I2S_STD_SLOT_RIGHT");
       Serial.println("  in firmware/respirai/audio.cpp and tell the team.");
     } else if (left.zero) {
-      Serial.println("PROBLEM: only zeros on SD: the microphone sends nothing.");
-      Serial.println("  Unplug USB, then check: VDD on 3V3 (never 5V), GND on GND, SD on D10, SCK on D8, WS on D9, L/R on GND.");
+      Serial.println("PROBLEM: the microphone sends nothing: SD only reads 0 and -1, a line nobody drives.");
+      Serial.println("  Unplug USB, then check: VDD on 3V3 (never 5V), GND on GND, SD on D10, SCK on D8, WS on D9, L/R on GND,");
+      Serial.println("  and that the mic's header pins are soldered (pins only pushed through the holes don't connect).");
     } else {
       Serial.printf("PROBLEM: SD is stuck at one value (%ld): no sound, just a fixed level.\n", (long)left.value);
       Serial.println("  Unplug USB, then check that SD on D10 isn't touching 3V3 or GND, and that VDD has 3V3.");

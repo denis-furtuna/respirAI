@@ -37,13 +37,15 @@ When the mic is right, flash `respirai/` again. The app has a matching test for 
 1. *File → Preferences → Additional boards manager URLs:* `https://espressif.github.io/arduino-esp32/package_esp32_index.json`
 2. *Boards Manager:* install **esp32 by Espressif** (3.x).
 3. *Library Manager:* install **NimBLE-Arduino** (2.x). The LEDs need no library: they use the core's `ledcAttach` / `ledcWrite` (esp32 core 3.x).
-4. *Tools → Board:* **XIAO_ESP32S3**. *Tools → USB CDC On Boot:* **Enabled** (so the serial monitor works over USB, and the serial port stays off D6/D7, which drive the LEDs).
+4. *Tools → Board:* **XIAO_ESP32S3**. *Tools → USB Mode:* **Hardware CDC and JTAG**. *Tools → USB CDC On Boot:* **Enabled** (so the serial monitor works over USB, and the serial port stays off D6/D7, which drive the LEDs).
 5. Open `firmware/respirai/respirai.ino`, upload, open the serial monitor at 115200.
 
 **Or from the command line:**
+
+Careful: on the XIAO the option `CDCOnBoot=cdc` means **Disabled** (on most ESP32 boards it means Enabled). With it, `Serial` goes to D6/D7 instead of USB: the serial monitor stays empty and the LEDs get the serial data. Use `CDCOnBoot=default`, as below.
 ```bash
-arduino-cli compile --fqbn esp32:esp32:XIAO_ESP32S3:CDCOnBoot=cdc firmware/respirai
-arduino-cli upload  --fqbn esp32:esp32:XIAO_ESP32S3:CDCOnBoot=cdc -p COM5 firmware/respirai
+arduino-cli compile --fqbn esp32:esp32:XIAO_ESP32S3:USBMode=hwcdc,CDCOnBoot=default firmware/respirai
+arduino-cli upload  --fqbn esp32:esp32:XIAO_ESP32S3:USBMode=hwcdc,CDCOnBoot=default -p COM5 firmware/respirai
 ```
 
 ## Test it, step by step
