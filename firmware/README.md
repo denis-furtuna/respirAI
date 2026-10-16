@@ -15,6 +15,16 @@ Pin assignments are in [`docs/PLAN.md` §3](../docs/PLAN.md#3-wiring-reference).
 
 Audio runs in its own task on core 1, so Bluetooth and the LEDs can't make it miss samples.
 
+## Microphone test (`mic_test/`, a separate sketch)
+
+`mic_test/mic_test.ino` checks the INMP441 on its own, before Bluetooth or the app are involved (F2). Same pins and I²S setup as the firmware; it needs no library. Flash it, open the serial monitor at 115200:
+
+1. **Wiring check** at start (keep quiet for 2 s). It names the fault instead of just failing: only zeros on SD (power, SD, SCK or WS), SD stuck at one value, the mic answering on the right slot (L/R not on GND), or a background too loud for a quiet room (SCK and WS swapped).
+2. **Live report**, one line every 0.5 s: level, a meter from −90 to 0 dBFS, the peak, and how loud that peak would be **in the app** at the firmware's `MIC_GAIN`. A tap shows `<- sound`; `CLIPPING` and `would clip in the app: lower MIC_GAIN` say when to tune.
+3. Type **`p`** + Enter for the **Serial Plotter** view (level, peak and background as curves), **`r`** to check the wiring again.
+
+When the mic is right, flash `respirai/` again. The app has a matching test for the whole chain (mic → Bluetooth → phone): *Settings → Microphone test* (`app/mic-test.html`, on the `phone-app` branch).
+
 ## Build and flash
 
 **Arduino IDE 2:**
@@ -35,13 +45,14 @@ arduino-cli upload  --fqbn esp32:esp32:XIAO_ESP32S3:CDCOnBoot=cdc -p COM5 firmwa
 | Step | How | Good when |
 |---|---|---|
 | Boots | Serial monitor | "Advertising as respirAI"; the "AI" LED blinks smoothly (fades on and off every 2 s). A short flicker of the trachea LED at power-on is normal: D6 also carries the boot messages |
-| Mic (F2) | If it prints "ERROR: I2S microphone did not start", check the wiring | no error |
+| Mic (F2) | Before the full firmware: flash `mic_test/` (see above). With the firmware: if it prints "ERROR: I2S microphone did not start", check the wiring | "OK: the microphone answers…", and a tap jumps the level |
 | Bluetooth (F4) | **nRF Connect** app on the S25: scan, connect to *respirAI* | serial prints the MTU; the "AI" LED stays on |
 | Streaming (F5) | In nRF Connect, enable notifications on `…0002…`, write `01` to `…0003…` | serial status shows ~200 packets per 2 s |
 | Full packets | Serial line "Audio subscribed: MTU …" | **162 bytes** per packet. Smaller still works, but tell the app owner |
 | LEDs (F-LED3, F-LED4) | Write `10`, then `11`, then `12` to `…0003…` | the lungs breathe (trachea first in, lobes first out); `11`: lungs fade out; `12`: lungs fade out |
 | Guide timeout | Write `10` and wait | the lungs stop by themselves after 60 s |
 | Stability (F6) | Stream 10 minutes from the web app | "lost" stays near 0, no reboot |
+| Mic in the app | App → *Settings → Microphone test* → connect | every check green; a tap reaches −20 dBFS or more |
 | Real audio | Web app → practice the full flow with the real device | lung sounds visible in the small waveform |
 
 ## Things to tune on the real hardware
