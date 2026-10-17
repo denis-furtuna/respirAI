@@ -4,6 +4,7 @@
 // respirai/leds.cpp), so what you see here is what the device will show. When the LEDs are right, flash
 // firmware/respirai again.
 #include <Arduino.h>
+#include <driver/gpio.h>
 
 // ---------- as firmware/respirai/config.h ----------
 constexpr int PIN_LED_TRACHEA = 43;   // D6, through its own 100 ohm
@@ -15,7 +16,7 @@ constexpr float    TRACHEA_LEAD  = 0.2f;
 constexpr float    AI_ON         = 1.0f;
 constexpr uint32_t LED_PWM_HZ    = 20000;
 constexpr uint8_t  LED_PWM_BITS  = 11;
-constexpr uint32_t LED_FADE_MS   = 300;
+constexpr uint32_t LED_FADE_MS   = 1000;
 
 struct Led { const char* name; const char* pin; int gpio; };
 static const Led LEDS[] = {
@@ -60,7 +61,7 @@ static void help() {
   Serial.println("respirAI LED test. Type a letter, then Enter:");
   Serial.println("  i  identify: each LED alone, one after another (checks the wiring)");
   Serial.println("  b  breathing guide, as the firmware: trachea first in, lobes first out; 4 s in, 5 s out");
-  Serial.println("  f  fades: the 300 ms fade-out when the guide stops, then each LED slowly up and down");
+  Serial.println("  f  fades: the 1 s fade-out when the guide stops, then each LED slowly up and down");
   Serial.println("  w  \"AI\" waiting for a phone: smooth blink every 2 s");
   Serial.println("  e  \"AI\" error (no mic): fast blink");
   Serial.println("  l  \"AI\" low battery: double blink every 4 s");
@@ -147,14 +148,14 @@ static void update() {
       break;
     }
 
-    case FADE: {   // lungs on 1 s, the 300 ms stop fade, 1 s dark, then each LED 2 s up and 2 s down
-      const uint32_t slow = 2300;
+    case FADE: {   // lungs on 1 s, the stop fade, 1 s dark, then each LED 2 s up and 2 s down
+      const uint32_t slow = 2000 + LED_FADE_MS;
       if (t < 1000) {
         if (announce(0)) Serial.println("Lungs on...");
         show(TRACHEA, level);
         show(LOBES, level);
       } else if (t < 1000 + LED_FADE_MS) {
-        if (announce(1)) Serial.println("...and the guide stops: a 300 ms fade out, never a cut.");
+        if (announce(1)) Serial.println("...and the guide stops: a 1 s fade out, never a cut.");
         const float k = 1 - (t - 1000) / (float)LED_FADE_MS;
         show(TRACHEA, level * k);
         show(LOBES, level * k);
@@ -216,6 +217,7 @@ void setup() {
   for (int i = 0; i < 256; i++) gammaTable[i] = (uint16_t)(maxDuty * powf(i / 255.0f, 2.2f) + 0.5f);
   for (const Led& led : LEDS) {
     if (!ledcAttach(led.gpio, LED_PWM_HZ, LED_PWM_BITS)) Serial.printf("ERROR: no PWM on GPIO %d\n", led.gpio);
+    gpio_set_drive_capability((gpio_num_t)led.gpio, GPIO_DRIVE_CAP_3);   // strongest drive, as the firmware
     ledcWrite(led.gpio, 0);
   }
   const uint32_t t = millis();

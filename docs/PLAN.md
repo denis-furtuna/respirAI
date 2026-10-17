@@ -159,7 +159,7 @@ The app uses the sequence number to detect dropped packets and fills gaps with s
 | `0x02` | stop audio streaming |
 | `0x10` | LED: start the breathing guide and loop it until `0x11` or `0x12`. A trailing chest-point byte (`0x10 <n>`) is accepted and ignored: the phone shows the place |
 | `0x11` | LED: place recorded — the lungs fade out |
-| `0x12` | LED: stop the guide, the lungs fade out over 300 ms |
+| `0x12` | LED: stop the guide, the lungs fade out over 1 s |
 | `0x20` | send status now |
 
 **Status packet (4 bytes, sent every 2 s and on `0x20`)**
@@ -175,7 +175,7 @@ The app uses the sequence number to detect dropped packets and fills gaps with s
 - **The app owns the timer.** It sends `0x10`, starts its circle when the write is confirmed, and decides when to stop. The device only loops the breath. No animation frames go over Bluetooth, and every recording sends a fresh `0x10`, so each take starts in step.
 - **Tempo: in 4 s, out 5 s, no hold.** Written twice and kept equal: `BREATH_IN_MS` / `BREATH_OUT_MS` in `firmware/respirai/config.h` and `BREATH_IN` / `BREATH_OUT` in `app/app.js`. Changing it means changing both, and reflashing.
 - **Curve:** f(t) = (1 − cos πt) / 2, rising over breathe-in, falling over breathe-out. App: circle size linear in f, drawn every frame, no CSS easing. Device: LED duty = max · f^2.2 (gamma on the LEDs only). On the device the trachea leads the lobes slightly (`TRACHEA_LEAD`); their average stays within a few % of the circle.
-- **Recordings are whole breaths** (default 18 s = 2), after one practice breath, so a recording ends at the bottom of a breath. The device also fades out over 300 ms whenever it stops.
+- **Recordings are whole breaths** (default 18 s = 2), the first one after a practice breath, so a recording ends at the bottom of a breath. The device also fades out over 1 s whenever it stops.
 - **Safety stop:** a guide that runs 60 s stops by itself.
 - Clock drift between phone and device is ~1 ms over a recording: no resync needed.
 
@@ -304,7 +304,7 @@ Priorities: **P0** = demo fails without it · **P1** = important · **P2** = nic
 | F-LED1 | Hardware PWM (LEDC) on D6 / D7 / D3, 20 kHz, 11-bit | P1 |
 | F-LED2 | Raised-cosine curve + precomputed gamma 2.2 table | P1 |
 | F-LED3 | Breathing loop: trachea leads on breathe-in, lobes lead on breathe-out | P1 |
-| F-LED4 | `0x10` / `0x11` / `0x12`, 300 ms fade-out, 60 s safety stop | P1 |
+| F-LED4 | `0x10` / `0x11` / `0x12`, 1 s fade-out, 60 s safety stop | P1 |
 | F-LED5 | "AI" status light: smooth blink until a phone connects, then always on; double blink on low battery, fast blink on error | P2 |
 | F-LED6 | Deep sleep after a few minutes with no phone connected; wake with the reset button | P2 |
 | F11 | ECG channel added to the stream | P2 |

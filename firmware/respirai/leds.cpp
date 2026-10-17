@@ -1,10 +1,11 @@
 #include "leds.h"
 #include "config.h"
 #include <atomic>
+#include <driver/gpio.h>
 
 // What the LEDs do:
 //   lungs (trachea + lobes)  only the breathing guide. Inhale: the trachea rises first, then the lobes fill.
-//                            Exhale: the lobes empty first, then the trachea. When the guide stops: a 300 ms fade.
+//                            Exhale: the lobes empty first, then the trachea. When the guide stops: a 1 s fade.
 //   "AI" of the wordmark     not connected: smooth blink (fades on and off every 2 s). Connected: always on.
 //                            Only when something is wrong: double blink every 4 s on low battery, fast blink on
 //                            error (no mic).
@@ -32,6 +33,8 @@ void ledsBegin() {
   for (int i = 0; i < 256; i++) gammaTable[i] = (uint16_t)(maxDuty * powf(i / 255.0f, 2.2f) + 0.5f);
   for (int pin : {PIN_LED_TRACHEA, PIN_LED_LOBES, PIN_LED_AI}) {
     if (!ledcAttach(pin, LED_PWM_HZ, LED_PWM_BITS)) Serial.printf("ERROR: no PWM on GPIO %d\n", pin);
+    // Strongest drive: a blue LED needs ~3 V of the pin's 3.3 V, so the pin's own resistance costs visible brightness.
+    gpio_set_drive_capability((gpio_num_t)pin, GPIO_DRIVE_CAP_3);
     ledcWrite(pin, 0);
   }
 }
@@ -84,7 +87,7 @@ void ledsUpdate() {
   const int r = requested.exchange(-1);
   if (r >= 0) enter((LedMode)r, now);
   if (mode == LED_GUIDE && now - modeSince > GUIDE_MAX_MS) enter(LED_IDLE, now);   // the app's stop got lost
-  if (mode == LED_DONE && now - modeSince > 900) enter(LED_IDLE, now);
+  if (mode == LED_DONE && now - modeSince > LED_FADE_MS) enter(LED_IDLE, now);   // after its fade-out
   const uint32_t t = now - modeSince;
 
   if (mode == LED_GUIDE) {

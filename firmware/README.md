@@ -11,7 +11,7 @@ Pin assignments are in [`docs/PLAN.md` §3](../docs/PLAN.md#3-wiring-reference).
 | `config.h` | pins, UUIDs, commands, and the knobs you'll tune (mic gain, LED levels, trachea lead, breathing rhythm) | — |
 | `audio.cpp` | INMP441 over I²S at 16 kHz → DC removal → 3.5 kHz low-pass → every second sample = 8 kHz, 16-bit | F2, F3 |
 | `respirai.ino` | Bluetooth service (audio notify, control, status), packet sizing from the negotiated MTU, start/stop, status every 2 s | F4, F5, F8 |
-| `leds.cpp` | four LEDs behind the lung panel, on hardware PWM (20 kHz) with gamma 2.2. Lungs: breathing guide (trachea leads in, lobes lead out; 4 s in, 5 s out), 300 ms fade when stopped. "AI": smooth blink until a phone connects, then always on; double blink on low battery, fast blink on error | F-LED1–F-LED5 |
+| `leds.cpp` | four LEDs behind the lung panel, on hardware PWM (20 kHz) with gamma 2.2. Lungs: breathing guide (trachea leads in, lobes lead out; 4 s in, 5 s out), 1 s fade when stopped (`LED_FADE_MS`); pins at their strongest drive, so the LEDs get all the current the resistors allow. "AI": smooth blink until a phone connects, then always on; double blink on low battery, fast blink on error | F-LED1–F-LED5 |
 
 Audio runs in its own task on core 1, so Bluetooth and the LEDs can't make it miss samples.
 
@@ -51,7 +51,7 @@ Wire the LEDs first, USB unplugged: each LED with its **own** 100 Ω resistor, l
 |---|---|---|
 | `i` | each LED alone, in turn | the LED named is the one lit |
 | `b` | the breathing guide, exactly as the firmware (4 s in, 5 s out) | the trachea lights first breathing in, the lobes go dark first breathing out |
-| `f` | the 300 ms fade when the guide stops, then each LED slowly up and down | smooth, no steps or flicker near dark |
+| `f` | the 1 s fade when the guide stops, then each LED slowly up and down | smooth, no steps or flicker near dark |
 | `w` / `e` / `l` | the "AI" patterns: waiting for a phone, error, low battery | smooth blink / fast blink / two short blinks |
 | `r` | all LEDs from 0 to 100 % in 10 % steps | pick resistors and `LED_LEVEL` by eye, through a scrap of the printed panel |
 | `1` `2` `3` / `a` / `0` | one LED, all, or none, steady | both lobes equally bright |
@@ -94,7 +94,7 @@ arduino-cli upload  --fqbn esp32:esp32:XIAO_ESP32S3:USBMode=hwcdc,CDCOnBoot=defa
 ## Things to tune on the real hardware
 
 - **`MIC_GAIN`** in `config.h`: raise it if breathing barely moves the waveform; lower it if the AI server reports clipping (quality drops).
-- **LED brightness: resistors first, software second.** Start at 100 Ω per LED, look through a scrap of the printed panel, go toward 47 Ω if too faint or 220 Ω if too bright. Each lobe LED has its **own** resistor. Then fine-tune `LED_LEVEL` (lungs) and `AI_ON` (the "AI" while connected).
+- **LED brightness: resistors first, software second.** Start at 100 Ω per LED, look through a scrap of the printed panel, go toward 47 Ω if too faint or 220 Ω if too bright. **47 Ω is the brightest safe choice** (about 8 mA per LED, 17 mA on D7 for both lobes, under the pin's 40 mA); never lower. Software is already at full (`LED_LEVEL`, `AI_ON` = 1.0). Each lobe LED has its **own** resistor. Then fine-tune `LED_LEVEL` (lungs) and `AI_ON` (the "AI" while connected).
 - **`TRACHEA_LEAD`**: how far the trachea runs ahead of the lobes (0.2 = 20 % of a breath).
 - **`BREATH_IN_MS` / `BREATH_OUT_MS`** must equal `BREATH_IN` / `BREATH_OUT` in `app/app.js`. Change both together.
 - **Battery level (F8)** needs a 1:2 resistor divider (two equal resistors, e.g. 2 × 100 kΩ) from BAT+ to a free analog pin; set `PIN_BATTERY` to that GPIO. Until then the device reports 255 ("unknown") and the app hides the battery.
