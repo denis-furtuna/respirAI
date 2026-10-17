@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en" class="loading">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f3f6f9">
+  <meta name="color-scheme" content="light dark">
+  <title>respirAI</title>
+  <meta name="description" content="respirAI: guided lung sound screening with a digital stethoscope.">
+  <link rel="icon" href="img/favicon.png">
+  <link rel="apple-touch-icon" href="img/icon-180.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="style.css">
+  <script>   /* light or dark before the first paint, so there is no flash */
+    try { var theme = JSON.parse(localStorage.getItem("respirai") || "{}").theme; } catch (e) {}
+    document.documentElement.dataset.theme = theme === "light" || theme === "dark" ? theme : matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  </script>
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+<svg width="0" height="0" aria-hidden="true" style="position:absolute">
+  <defs>
+    <symbol id="silhouette" viewBox="0 0 160 190">
+      <ellipse cx="80" cy="24" rx="15" ry="17"/>
+      <path d="M72 40c0 6-2 8-6 10-14 4-26 8-32 16-4 6-4 18-3 30l2 24c1 4 5 4 6 0l1-20c1 12 2 30 4 50 2 16 8 22 36 22s34-6 36-22c2-20 3-38 4-50l1 20c1 4 5 4 6 0l2-24c1-12 1-24-3-30-6-8-18-12-32-16-4-2-6-4-6-10z"/>
+    </symbol>
+  </defs>
+</svg>
+
+<header class="top">
+  <img class="logo" src="img/logo.png" alt="respirAI" width="482" height="120">
+  <div class="top-right">
+    <span id="battery" class="pill" hidden></span>
+    <button id="btnLang" class="lang-chip" data-t-label="language" aria-label="Language">
+      <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.4 2.6 3.6 5.6 3.6 9s-1.2 6.4-3.6 9c-2.4-2.6-3.6-5.6-3.6-9S9.6 5.6 12 3z"/></svg>
+      <span id="langCode">EN</span>
+    </button>
+    <button id="btnSettings" class="icon-btn" data-t-label="settings.title" aria-label="Settings">
+      <svg class="i" viewBox="0 0 24 24"><path d="M4 7h9m4 0h3M4 17h3m4 0h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>
+    </button>
+  </div>
+</header>
+
+<main>
+  <p id="notice" class="notice" role="alert" hidden></p>
+
+  <section id="sWelcome" class="screen" hidden>
+    <div class="hero small"><img class="lungs" src="img/lungs.png" alt="" width="408" height="300"></div>
+    <h1 tabindex="-1" data-t="welcome.title">Welcome to respirAI</h1>
+    <p class="lead" data-t="welcome.lead"></p>
+    <ul class="facts">
+      <li><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/></svg><p data-t-html="welcome.diagnosis"></p></li>
+      <li><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></svg><p data-t-html="welcome.privacy"></p></li>
+      <li class="sos"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 3.5h3l1.5 4-2 1.5a11 11 0 0 0 6 6l1.5-2 4 1.5v3a2 2 0 0 1-2 2A16 16 0 0 1 4.5 5.5a2 2 0 0 1 2-2z"/></svg><p data-t-html="welcome.emergency"></p></li>
+    </ul>
+    <div class="spacer"></div>
+    <button id="btnWelcome" class="btn primary" data-t="welcome.ok">I understand, continue</button>
+  </section>
+
+  <section id="sConnect" class="screen">
+    <div class="hero"><img class="lungs" src="img/lungs.png" alt="" width="408" height="300"></div>
+    <h1 tabindex="-1" data-t="connect.title">Let's listen to your lungs</h1>
+    <p class="lead" data-t="connect.lead">Switch on the respirAI device, then connect it to this phone.</p>
+    <p id="connectNote" class="note" hidden></p>
+    <div class="spacer"></div>
+    <button id="btnConnect" class="btn primary" data-t="connect.button">Connect the device</button>
+    <button id="btnPractice" class="btn link" data-t="connect.practice">No device? Try a practice run</button>
+  </section>
+
+  <section id="sReady" class="screen" hidden>
+    <p class="eyebrow ok-text" data-t="ready.connected">Device connected</p>
+    <h1 tabindex="-1" id="readyTitle">Before we start</h1>
+    <ol class="steps">
+      <li><span>1</span><p data-t-html="ready.step1"></p></li>
+      <li><span>2</span><p id="step2"></p></li>
+      <li><span>3</span><p data-t-html="ready.step3"></p></li>
+    </ol>
+    <button id="btnVoice" class="toggle" aria-pressed="false">
+      <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></svg>
+      <span data-t="ready.voice">Read the instructions aloud</span><i class="switch"></i>
+    </button>
+    <p id="readyNote" class="note" hidden></p>
+    <div class="spacer"></div>
+    <button id="btnBegin" class="btn primary">Begin</button>
+  </section>
+
+  <section id="sPoint" class="screen" hidden>
+    <div id="progress" class="progress" aria-hidden="true"></div>
+    <p id="pointStep" class="eyebrow"></p>
+    <h1 tabindex="-1" id="pointTitle"></h1>
+    <p id="pointWhere" class="lead"></p>
+    <div class="stage">
+      <svg id="body" class="body" viewBox="0 0 160 190" role="img" data-t-label="point.bodyLabel"></svg>
+      <div id="dial" class="dial">
+        <svg viewBox="0 0 200 200" aria-hidden="true">
+          <circle class="track" cx="100" cy="100" r="92"/>
+          <circle id="ringBar" class="bar" cx="100" cy="100" r="92"/>
+        </svg>
+        <div id="breath" class="breath"></div>
+        <div class="dial-text" aria-live="polite"><b id="dialMain"></b><span id="dialSub"></span></div>
+      </div>
+    </div>
+    <div class="signal">
+      <canvas id="wave"></canvas>
+      <span id="signalText"></span>
+    </div>
+    <div class="spacer"></div>
+    <button id="btnNow" class="btn secondary" data-t="point.now">It's in place, start now</button>
+    <button id="btnStop" class="btn link" data-t="point.stop">Stop</button>
+  </section>
+
+  <section id="sBusy" class="screen center" hidden>
+    <div class="orb"><i></i><i></i><i></i><img class="lungs" src="img/lungs.png" alt="" width="408" height="300"></div>
+    <h1 tabindex="-1" data-t="busy.title">Listening to the recordings</h1>
+    <p class="lead" data-t="busy.lead">This takes a few seconds.</p>
+  </section>
+
+  <section id="sResults" class="screen" hidden>
+    <div id="overall" class="overall">
+      <span id="overallIcon" class="mark big"></span>
+      <div>
+        <h1 tabindex="-1" id="overallTitle"></h1>
+        <p id="overallText" class="lead"></p>
+        <p id="checkDate" class="muted small"></p>
+      </div>
+    </div>
+    <div class="map">
+      <svg id="mapFront" class="body" viewBox="0 0 160 190"></svg>
+      <svg id="mapBack" class="body" viewBox="0 0 160 190"></svg>
+    </div>
+    <ul id="resultList" class="results"></ul>
+    <p class="disclaimer" data-t="results.disclaimer">Screening aid only. Not a diagnosis. Consult a doctor.</p>
+    <p class="emergency" data-t-html="results.emergency"></p>
+    <button id="btnShare" class="btn primary" data-t="results.share">Share with a doctor</button>
+    <section id="earlier" class="earlier" hidden>
+      <h2 data-t="results.earlier">Earlier checks</h2>
+      <ul id="earlierList"></ul>
+    </section>
+    <button id="btnRestart" class="btn secondary">Start a new check</button>
+  </section>
+</main>
+
+<dialog id="settings">
+  <form method="dialog">
+    <h2 data-t="settings.title">Settings</h2>
+    <button type="button" id="btnLangRow" class="row-btn">
+      <span data-t="language">Language</span><b id="langName">English</b>
+      <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+    </button>
+    <label><span data-t="settings.textSize">Text size</span>
+      <select id="textSize">
+        <option value="100" data-t="settings.size.normal">Normal</option>
+        <option value="115" data-t="settings.size.large">Large</option>
+        <option value="130" data-t="settings.size.larger">Extra large</option>
+      </select>
+    </label>
+    <label><span data-t="settings.theme">Appearance</span>
+      <select id="theme">
+        <option value="auto" data-t="settings.theme.auto">Automatic</option>
+        <option value="light" data-t="settings.theme.light">Light</option>
+        <option value="dark" data-t="settings.theme.dark">Dark</option>
+      </select>
+    </label>
+    <p class="muted team" data-t="settings.team">For the team. Not needed for a normal check.</p>
+    <label><span data-t="settings.server">AI server address</span> <input id="server" type="url" autocomplete="off"></label>
+    <label><span data-t="settings.seconds">Seconds per place</span> <input id="seconds" type="number" min="5" max="20"></label>
+    <label><span data-t="settings.demo">Demo mode</span>
+      <select id="demo">
+        <option value=""></option>
+        <option value="normal"></option>
+        <option value="crackles"></option>
+        <option value="wheezes"></option>
+        <option value="both"></option>
+      </select>
+    </label>
+    <button type="button" id="btnTest" class="btn secondary small" data-t="settings.test">Test the AI server</button>
+    <p id="testResult" class="muted small"></p>
+    <p id="stats" class="muted small"></p>
+    <a id="micTest" class="btn secondary small" href="mic-test.html" data-t="settings.micTest">Microphone test</a>
+    <button type="button" id="btnForget" class="btn secondary small" data-t="settings.forget">Forget earlier checks</button>
+    <button class="btn primary small" value="close" data-t="settings.done">Done</button>
+  </form>
+</dialog>
+
+<dialog id="languages">
+  <form method="dialog">
+    <h2 data-t="language">Language</h2>
+    <div id="languageList" class="language-list"></div>
+  </form>
+</dialog>
+</body>
+</html>
