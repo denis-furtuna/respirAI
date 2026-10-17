@@ -63,8 +63,9 @@ class ControlCallbacks : public NimBLECharacteristicCallbacks {
       case CMD_DONE:   ledsSet(LED_DONE);  break;
       case CMD_IDLE:   ledsSet(LED_IDLE);  break;
       case CMD_STATUS: statusRequested = true; break;
-      default: Serial.printf("Unknown command 0x%02x\n", v[0]);
+      default: Serial.printf("Unknown command 0x%02x\n", v[0]); return;
     }
+    if (v[0] != CMD_STATUS) Serial.printf("Command 0x%02x\n", v[0]);   // to follow the app's start, stop and LED commands
   }
 };
 
@@ -126,6 +127,9 @@ static void sendStatus() {
 // ---------- setup / loop ----------
 void setup() {
   Serial.begin(115200);
+  // Never wait for the USB log: when the cable is in but nothing reads it, each print would block for 100 ms, and the
+  // LEDs (loop()) and Bluetooth (the command log) would stutter. An unread line is dropped instead.
+  Serial.setTxTimeoutMs(0);
   Serial.println(FW_VERSION);
   ledsBegin();
   audioOk = audioBegin();

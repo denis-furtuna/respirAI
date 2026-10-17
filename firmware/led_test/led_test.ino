@@ -218,6 +218,7 @@ static void update() {
 
 void setup() {
   Serial.begin(115200);
+  Serial.setTxTimeoutMs(0);   // as the firmware: a print nobody reads must never stall the LED animation
   const float maxDuty = (1 << LED_PWM_BITS) - 1;
   for (int i = 0; i < 256; i++) gammaTable[i] = (uint16_t)(maxDuty * powf(i / 255.0f, 2.2f) + 0.5f);
   ledcSetClockSource(LEDC_USE_APB_CLK);   // as leds.cpp: 11 bits at 20 kHz need the 80 MHz clock, or every attach fails
