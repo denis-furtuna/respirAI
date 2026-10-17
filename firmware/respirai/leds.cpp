@@ -31,6 +31,9 @@ static void show(int pin, float level) {   // perceived brightness 0-1 -> PWM du
 void ledsBegin() {
   const float maxDuty = (1 << LED_PWM_BITS) - 1;
   for (int i = 0; i < 256; i++) gammaTable[i] = (uint16_t)(maxDuty * powf(i / 255.0f, 2.2f) + 0.5f);
+  // The 80 MHz clock: on the default 40 MHz crystal, 20 kHz allows only 10 bits and every ledcAttach() fails. D6/D7
+  // then stay the serial port's TX and RX: the trachea LED stuck on (TX idles high), the lobes glowing on RX's pull-up.
+  ledcSetClockSource(LEDC_USE_APB_CLK);
   for (int pin : {PIN_LED_TRACHEA, PIN_LED_LOBES, PIN_LED_AI}) {
     if (!ledcAttach(pin, LED_PWM_HZ, LED_PWM_BITS)) Serial.printf("ERROR: no PWM on GPIO %d\n", pin);
     // Strongest drive: a blue LED needs ~3 V of the pin's 3.3 V, so the pin's own resistance costs visible brightness.

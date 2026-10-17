@@ -35,7 +35,8 @@ constexpr float    TRACHEA_LEAD    = 0.2f;   // the trachea leads the lobes by t
 constexpr float    LED_LEVEL       = 1.0f;   // lungs at the top of a breath, 0-1. Set the brightness with the resistors first
 constexpr float    AI_ON           = 1.0f;   // "AI" while connected (always on), and the peak of its blink. 0.4 = a softer glow
 constexpr uint32_t LED_PWM_HZ      = 20000;  // far above the 100-1800 Hz the AI listens to
-constexpr uint8_t  LED_PWM_BITS    = 11;     // the most the LEDC allows at 20 kHz (80 MHz / 20 kHz = 4000 steps)
+constexpr uint8_t  LED_PWM_BITS    = 11;     // the most the LEDC allows at 20 kHz on its 80 MHz clock (4000 steps). The core
+                                             // defaults to the 40 MHz crystal (10 bits at most), so leds.cpp picks 80 MHz
 constexpr uint32_t LED_FADE_MS     = 1000;   // the lungs fade out when the guide stops, so a stop never looks like a glitch
 constexpr uint32_t GUIDE_MAX_MS    = 60000;  // a guide never needs longer (one practice breath + at most 20 s): stop if the app's stop got lost
 constexpr uint8_t  BATTERY_LOW     = 15;     // percent: below this the "AI" double-blinks (needs PIN_BATTERY)

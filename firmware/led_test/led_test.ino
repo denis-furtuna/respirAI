@@ -33,6 +33,7 @@ static int step = -1;                  // the part of a test last announced, so 
 static float level = 1.0f;             // the lungs' top brightness: LED_LEVEL in config.h
 static bool lit[3] = {false, false, false};   // STEADY: which LEDs are on
 static uint16_t gammaTable[256];
+static bool pwmOk[3] = {false, false, false};   // ledcAttach() per LED, shown with the help
 
 static float clamp01(float x) { return x < 0 ? 0 : x > 1 ? 1 : x; }
 static float ease(float k) { return (1 - cosf(PI * k)) / 2; }   // the curve of the app's circle
@@ -70,7 +71,11 @@ static void help() {
   Serial.println("  a  all on, steady      0  all off");
   Serial.println("  + / -  lungs brightness (LED_LEVEL) up or down by 10 %");
   Serial.println("  h  this help");
-  Serial.printf("Lungs brightness now: %.0f %%.\n\n", level * 100);
+  Serial.printf("Lungs brightness now: %.0f %%.\n", level * 100);
+  for (int i = 0; i < 3; i++)
+    if (!pwmOk[i]) Serial.printf("ERROR: no PWM on %s (%s): this LED can't be controlled.\n", LEDS[i].pin, LEDS[i].name);
+  if (pwmOk[0] && pwmOk[1] && pwmOk[2]) Serial.println("PWM: OK on all three LED pins.");
+  Serial.println();
 }
 
 static void handle(int c) {
@@ -215,8 +220,9 @@ void setup() {
   Serial.begin(115200);
   const float maxDuty = (1 << LED_PWM_BITS) - 1;
   for (int i = 0; i < 256; i++) gammaTable[i] = (uint16_t)(maxDuty * powf(i / 255.0f, 2.2f) + 0.5f);
+  ledcSetClockSource(LEDC_USE_APB_CLK);   // as leds.cpp: 11 bits at 20 kHz need the 80 MHz clock, or every attach fails
   for (const Led& led : LEDS) {
-    if (!ledcAttach(led.gpio, LED_PWM_HZ, LED_PWM_BITS)) Serial.printf("ERROR: no PWM on GPIO %d\n", led.gpio);
+    pwmOk[&led - LEDS] = ledcAttach(led.gpio, LED_PWM_HZ, LED_PWM_BITS);
     gpio_set_drive_capability((gpio_num_t)led.gpio, GPIO_DRIVE_CAP_3);   // strongest drive, as the firmware
     ledcWrite(led.gpio, 0);
   }
