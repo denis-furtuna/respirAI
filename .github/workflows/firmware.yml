@@ -1,4 +1,4 @@
-# Compiles the firmware and the microphone test sketch on GitHub's machines on every push that touches them: no
+# Compiles the firmware and its module test sketches (mic_test, led_test) on GitHub's machines on every push that touches them: no
 # toolchain needed on anyone's laptop.
 # Same setup as firmware/README.md: newest esp32 core 3.x, newest NimBLE-Arduino 2.x, board XIAO_ESP32S3, USB CDC On Boot.
 name: Firmware build
@@ -85,3 +85,10 @@ jobs:
           echo "::notice title=Microphone test build::$(grep -E 'Sketch uses' mic_test.log)"
           { grep -E 'mic_test/mic_test\.ino:[0-9]+:[0-9]+: warning:' mic_test.log || true; } | sort -u | head -20 | while IFS= read -r w; do echo "::warning title=Compiler::$w"; done
           echo "warnings in our code: $(grep -cE 'mic_test/mic_test\.ino:[0-9]+:[0-9]+: warning:' mic_test.log || true)"
+
+      - name: Compile firmware/led_test
+        run: |
+          arduino-cli compile --fqbn esp32:esp32:XIAO_ESP32S3:USBMode=hwcdc,CDCOnBoot=default --warnings all firmware/led_test 2>&1 | tee led_test.log
+          echo "::notice title=LED test build::$(grep -E 'Sketch uses' led_test.log)"
+          { grep -E 'led_test/led_test\.ino:[0-9]+:[0-9]+: warning:' led_test.log || true; } | sort -u | head -20 | while IFS= read -r w; do echo "::warning title=Compiler::$w"; done
+          echo "warnings in our code: $(grep -cE 'led_test/led_test\.ino:[0-9]+:[0-9]+: warning:' led_test.log || true)"

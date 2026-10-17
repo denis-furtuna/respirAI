@@ -15,7 +15,18 @@ Pin assignments are in [`docs/PLAN.md` §3](../docs/PLAN.md#3-wiring-reference).
 
 Audio runs in its own task on core 1, so Bluetooth and the LEDs can't make it miss samples.
 
-## Microphone test (`mic_test/`, a separate sketch)
+## Module tests: one sketch per part
+
+Each part is tested on its own first, before the full firmware and the app are involved. Each test is a separate sketch with the firmware's own pins and settings: flash it, open the serial monitor at 115200, and it says what to look for. When a part works, flash `respirai/` again.
+
+| Sketch | Tests | Tasks |
+|---|---|---|
+| `mic_test/` | the INMP441: wiring check, live level, the audio on the computer over the USB cable | F2, E2, E3 |
+| `led_test/` | the four LEDs: which LED is on which pin, the breathing guide, the fades, the "AI" patterns, brightness | F-LED1–F-LED5, E7 |
+
+Upload a test the same way as the firmware (see *Build and flash*), with its folder instead of `firmware/respirai`.
+
+### Microphone test (`mic_test/`)
 
 `mic_test/mic_test.ino` checks the INMP441 on its own, before Bluetooth or the app are involved (F2). Same pins and I²S setup as the firmware; it needs no library. Flash it, open the serial monitor at 115200:
 
@@ -30,6 +41,23 @@ Audio runs in its own task on core 1, so Bluetooth and the LEDs can't make it mi
    It plays exactly what the phone would get (8 kHz, the firmware's filter and `MIC_GAIN`) and shows a level meter. Use headphones; `--gain 8` plays louder, `--seconds 20` stops by itself.
 
 When the mic is right, flash `respirai/` again. The app has a matching test for the whole chain (mic → Bluetooth → phone): *Settings → Microphone test* (`app/mic-test.html`, on the `phone-app` branch).
+
+
+### LED test (`led_test/`)
+
+Wire the LEDs first, USB unplugged: each LED with its **own** 100 Ω resistor, long leg toward the resistor, short leg to GND. "AI" on D3, trachea on D6, both lobes on D7. It starts by lighting each LED alone, naming the one that should be on, so a wire on the wrong pin shows at once. Then type a letter + Enter:
+
+| Letter | Shows | Good when |
+|---|---|---|
+| `i` | each LED alone, in turn | the LED named is the one lit |
+| `b` | the breathing guide, exactly as the firmware (4 s in, 5 s out) | the trachea lights first breathing in, the lobes go dark first breathing out |
+| `f` | the 300 ms fade when the guide stops, then each LED slowly up and down | smooth, no steps or flicker near dark |
+| `w` / `e` / `l` | the "AI" patterns: waiting for a phone, error, low battery | smooth blink / fast blink / two short blinks |
+| `r` | all LEDs from 0 to 100 % in 10 % steps | pick resistors and `LED_LEVEL` by eye, through a scrap of the printed panel |
+| `1` `2` `3` / `a` / `0` | one LED, all, or none, steady | both lobes equally bright |
+| `+` / `-` | the lungs' brightness | it prints the `LED_LEVEL` to put in `config.h` |
+
+A short flicker of the trachea LED at power-on is normal: D6 also carries the chip's boot messages.
 
 ## Build and flash
 
@@ -57,7 +85,7 @@ arduino-cli upload  --fqbn esp32:esp32:XIAO_ESP32S3:USBMode=hwcdc,CDCOnBoot=defa
 | Bluetooth (F4) | **nRF Connect** app on the S25: scan, connect to *respirAI* | serial prints the MTU; the "AI" LED stays on |
 | Streaming (F5) | In nRF Connect, enable notifications on `…0002…`, write `01` to `…0003…` | serial status shows ~200 packets per 2 s |
 | Full packets | Serial line "Audio subscribed: MTU …" | **162 bytes** per packet. Smaller still works, but tell the app owner |
-| LEDs (F-LED3, F-LED4) | Write `10`, then `11`, then `12` to `…0003…` | the lungs breathe (trachea first in, lobes first out); `11`: lungs fade out; `12`: lungs fade out |
+| LEDs (F-LED3, F-LED4) | Before the full firmware: flash `led_test/` (see above). With the firmware: write `10`, then `11`, then `12` to `…0003…` | the lungs breathe (trachea first in, lobes first out); `11`: lungs fade out; `12`: lungs fade out |
 | Guide timeout | Write `10` and wait | the lungs stop by themselves after 60 s |
 | Stability (F6) | Stream 10 minutes from the web app | "lost" stays near 0, no reboot |
 | Mic in the app | App → *Settings → Microphone test* → connect | every check green; a tap reaches −20 dBFS or more |

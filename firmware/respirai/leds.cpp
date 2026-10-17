@@ -67,8 +67,8 @@ static void breathe(uint32_t t) {
 static float statusLight(uint32_t now) {
   if (deviceError) return (now / 125) % 2 ? 1.0f : 0.0f;              // fast blink, 4 per second
   if (battery <= BATTERY_LOW) {                                        // never true while unknown (255)
-    const uint32_t c = now % 4000;
-    if (c < 120 || (c >= 300 && c < 420)) return 1.0f;                 // double blink every 4 s
+    const uint32_t c = now % 4000;                                     // double blink every 4 s, dark in between:
+    return c < 120 || (c >= 300 && c < 420) ? 1.0f : 0.0f;             // over the steady "connected" light it wouldn't show
   }
   if (mode == LED_WAITING) {                                           // not connected: smooth blink, 2 s
     const uint32_t c = now % 2000;
