@@ -67,6 +67,7 @@ export default {
   "point.getReady": "Machen Sie sich bereit",
   "point.breatheSlowly": "Langsam im Takt des Kreises atmen",
   "point.sayBreathe": "Atmen Sie jetzt langsam ein und aus, im Takt des Kreises. Der erste Atemzug ist zur Probe.",
+  "point.sayBreatheNext": "Atmen Sie jetzt langsam ein und aus, im Takt des Kreises.",
   "point.in": "Einatmen",
   "point.out": "Ausatmen",
   "point.practice": "Probeatemzug",

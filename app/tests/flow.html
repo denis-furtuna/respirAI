@@ -72,6 +72,11 @@ check("circle drawn every frame, no CSS easing", scale() !== s1 && frame.content
 await sleep(9000);
 check("then recording: breathing guide", /Breathe (in|out)/.test($("dialMain").textContent) && /seconds left/.test($("dialSub").textContent), $("dialMain").textContent + " / " + $("dialSub").textContent);
 check("signal shown", $("signalText").textContent === "Sound is coming through");
+for (let i = 0; i < 200 && ($("btnNow").hidden || $("pointTitle").textContent === "Base of the neck"); i++) await sleep(100);
+$("btnNow").click();
+await sleep(1500);
+check("second place: no practice breath, recording at once", /Breathe (in|out)/.test($("dialMain").textContent) && /seconds left/.test($("dialSub").textContent),
+  `${$("pointTitle").textContent}: ${$("dialMain").textContent} / ${$("dialSub").textContent}`);
 await untilResults();
 check("results screen", visible("sResults"));
 const rows = [...d.querySelectorAll("#resultList li")].map((li) => `${li.className}:${li.querySelector("b").textContent}:${li.querySelector(".chip").textContent}`);

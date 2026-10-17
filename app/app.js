@@ -21,7 +21,7 @@ const title = (code) => t(`point.${code}.title`);
 const ORDER = ["Tc", "Al", "Ar", "Ll", "Lr", "Pl", "Pr"];  // front, sides, back
 const PLACE_SECONDS = 8;
 const BREATH_IN = 4, BREATH_OUT = 5;   // seconds. Mirrored in firmware/respirai/config.h (BREATH_IN_MS, BREATH_OUT_MS): change both
-const BREATH = BREATH_IN + BREATH_OUT; // one breath; also the practice breath before each recording
+const BREATH = BREATH_IN + BREATH_OUT; // one breath; also the practice breath before the first recording of a check
 const MIN_QUALITY = 0.4;               // contract 2: below this, ask for a re-record
 const RING = 2 * Math.PI * 92;         // circumference of the dial's progress ring
 const FINDINGS = ["normal", "crackles", "wheezes", "both", "unusable"];
@@ -229,7 +229,7 @@ let session = null;   // { id, started, results: {code: response}, audio: {code:
 let running = false, cancel = false, skip = false, lock = null;
 
 const remaining = () => (session ? ORDER.filter((c) => !session.results[c]) : ORDER);
-const newSession = () => { session = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), started: Date.now(), results: {}, audio: {}, pending: [] }; };
+const newSession = () => { session = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), started: Date.now(), results: {}, audio: {}, pending: [], practised: false }; };
 
 // Keep the screen on during a session, also after switching away and back. Never waited for.
 const keepAwake = () => native ? native.keepAwake(true)
@@ -308,19 +308,25 @@ async function recordPoint(code) {
   const placed = await countdown(PLACE_SECONDS, (s, total) => dial(Math.ceil(total - s), t("point.startsIn"), s / total), true);
   $("btnNow").hidden = true;
   if (!placed) return;
+  // One practice breath per check, before its first recording: once the rhythm is known, later places (and a
+  // Continue or Record again) start recording with the first breath.
+  const practice = !session.practised;
   dial(t("point.getReady"), t("point.breatheSlowly"), 0);
-  await say(t("point.sayBreathe"));   // finishes before the recording starts
+  await say(t(practice ? "point.sayBreathe" : "point.sayBreatheNext"));   // finishes before the recording starts
   if (cancel) return;
 
-  // 2. One practice breath, then record the next breaths. The device's lights start with the circle and loop on
+  // 2. (The practice breath, then) record the next breaths. The device's lights start with the circle and loop on
   //    their own clock (contract 4.1), so the recording starts at the bottom of a breath, in step with them.
   send(CMD.guide(p.n));
   const started = breathe();
   const inhale = () => ((performance.now() - started) / 1000) % BREATH < BREATH_IN;
   let samples, recorded;
   try {
-    const practised = await countdown(BREATH, (s, total) => dial(t(inhale() ? "point.in" : "point.out"), t("point.practice"), s / total));
-    if (!practised) return;
+    if (practice) {
+      const practised = await countdown(BREATH, (s, total) => dial(t(inhale() ? "point.in" : "point.out"), t("point.practice"), s / total));
+      if (!practised) return;
+      session.practised = true;
+    }
     recording = new Recording(settings.seconds);
     recorded = await countdown(settings.seconds, (s, total) =>
       dial(t(inhale() ? "point.in" : "point.out"), t("point.secondsLeft", { n: Math.ceil(total - s) }), s / total));

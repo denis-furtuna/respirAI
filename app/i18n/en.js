@@ -67,6 +67,7 @@ export default {
   "point.getReady": "Get ready",
   "point.breatheSlowly": "Breathe slowly, following the circle",
   "point.sayBreathe": "Now breathe slowly, in and out, with the circle. The first breath is practice.",
+  "point.sayBreatheNext": "Now breathe slowly, in and out, with the circle.",
   "point.in": "Breathe in",
   "point.out": "Breathe out",
   "point.practice": "Practice breath",

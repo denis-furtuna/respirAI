@@ -72,6 +72,7 @@ export default {
   "point.getReady": "Pregătiți-vă",
   "point.breatheSlowly": "Respirați încet, odată cu cercul",
   "point.sayBreathe": "Acum respirați încet, inspirați și expirați odată cu cercul. Prima respirație este de probă.",
+  "point.sayBreatheNext": "Acum respirați încet, inspirați și expirați odată cu cercul.",
   "point.in": "Inspirați",
   "point.out": "Expirați",
   "point.practice": "Respirație de probă",

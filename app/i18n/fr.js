@@ -67,6 +67,7 @@ export default {
   "point.getReady": "Préparez-vous",
   "point.breatheSlowly": "Respirez lentement, au rythme du cercle",
   "point.sayBreathe": "Maintenant, respirez lentement : inspirez et expirez au rythme du cercle. La première respiration sert d'essai.",
+  "point.sayBreatheNext": "Maintenant, respirez lentement : inspirez et expirez au rythme du cercle.",
   "point.in": "Inspirez",
   "point.out": "Expirez",
   "point.practice": "Respiration d'essai",

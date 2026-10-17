@@ -67,6 +67,7 @@ export default {
   "point.getReady": "Prepárese",
   "point.breatheSlowly": "Respire despacio, siguiendo el círculo",
   "point.sayBreathe": "Ahora respire despacio, tome y suelte el aire, siguiendo el círculo. La primera respiración es de práctica.",
+  "point.sayBreatheNext": "Ahora respire despacio, tome y suelte el aire, siguiendo el círculo.",
   "point.in": "Tome aire",
   "point.out": "Suelte el aire",
   "point.practice": "Respiración de práctica",
