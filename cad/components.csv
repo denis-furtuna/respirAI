@@ -1,1 +1,8 @@
 part,w_mm,l_mm,h_mm,hole_pattern,connector_face,clearance_mm
+chest_big_head,46.7,46.7,5.4,,diaphragm faces the patient,
+chest_waist,21.3,21.3,8.3,,stem leaves it sideways,
+chest_small_head,29.8,29.8,6.1,,inside the body,
+chest_stem,6.7,6.7,34.8,,tip butts on the mic port; bore about 3 mm; ribbed tip,
+mic_inmp441,14.1,14.1,1.0,,port side to the stem; pins on the other side,
+xiao_esp32s3,18.1,21.3,27.0,,USB-C on one short edge,h is with pins and Dupont plugs
+lipo_2500,50.0,60.5,7.8,,wires at one short end,
