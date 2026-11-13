@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>respirAI privacy policy</title>
+  <link rel="icon" href="img/favicon.png">
+  <style>
+    :root { --bg: #f3f6f9; --surface: #fff; --ink: #0e2233; --muted: #4b5f6f; --primary: #004565; --line: #dbe3ea; }
+    @media (prefers-color-scheme: dark) { :root { --bg: #0b1620; --surface: #12212e; --ink: #e8f0f6; --muted: #a6b8c6; --primary: #7cc8e6; --line: #24394a; } }
+    body { margin: 0; background: var(--bg); color: var(--ink); font: 400 1.05rem/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    main { max-width: 720px; margin: 0 auto; padding: 24px 16px 48px; }
+    header { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+    header img { height: 40px; width: auto; }
+    nav a { color: var(--primary); font-weight: 600; margin-left: 12px; }
+    article { background: var(--surface); border-radius: 20px; padding: 8px 22px 18px; margin-top: 20px; border: 1px solid var(--line); }
+    h1 { font-size: 1.6rem; line-height: 1.25; margin: 18px 0 4px; }
+    h2 { font-size: 1.15rem; margin: 22px 0 6px; }
+    p, li { margin: 6px 0; }
+    ul { padding-left: 1.2em; }
+    .muted { color: var(--muted); }
+    .note { font-weight: 600; }
+    a { color: var(--primary); }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <picture><source media="(prefers-color-scheme: dark)" srcset="img/logo-dark.png"><img src="img/logo.png" alt="respirAI" width="482" height="120"></picture>
+    <nav><a href="#en" lang="en">English</a><a href="#ro" lang="ro">Română</a></nav>
+  </header>
+
+  <article id="en" lang="en">
+    <h1>Privacy policy</h1>
+    <p class="muted">respirAI app (Android and web) · last updated 14 October 2026</p>
+    <p class="note">respirAI is a student project made for a hackathon. It is not a medical device: it does not diagnose, and its results must not be used to make health decisions. If you are unwell, see a doctor.</p>
+
+    <h2>In short</h2>
+    <p>Everything happens on your phone. The app does not send your recordings or results to us or to anyone else, has no accounts, no advertising and no analytics, and does not track you.</p>
+
+    <h2>What the app handles, and where it stays</h2>
+    <ul>
+      <li><b>Lung sound recordings.</b> The respirAI device records them and sends them to the phone over Bluetooth. The app analyses them on the phone. They are kept in the phone's memory only for the current check, so you can listen to them, and are gone when the app is closed. They are never uploaded.</li>
+      <li><b>Results.</b> For the "Earlier checks" list, the app keeps the date and the overall result of your last 20 checks on the phone, never the recordings. Settings → <i>Forget earlier checks</i> deletes them; so does uninstalling the app. The Android app excludes this from backups and from copying to a new phone.</li>
+      <li><b>Settings</b> (language, text size, appearance, spoken instructions) are kept on the phone.</li>
+    </ul>
+
+    <h2>When something leaves the phone</h2>
+    <ul>
+      <li><b>Only when you choose to share.</b> "Send the results to a doctor" opens your phone's share menu with a short summary and the recordings. Nothing is sent until you pick an app (for example email) and send it yourself. From then on, that app's own privacy policy applies.</li>
+      <li><b>Web version only: an AI server, if one is set.</b> The web version's settings have a field "AI server address", for the project team during development. It is empty by default, and the AI then runs on the phone. If someone enters an address, the recordings are sent to that server to be analysed. The Android app has no such field: it always analyses on the phone.</li>
+      <li>The web version is loaded from GitHub Pages, like any website; GitHub may log visits as described in <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement">its privacy statement</a>. The Android app needs no internet connection.</li>
+    </ul>
+
+    <h2>Permissions (Android app)</h2>
+    <ul>
+      <li><b>Nearby devices (Bluetooth)</b>: only to find and connect to the respirAI device. The app never uses Bluetooth to work out where you are.</li>
+      <li><b>Location</b>, on Android 11 and older only: those versions of Android require it before any app can search for Bluetooth devices. The app does not use your location.</li>
+      <li><b>Vibration</b>: a short buzz when a recording is done. <b>Keeping the screen on</b>: during a check.</li>
+      <li><b>Spoken instructions</b>, if you turn them on, use your phone's own text-to-speech engine.</li>
+    </ul>
+
+    <h2>Children</h2>
+    <p>The app is meant for adults. It does not knowingly handle data about children differently, and keeps all data on the phone as described above.</p>
+
+    <h2>Changes and contact</h2>
+    <p>If this policy changes, this page will show the new version and date. Questions: open an issue at <a href="https://github.com/denis-furtuna/respirAI/issues">github.com/denis-furtuna/respirAI/issues</a>.</p>
+  </article>
+
+  <article id="ro" lang="ro">
+    <h1>Politica de confidențialitate</h1>
+    <p class="muted">Aplicația respirAI (Android și web) · actualizată la 14 octombrie 2026</p>
+    <p class="note">respirAI este un proiect studențesc făcut pentru un hackathon. Nu este un dispozitiv medical: nu pune diagnostice, iar rezultatele nu trebuie folosite pentru decizii legate de sănătate. Dacă nu vă simțiți bine, mergeți la medic.</p>
+
+    <h2>Pe scurt</h2>
+    <p>Totul se întâmplă pe telefonul dumneavoastră. Aplicația nu trimite înregistrările sau rezultatele către noi sau către altcineva, nu are conturi, reclame sau statistici de utilizare și nu vă urmărește.</p>
+
+    <h2>Ce folosește aplicația și unde rămâne</h2>
+    <ul>
+      <li><b>Înregistrările sunetelor pulmonare.</b> Dispozitivul respirAI le înregistrează și le trimite telefonului prin Bluetooth. Aplicația le analizează pe telefon. Sunt păstrate în memoria telefonului doar pe durata verificării curente, ca să le puteți asculta, și dispar când aplicația este închisă. Nu sunt încărcate nicăieri.</li>
+      <li><b>Rezultatele.</b> Pentru lista „Verificări anterioare”, aplicația păstrează pe telefon data și rezultatul general al ultimelor 20 de verificări, niciodată înregistrările. Setări → <i>Ștergeți verificările anterioare</i> le șterge; la fel și dezinstalarea aplicației. Aplicația Android le exclude din copiile de rezervă și din mutarea pe un telefon nou.</li>
+      <li><b>Setările</b> (limba, mărimea textului, aspectul, instrucțiunile vorbite) sunt păstrate pe telefon.</li>
+    </ul>
+
+    <h2>Când pleacă ceva de pe telefon</h2>
+    <ul>
+      <li><b>Doar când alegeți să trimiteți.</b> „Trimiteți rezultatele medicului” deschide meniul de partajare al telefonului cu un scurt rezumat și înregistrările. Nimic nu este trimis până nu alegeți o aplicație (de exemplu e-mail) și trimiteți dumneavoastră. De acolo se aplică politica acelei aplicații.</li>
+      <li><b>Doar în versiunea web: un server AI, dacă este setat.</b> Setările versiunii web au un câmp „Adresa serverului AI”, pentru echipa proiectului, în timpul dezvoltării. Implicit este gol, iar analiza se face pe telefon. Dacă cineva introduce o adresă, înregistrările sunt trimise acelui server pentru analiză. Aplicația Android nu are acest câmp: analizează mereu pe telefon.</li>
+      <li>Versiunea web se încarcă de pe GitHub Pages, ca orice site; GitHub poate înregistra vizitele, conform <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement">declarației sale de confidențialitate</a>. Aplicația Android nu are nevoie de internet.</li>
+    </ul>
+
+    <h2>Permisiuni (aplicația Android)</h2>
+    <ul>
+      <li><b>Dispozitive din apropiere (Bluetooth)</b>: doar pentru a găsi dispozitivul respirAI și a se conecta la el. Aplicația nu folosește niciodată Bluetooth pentru a afla unde vă aflați.</li>
+      <li><b>Locația</b>, doar pe Android 11 și mai vechi: acele versiuni de Android o cer înainte ca orice aplicație să poată căuta dispozitive Bluetooth. Aplicația nu folosește locația dumneavoastră.</li>
+      <li><b>Vibrația</b>: o scurtă vibrație când o înregistrare s-a terminat. <b>Ecranul rămâne aprins</b> în timpul verificării.</li>
+      <li><b>Instrucțiunile vorbite</b>, dacă le porniți, folosesc motorul de citire cu voce al telefonului.</li>
+    </ul>
+
+    <h2>Copii</h2>
+    <p>Aplicația este destinată adulților. Nu tratează diferit datele despre copii și păstrează toate datele pe telefon, așa cum este descris mai sus.</p>
+
+    <h2>Modificări și contact</h2>
+    <p>Dacă politica se schimbă, această pagină va arăta noua versiune și data. Întrebări: deschideți un „issue” la <a href="https://github.com/denis-furtuna/respirAI/issues">github.com/denis-furtuna/respirAI/issues</a>.</p>
+  </article>
+</main>
+</body>
+</html>

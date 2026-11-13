@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <title>Microphone test · respirAI</title>
+  <meta name="description" content="respirAI: check the device's microphone and its Bluetooth stream.">
+  <link rel="icon" href="img/favicon.png">
+  <link rel="stylesheet" href="style.css">
+  <script>   /* the app's appearance and text size, before the first paint */
+    try { var s = JSON.parse(localStorage.getItem("respirai") || "{}"); } catch (e) { s = {}; }
+    document.documentElement.dataset.theme = s.theme === "light" || s.theme === "dark" ? s.theme : matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    if (s.textSize) document.documentElement.style.fontSize = s.textSize + "%";
+  </script>
+  <script type="module" src="mic-test.js"></script>
+  <style>
+    /* A bench instrument, not a screening: everything on one page, read at a glance. English only (for the team). */
+    main.bench { display: grid; gap: 16px; }
+    .card { background: var(--surface); border-radius: 20px; box-shadow: var(--shadow); padding: 18px; display: grid; gap: 12px; min-width: 0; }
+    .card-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    .tag { font-size: 0.85rem; font-weight: 700; padding: 4px 12px; border-radius: 999px; background: var(--unclear-soft); color: var(--unclear); white-space: nowrap; }
+    .tag.ok { background: var(--ok-soft); color: var(--ok); }
+    .tag.warn { background: var(--warn-soft); color: var(--warn); }
+    .tag.bad { background: var(--danger-soft); color: var(--danger); }
+    .row { display: flex; flex-wrap: wrap; gap: 10px; }
+    .row .btn { flex: 1 1 auto; }
+
+    .meter { position: relative; height: 28px; border-radius: 8px; background: var(--primary-soft); overflow: hidden; }
+    .meter i { position: absolute; inset: 0 auto 0 0; width: 0; transition: width 0.2s linear; }
+    #meterPeak { background: color-mix(in srgb, var(--primary) 35%, transparent); }
+    #meterRms { background: var(--primary); }
+    #meterHold { position: absolute; top: 0; bottom: 0; left: 0; width: 2px; background: var(--ink); transition: left 0.2s linear; }
+    .meter .clipzone { position: absolute; inset: 0 0 0 auto; width: calc(100% / 60); background: var(--here); opacity: 0.7; }
+    .scale { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--muted); font-variant-numeric: tabular-nums; margin-top: -6px; }
+    .stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 16px; margin: 0; }
+    .stats dt { font-size: 0.8rem; color: var(--muted); }
+    .stats dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+    #wave { width: 100%; height: 120px; display: block; color: var(--primary); border-radius: 10px; background: var(--bg); }
+    .zoom { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; color: var(--muted); }
+    .zoom input { width: 20px; height: 20px; accent-color: var(--primary); }
+
+    .checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+    .checks li { display: grid; grid-template-columns: 12px minmax(0, 1fr); gap: 0 12px; }
+    .checks li::before { content: ""; width: 12px; height: 12px; border-radius: 50%; margin-top: 0.4em; background: var(--line); grid-row: span 2; }
+    .checks li.ok::before { background: var(--ok); }
+    .checks li.warn::before { background: var(--warn-dot); }
+    .checks li.bad::before { background: var(--here); }
+    .checks li.info::before { background: var(--unclear); }
+    .checks b { font-size: 1rem; }
+    .checks span { font-size: 0.92rem; color: var(--muted); overflow-wrap: anywhere; }
+
+    details.card summary { cursor: pointer; font-weight: 700; }
+    details.card ol { margin: 0; padding-left: 1.3em; display: grid; gap: 6px; font-size: 0.95rem; }
+    .back { min-height: 48px; display: inline-flex; align-items: center; color: var(--primary); font-weight: 600; font-size: 1rem; }
+  </style>
+</head>
+<body>
+<header class="top">
+  <img class="logo" src="img/logo.png" alt="respirAI" width="482" height="120">
+  <a id="back" class="back" href="./">Back to the app</a>
+</header>
+
+<main class="bench">
+  <div>
+    <h1 tabindex="-1">Microphone test</h1>
+    <p class="lead">For the team: checks the device's microphone and its Bluetooth stream. Nothing here is analysed or uploaded.</p>
+  </div>
+  <p id="notice" class="notice" role="alert" hidden></p>
+
+  <div class="row">
+    <button id="btnConnect" class="btn primary">Connect the device</button>
+    <button id="btnDisconnect" class="btn secondary" hidden>Disconnect</button>
+  </div>
+  <p id="device" class="muted small">Not connected</p>
+
+  <section class="card" aria-labelledby="levelTitle">
+    <div class="card-head"><h2 id="levelTitle">Level</h2><span id="verdict" class="tag">Not connected</span></div>
+    <div class="meter" role="meter" id="meter" aria-label="Sound level" aria-valuemin="-60" aria-valuemax="0" aria-valuenow="-60">
+      <i id="meterPeak"></i><i id="meterRms"></i><span class="clipzone"></span><b id="meterHold"></b>
+    </div>
+    <div class="scale" aria-hidden="true"><span>−60</span><span>−45</span><span>−30</span><span>−15</span><span>0 dBFS</span></div>
+    <dl class="stats">
+      <div><dt>Level now</dt><dd id="level">–</dd></div>
+      <div><dt>Peak, last 2 s</dt><dd id="peak">–</dd></div>
+      <div><dt title="The quietest tenth of the last 10 s: the noise floor, ignoring taps and breaths">Background noise</dt><dd id="background">–</dd></div>
+      <div><dt>Clipped, last 2 s</dt><dd id="clipped">–</dd></div>
+    </dl>
+  </section>
+
+  <section class="card" aria-labelledby="waveTitle">
+    <div class="card-head">
+      <h2 id="waveTitle">Waveform, last 3 s</h2>
+      <label class="zoom"><input id="zoom" type="checkbox" checked> Auto zoom</label>
+    </div>
+    <canvas id="wave" aria-label="Live waveform"></canvas>
+    <p id="zoomText" class="muted small">Auto zoom keeps quiet breath sounds visible. Turn it off to see the real level (full height = full scale).</p>
+  </section>
+
+  <section class="card" aria-labelledby="checksTitle">
+    <h2 id="checksTitle">Checks</h2>
+    <ul id="checks" class="checks" aria-live="polite"></ul>
+  </section>
+
+  <section class="card" aria-labelledby="clipTitle">
+    <h2 id="clipTitle">Record a test clip</h2>
+    <p class="muted small">10 seconds, kept on this phone only. Listen to it, or save it as a WAV: 8 kHz, 16-bit, the same format the AI gets.</p>
+    <div class="row">
+      <button id="btnRecord" class="btn secondary small" disabled>Record 10 s</button>
+      <button id="btnListen" class="btn secondary small" disabled>Listen</button>
+      <button id="btnSave" class="btn secondary small" disabled>Save WAV</button>
+    </div>
+    <p id="clipText" class="muted small"></p>
+  </section>
+
+  <details class="card">
+    <summary>What to try</summary>
+    <ol>
+      <li><b>Tap</b> the chest piece or the table next to the mic: the level should jump to −20 dBFS or more.</li>
+      <li><b>Seal test:</b> note the background with the chest piece lying on the table, then hold it firmly on your chest and stay still. A good airtight seal on the tube gives a clearly lower background.</li>
+      <li><b>Breathe deeply</b> with the chest piece on your chest: the waveform swells with each breath. Record a clip and listen.</li>
+      <li><b>Range:</b> walk away with the phone. The lost packets show where the connection gets weak.</li>
+    </ol>
+  </details>
+</main>
+</body>
+</html>
