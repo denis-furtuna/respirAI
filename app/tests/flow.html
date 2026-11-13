@@ -149,6 +149,22 @@ $("btnBegin").click(); await sleep(1000); frame.contentWindow.history.back(); aw
 check("phone back button during a recording → back to ready, page kept", visible("sReady") && frame.contentWindow.location.pathname === "/index.html");
 $("btnBegin").click(); await sleep(1000); $("btnStop").click(); await sleep(500);
 check("stop → back to ready", visible("sReady"));
+$("btnBegin").click(); await sleep(600); $("btnNow").click(); await sleep(2000);
+const breathingNow = $("dialSub").textContent;
+$("btnStop").click(); await sleep(300);
+check("stop during the practice breath → back to ready at once", visible("sReady"), breathingNow);
+$("btnVoice").click();   // voice on, and a voice that never finishes its sentence
+let hushed = 0;
+const realSpeak = w.speechSynthesis.speak.bind(w.speechSynthesis), realCancel = w.speechSynthesis.cancel.bind(w.speechSynthesis);
+w.speechSynthesis.speak = () => {};
+w.speechSynthesis.cancel = () => { hushed++; };
+await sleep(500);
+$("btnBegin").click(); await sleep(600); $("btnNow").click(); await sleep(500);
+const before = hushed;
+$("btnStop").click(); await sleep(300);
+check("stop while the instruction is being spoken → back to ready at once, voice cut", visible("sReady") && hushed > before);
+w.speechSynthesis.speak = realSpeak; w.speechSynthesis.cancel = realCancel;
+$("btnVoice").click();
 $("textSize").value = "130"; $("textSize").dispatchEvent(new Event("change"));
 check("text size setting", d.documentElement.style.fontSize === "130%" && parseFloat(getComputedStyle(d.body).fontSize) > 24, getComputedStyle(d.body).fontSize);
 $("textSize").value = "100"; $("textSize").dispatchEvent(new Event("change"));

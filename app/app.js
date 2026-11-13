@@ -198,7 +198,7 @@ async function lostDevice(d) {
   battery = null;
   showBattery();
   notice("device.reconnecting");
-  if (running) cancel = true;
+  if (running) stopSession();
   else if (!$("sReady").hidden) show("sConnect");   // results stay on screen if they are showing
   for (const wait of [500, 1500, 3000, 5000]) {
     await sleep(wait);
@@ -230,6 +230,15 @@ function send(bytes) {
 // { id, started, codes: the places of this check (all 7, or QUICK), quick, results: {code: response}, audio: {code: Int16Array}, pending: [] }
 let session = null;
 let running = false, cancel = false, skip = false, lock = null;
+let wake = () => {};   // cuts short the one wait that is not a countdown: the spoken instruction before a recording
+
+// Stop button, back button, a lost device, the app going to the background: stop now, also mid-sentence.
+function stopSession() {
+  cancel = true;
+  hush();
+  wake();
+}
+const orStop = (wait) => Promise.race([wait, new Promise((r) => { wake = r; })]);
 
 const places = () => (session ? session.codes : ORDER);
 const remaining = () => places().filter((c) => !session?.results[c]);
@@ -246,7 +255,7 @@ function away() {
   stopListening();
   hush();
   if (running && !$("sPoint").hidden) {   // a phone call, or the screen switched off: pause rather than record nothing
-    cancel = true;
+    stopSession();
     notice("device.paused");
   }
 }
@@ -260,7 +269,7 @@ addEventListener("beforeunload", (e) => {
 });
 
 // Android's back button stops a recording instead of leaving the page.
-addEventListener("popstate", () => { if (running) cancel = true; });
+addEventListener("popstate", () => { if (running) stopSession(); });
 const catchBack = () => { if (history.state !== "check") history.pushState("check", ""); };
 
 async function runSession(codes) {
@@ -319,7 +328,7 @@ async function recordPoint(code) {
   // Continue or Record again) start recording with the first breath.
   const practice = !session.practised;
   dial(t("point.getReady"), t("point.breatheSlowly"), 0);
-  await say(t(practice ? "point.sayBreathe" : "point.sayBreatheNext"));   // finishes before the recording starts
+  await orStop(say(t(practice ? "point.sayBreathe" : "point.sayBreatheNext")));   // finishes before the recording starts, unless stopped
   if (cancel) return;
 
   // 2. (The practice breath, then) record the next breaths. The device's lights start with the circle and loop on
@@ -737,7 +746,7 @@ $("btnQuick").addEventListener("click", () => {   // one place, then its result
   runSession(QUICK);
 });
 $("btnNow").addEventListener("click", () => { if (settled()) skip = true; });
-$("btnStop").addEventListener("click", () => { if (settled()) cancel = true; });
+$("btnStop").addEventListener("click", () => { if (settled() && running) stopSession(); });
 $("btnRestart").addEventListener("click", () => {
   const since = performance.now() - armedAt;
   if (since < 400) return;   // the two taps of a double-tap count as one
