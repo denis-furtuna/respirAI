@@ -1,7 +1,7 @@
 <!doctype html>
 <meta charset="utf-8">
 <title>flow test</title>
-<!-- The whole check with the practice device: packets and WAV, placing, recording, results, Try again / Record again, Listen, share, earlier checks, restart, back button, settings. Run with app/tests/run.py. -->
+<!-- The whole check with the practice device: packets and WAV, placing, recording, results, Try again / Record again, Listen, share, earlier checks, restart, quick test, back button, settings. Run with app/tests/run.py. -->
 <pre id="out">running</pre>
 <iframe id="app" style="width:390px;height:844px"></iframe>
 <script type="module">
@@ -39,7 +39,7 @@ const wav = new DataView(await toWav(new Int16Array([1, -2, 3])).arrayBuffer());
 check("wav header", wav.byteLength === 50 && wav.getUint32(24, true) === 8000 && wav.getInt16(46, true) === -2);
 
 // --- end to end ---
-localStorage.setItem("respirai", JSON.stringify({ server: location.origin, seconds: 5, demo: "", welcomed: true, lang: "en" }));
+localStorage.setItem("respirai", JSON.stringify({ server: location.origin, seconds: 5, demo: "", welcomed: true, lang: "en", voice: true }));   // voice on last time
 localStorage.setItem("respirai-checks", JSON.stringify([{ id: "old", started: Date.now() - 3 * 864e5, key: "ok" }]));
 const frame = document.getElementById("app");
 frame.src = "/index.html";
@@ -58,6 +58,7 @@ check("logo and lungs images load", [...d.querySelectorAll("img")].every((i) => 
 $("btnPractice").click();
 await sleep(1000);
 check("practice device → ready screen + battery", visible("sReady") && !$("battery").hidden, $("battery").textContent);
+check("spoken instructions start off, even if they were on last time", $("btnVoice").getAttribute("aria-pressed") === "false" && visible("btnQuick"));
 $("btnBegin").click(); $("btnStop").click();   // a double-tap must not also press Stop, which sits where Begin was
 await sleep(500);
 check("double-tap on Begin doesn't stop", visible("sPoint"));
@@ -130,6 +131,20 @@ $("btnRestart").click(); $("btnRestart").click(); await sleep(500);
 check("new check asks for a second tap, a double-tap is one tap", visible("sResults") && /Tap again/.test($("btnRestart").textContent), $("btnRestart").textContent);
 $("btnRestart").click(); await sleep(600);
 check("new check → ready", visible("sReady") && $("btnBegin").textContent === "Begin");
+
+// Quick test: one place, then its result alone
+$("btnQuick").click();
+await sleep(500);
+check("quick test: one place", visible("sPoint") && $("pointStep").textContent === "Place 1 of 1" && $("pointTitle").textContent === "Upper chest, left" && $("progress").children.length === 1,
+  $("pointStep").textContent + " / " + $("pointTitle").textContent);
+await untilResults();
+const quickRows = [...d.querySelectorAll("#resultList li")];
+check("quick test: results for that place only", visible("sResults") && quickRows.length === 1 && quickRows[0].textContent.includes("Possible crackles")
+  && $("overall").className.includes("warn") && !$("quickNote").hidden, quickRows.map((li) => li.textContent.replace(/\s+/g, " ")).join(" | "));
+check("quick test: map shows only the front, with one dot", !$("mapFront").hasAttribute("hidden") && $("mapBack").hasAttribute("hidden") && d.querySelectorAll("#mapFront .pt").length === 1 && $("mapFront").parentElement.classList.contains("one"));
+check("quick test: remembered as a quick test", JSON.parse(localStorage.getItem("respirai-checks"))[0].quick === true);
+$("btnRestart").click(); await sleep(500); $("btnRestart").click(); await sleep(600);
+check("after a quick test, a new check has all 7 places again", visible("sReady") && visible("btnQuick") && $("btnBegin").textContent === "Begin");
 $("btnBegin").click(); await sleep(1000); frame.contentWindow.history.back(); await sleep(800);
 check("phone back button during a recording → back to ready, page kept", visible("sReady") && frame.contentWindow.location.pathname === "/index.html");
 $("btnBegin").click(); await sleep(1000); $("btnStop").click(); await sleep(500);
@@ -138,7 +153,7 @@ $("textSize").value = "130"; $("textSize").dispatchEvent(new Event("change"));
 check("text size setting", d.documentElement.style.fontSize === "130%" && parseFloat(getComputedStyle(d.body).fontSize) > 24, getComputedStyle(d.body).fontSize);
 $("textSize").value = "100"; $("textSize").dispatchEvent(new Event("change"));
 $("btnVoice").click();
-check("voice toggle remembered", $("btnVoice").getAttribute("aria-pressed") === "true" && JSON.parse(localStorage.getItem("respirai")).voice === true);
+check("voice toggle turns it on", $("btnVoice").getAttribute("aria-pressed") === "true");
 $("btnVoice").click();
 $("seconds").value = "50"; $("seconds").dispatchEvent(new Event("change"));
 check("settings show the value actually used", $("seconds").value === "20", $("seconds").value);

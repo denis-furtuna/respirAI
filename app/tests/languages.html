@@ -80,7 +80,7 @@ await sleep(800);
 const row = (code) => [...d.querySelectorAll("#resultList li")][["Tc", "Al", "Ar", "Ll", "Lr", "Pl", "Pr"].indexOf(code)];
 check("Romanian: share button says what is sent", $("btnShare").textContent === "Trimiteți rezultatele medicului");
 check("Romanian: results", $("overallTitle").textContent === "Am auzit câteva sunete neobișnuite" && row("Al").textContent.includes("Posibile crepitații")
-  && row("Al").textContent.includes("încredere 80") && /^Verificare din \d+ octombrie/.test($("checkDate").textContent)
+  && row("Al").textContent.includes("încredere 80") && /^Verificare din \d+ \p{L}+ la/u.test($("checkDate").textContent)
   && row("Pl").textContent.includes("Înregistrarea nu a putut fi analizată") && !row("Pl").textContent.includes("Stub")
   && d.querySelector("#mapFront").textContent.includes("Dreapta"), $("checkDate").textContent + " / " + row("Al").textContent + " / " + row("Pl").textContent);
 
@@ -91,7 +91,7 @@ await sleep(500);
 $("settings").close();
 check("German, switched on the results screen", d.documentElement.lang === "de" && $("overallTitle").textContent === "Einige ungewöhnliche Geräusche wurden gehört"
   && row("Al").textContent.includes("Mögliche Rasselgeräusche") && row("Tc").textContent.includes("Anhören") && $("btnShare").textContent === "Ergebnisse an die Arztpraxis senden"
-  && d.querySelector("#mapBack").textContent.includes("Hinten") && /^Check vom \d+\. Oktober/.test($("checkDate").textContent) && $("langName").textContent === "Deutsch",
+  && d.querySelector("#mapBack").textContent.includes("Hinten") && /^Check vom \d+\. \p{L}+ um/u.test($("checkDate").textContent) && $("langName").textContent === "Deutsch",
   $("checkDate").textContent + " / " + $("overallTitle").textContent);
 check("German: settings and demo options", $("btnTest").textContent === "KI-Server testen" && $("demo").options[2].textContent === "An: Beispiel (Rasselgeräusche)", $("demo").options[2].textContent);
 

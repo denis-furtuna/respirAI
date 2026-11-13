@@ -44,6 +44,7 @@ export default {
   "ready.voice": "Lire les instructions à voix haute",
   "ready.voiceOn": "Les instructions vocales sont activées.",
   "ready.begin": "Commencer",
+  "ready.quick": "Test rapide : un seul endroit",
   "ready.continue": { one: "Continuer (encore {n} endroit)", other: "Continuer (encore {n} endroits)" },
   "ready.demo": "Le mode démo est activé : les résultats montreront un exemple ({case}).",
 
@@ -121,8 +122,10 @@ export default {
   "short.warn": "Sons inhabituels",
   "short.unfinished": "Inachevé",
   "short.ok": "Aucun son inhabituel",
+  "short.quick": "test rapide",
 
   "results.checked": "Contrôle du {date}",
+  "results.quickNote": "Test rapide : un seul endroit a été écouté. Pour une image complète, faites le contrôle entier des 7 endroits.",
   "results.disclaimer": "Aide au dépistage uniquement. Ce n'est pas un diagnostic. Consultez un médecin.",
   "results.emergency": "Forte gêne respiratoire ou douleur dans la poitrine ? <b>Appelez le 112 maintenant.</b>",
   "results.share": "Envoyer les résultats au médecin",

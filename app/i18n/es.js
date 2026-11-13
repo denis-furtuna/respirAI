@@ -44,6 +44,7 @@ export default {
   "ready.voice": "Leer las instrucciones en voz alta",
   "ready.voiceOn": "Las instrucciones habladas están activadas.",
   "ready.begin": "Empezar",
+  "ready.quick": "Prueba rápida: un solo punto",
   "ready.continue": { one: "Continuar (queda {n} punto)", other: "Continuar (quedan {n} puntos)" },
   "ready.demo": "El modo demo está activado: los resultados mostrarán un ejemplo ({case}).",
 
@@ -121,8 +122,10 @@ export default {
   "short.warn": "Sonidos inusuales",
   "short.unfinished": "Sin terminar",
   "short.ok": "Sin sonidos inusuales",
+  "short.quick": "prueba rápida",
 
   "results.checked": "Revisión del {date}",
+  "results.quickNote": "Prueba rápida: solo se ha comprobado un punto. Para una imagen completa, haga la revisión entera de los 7 puntos.",
   "results.disclaimer": "Solo es una ayuda para el cribado. No es un diagnóstico. Consulte a un médico.",
   "results.emergency": "¿Gran dificultad para respirar o dolor en el pecho? <b>Llame ahora al 112.</b>",
   "results.share": "Enviar los resultados al médico",

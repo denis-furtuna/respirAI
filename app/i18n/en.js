@@ -44,6 +44,7 @@ export default {
   "ready.voice": "Read the instructions aloud",
   "ready.voiceOn": "Spoken instructions are on.",
   "ready.begin": "Begin",
+  "ready.quick": "Quick test: one place",
   "ready.continue": { one: "Continue ({n} place left)", other: "Continue ({n} places left)" },
   "ready.demo": "Demo mode is on: the results will show an example ({case}).",
 
@@ -121,8 +122,10 @@ export default {
   "short.warn": "Unusual sounds",
   "short.unfinished": "Not finished",
   "short.ok": "No unusual sounds",
+  "short.quick": "quick test",
 
   "results.checked": "Checked on {date}",
+  "results.quickNote": "Quick test: only one place was checked. For a fuller picture, do the full check of all 7 places.",
   "results.disclaimer": "Screening aid only. Not a diagnosis. Consult a doctor.",
   "results.emergency": "Severe trouble breathing or chest pain? <b>Call 112 now.</b>",
   "results.share": "Send the results to a doctor",

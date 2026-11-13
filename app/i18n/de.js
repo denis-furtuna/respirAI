@@ -44,6 +44,7 @@ export default {
   "ready.voice": "Anleitung vorlesen",
   "ready.voiceOn": "Die gesprochene Anleitung ist eingeschaltet.",
   "ready.begin": "Beginnen",
+  "ready.quick": "Schnelltest: eine Stelle",
   "ready.continue": { one: "Weiter (noch {n} Stelle)", other: "Weiter (noch {n} Stellen)" },
   "ready.demo": "Der Demomodus ist an: Die Ergebnisse zeigen ein Beispiel ({case}).",
 
@@ -121,8 +122,10 @@ export default {
   "short.warn": "Ungewöhnliche Geräusche",
   "short.unfinished": "Nicht abgeschlossen",
   "short.ok": "Keine ungewöhnlichen Geräusche",
+  "short.quick": "Schnelltest",
 
   "results.checked": "Check vom {date}",
+  "results.quickNote": "Schnelltest: Nur eine Stelle wurde abgehört. Für ein vollständiges Bild machen Sie den ganzen Check mit allen 7 Stellen.",
   "results.disclaimer": "Nur eine Screening-Hilfe. Keine Diagnose. Fragen Sie Ihre Ärztin oder Ihren Arzt.",
   "results.emergency": "Starke Atemnot oder Brustschmerzen? <b>Rufen Sie jetzt die 112 an.</b>",
   "results.share": "Ergebnisse an die Arztpraxis senden",

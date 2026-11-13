@@ -45,6 +45,7 @@ export default {
   "ready.voice": "Instrucțiuni citite cu voce tare",
   "ready.voiceOn": "Instrucțiunile vorbite sunt pornite.",
   "ready.begin": "Începeți",
+  "ready.quick": "Test rapid: un singur loc",
   "ready.continue": {
     one: "Continuați (a mai rămas {n} loc)",
     few: "Continuați (au mai rămas {n} locuri)",
@@ -126,8 +127,10 @@ export default {
   "short.warn": "Sunete neobișnuite",
   "short.unfinished": "Neterminată",
   "short.ok": "Fără sunete neobișnuite",
+  "short.quick": "test rapid",
 
   "results.checked": "Verificare din {date}",
+  "results.quickNote": "Test rapid: a fost verificat un singur loc. Pentru o imagine completă, faceți verificarea întreagă, cu toate cele 7 locuri.",
   "results.disclaimer": "Este doar un ajutor pentru depistare. Nu este un diagnostic. Consultați un medic.",
   "results.emergency": "Respirați foarte greu sau aveți dureri în piept? <b>Sunați acum la 112.</b>",
   "results.share": "Trimiteți rezultatele medicului",

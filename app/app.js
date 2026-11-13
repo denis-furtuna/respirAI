@@ -19,6 +19,7 @@ const POINTS = {
 };
 const title = (code) => t(`point.${code}.title`);
 const ORDER = ["Tc", "Al", "Ar", "Ll", "Lr", "Pl", "Pr"];  // front, sides, back
+const QUICK = ["Al"];   // the quick test: one place, upper chest left, easy to reach alone
 const PLACE_SECONDS = 8;
 const BREATH_IN = 4, BREATH_OUT = 5;   // seconds. Mirrored in firmware/respirai/config.h (BREATH_IN_MS, BREATH_OUT_MS): change both
 const BREATH = BREATH_IN + BREATH_OUT; // one breath; also the practice breath before the first recording of a check
@@ -46,6 +47,7 @@ const bluetooth = params.has("fakebt") ? (window.fakeBt = fakeBluetooth(Object.f
 // instead (contract 2: ai/server.py, or app/dev/dev_server.py), e.g. the laptop's own address when it serves the app.
 const settings = { server: "", seconds: 18, demo: "", textSize: "100", theme: "auto", voice: false, lang: "", welcomed: false };
 try { Object.assign(settings, JSON.parse(localStorage.getItem("respirai") || "{}")); } catch (e) { /* private mode */ }
+settings.voice = false;   // spoken instructions start off every time the app opens; the switch turns them on for this visit
 if (native) {   // the phone app always analyses on the phone: nothing it records ever leaves it (Google Play's data safety form)
   settings.server = "";
   $("server").closest("label").hidden = true;
@@ -204,7 +206,7 @@ async function lostDevice(d) {
     try {
       await d.open();
       if (latest !== d || device) return d.disconnect();
-      notice(session && remaining().length && remaining().length < ORDER.length ? "device.backContinue" : "device.back");
+      notice(session && remaining().length && remaining().length < places().length ? "device.backContinue" : "device.back");
       return await online(d);
     } catch (e) {
       console.warn("Reconnect failed:", e.message);
@@ -225,11 +227,16 @@ function send(bytes) {
 }
 
 // ---------- session ----------
-let session = null;   // { id, started, results: {code: response}, audio: {code: Int16Array}, pending: [] }
+// { id, started, codes: the places of this check (all 7, or QUICK), quick, results: {code: response}, audio: {code: Int16Array}, pending: [] }
+let session = null;
 let running = false, cancel = false, skip = false, lock = null;
 
-const remaining = () => (session ? ORDER.filter((c) => !session.results[c]) : ORDER);
-const newSession = () => { session = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), started: Date.now(), results: {}, audio: {}, pending: [], practised: false }; };
+const places = () => (session ? session.codes : ORDER);
+const remaining = () => places().filter((c) => !session?.results[c]);
+const newSession = (codes = ORDER) => {
+  session = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), started: Date.now(), codes, quick: codes.length < ORDER.length,
+    results: {}, audio: {}, pending: [], practised: false };
+};
 
 // Keep the screen on during a session, also after switching away and back. Never waited for.
 const keepAwake = () => native ? native.keepAwake(true)
@@ -288,7 +295,7 @@ async function runSession(codes) {
 
 let pointCode = null;   // the place being recorded
 function pointTexts(code) {
-  $("pointStep").textContent = t("point.step", { n: ORDER.indexOf(code) + 1, total: ORDER.length });
+  $("pointStep").textContent = t("point.step", { n: places().indexOf(code) + 1, total: places().length });
   $("pointTitle").textContent = title(code);
   $("pointWhere").textContent = t(`point.${code}.where`);
 }
@@ -297,7 +304,7 @@ async function recordPoint(code) {
   const p = POINTS[code];
   pointCode = code;
   pointTexts(code);
-  $("progress").innerHTML = ORDER.map((c) => `<i class="${c === code ? "now" : session.results[c] ? "done" : ""}"></i>`).join("");
+  $("progress").innerHTML = places().map((c) => `<i class="${c === code ? "now" : session.results[c] ? "done" : ""}"></i>`).join("");
   drawBody($("body"), p.view, (c) => (c === code ? "here" : ""));
   if (settled()) enter($("pointStep"), $("pointTitle"), $("pointWhere"), $("body"));   // the next place (the first comes in with the screen)
   say(`${title(code)}. ${t(`point.${code}.where`)}`);
@@ -488,10 +495,11 @@ function notice(key, vars) {   // no key: hide it. Kept as a key, so it follows 
 
 function showReady() {
   const left = remaining().length;
-  const partial = session && left > 0 && left < ORDER.length;
+  const partial = session && left > 0 && left < places().length;
   $("readyTitle").textContent = t(partial ? "ready.titleContinue" : "ready.title");
   $("btnBegin").textContent = partial ? t("ready.continue", { n: left }) : t("ready.begin");
   $("step2").innerHTML = t("ready.step2", { n: settings.seconds });
+  $("btnQuick").hidden = partial;   // a quick test would start over and lose the places already recorded
   $("readyNote").hidden = !settings.demo;
   $("readyNote").textContent = settings.demo ? t("ready.demo", { case: t(`case.${settings.demo}`) }) : "";
   show("sReady");
@@ -519,7 +527,8 @@ function showResults() {
 }
 
 function renderResults() {
-  const verdicts = Object.fromEntries(ORDER.map((c) => [c, verdict(session.results[c])]));
+  const codes = places();
+  const verdicts = Object.fromEntries(codes.map((c) => [c, verdict(session.results[c])]));
   const all = Object.values(verdicts);
   const any = (test) => all.some(test);
   const key = any((v) => v.cls === "warn") ? "warn" : any((v) => v.pending) ? "pending" : any((v) => v.retry) ? "retry"
@@ -530,10 +539,14 @@ function renderResults() {
   $("overallTitle").textContent = t(`overall.${key}.title`);
   $("overallText").textContent = t(`overall.${key}.text`);
   $("checkDate").textContent = t("results.checked", { date: dateTime(session.started) });
-  drawBody($("mapFront"), "front", (c) => verdicts[c].cls);
-  drawBody($("mapBack"), "back", (c) => verdicts[c].cls);
+  $("quickNote").hidden = !session.quick;
+  for (const [id, view] of [["mapFront", "front"], ["mapBack", "back"]]) {   // a quick test shows only the side it recorded
+    drawBody($(id), view, (c) => verdicts[c].cls, codes);
+    $(id).toggleAttribute("hidden", !codes.some((c) => POINTS[c].view === view));   // an <svg> has no .hidden property
+  }
+  $("mapFront").parentElement.classList.toggle("one", codes.length < ORDER.length);
 
-  $("resultList").replaceChildren(...ORDER.map((code) => {
+  $("resultList").replaceChildren(...codes.map((code) => {
     const v = verdicts[code], audio = session.audio[code];
     const li = document.createElement("li");
     li.className = v.cls;
@@ -552,10 +565,10 @@ function renderResults() {
   }));
   listenButtons();
 
-  const earlier = pastChecks(key === "pending" ? null : { id: session.id, started: session.started, key })
+  const earlier = pastChecks(key === "pending" ? null : { id: session.id, started: session.started, key, quick: session.quick })
     .filter((c) => c.id !== session.id && SHORT[c.key]).sort((a, b) => b.started - a.started).slice(0, 3);
   $("earlier").hidden = !earlier.length;
-  $("earlierList").innerHTML = earlier.map((c) => `<li><i class="dot ${STYLE[c.key]}"></i><span>${dateTime(c.started)}</span><b>${t(SHORT[c.key])}</b></li>`).join("");
+  $("earlierList").innerHTML = earlier.map((c) => `<li><i class="dot ${STYLE[c.key]}"></i><span>${dateTime(c.started)}${c.quick ? ` · ${t("short.quick")}` : ""}</span><b>${t(SHORT[c.key])}</b></li>`).join("");
 }
 
 // A recording's outline (min/max per column), worked out once per recording.
@@ -588,13 +601,13 @@ function pastChecks(update) {
 // "Share with a doctor": a short summary and the recordings, through the phone's own share sheet
 // (email, WhatsApp…). Where sharing files isn't possible, the summary alone; on a computer, print / save as PDF.
 async function share() {
-  const lines = ORDER.map((c) => {
+  const lines = places().map((c) => {
     const v = verdict(session.results[c]);
     return `• ${title(c)}: ${v.chip}${v.detail && v.cls !== "unclear" ? ` (${v.detail})` : ""}`;
   });
-  const text = [t("share.heading", { date: dateTime(session.started) }), `${$("overallTitle").textContent}.`, ...lines, "", t("results.disclaimer")].join("\n");
+  const text = [t("share.heading", { date: dateTime(session.started) }), ...(session.quick ? [t("results.quickNote")] : []), `${$("overallTitle").textContent}.`, ...lines, "", t("results.disclaimer")].join("\n");
   const day = new Date(session.started).toISOString().slice(0, 10);
-  const files = ORDER.filter(listenable).map((c) => new File([toWav(session.audio[c])], `respirAI ${day} ${title(c).replace(/[^\p{L}\p{N} -]+/gu, "")}.wav`, { type: "audio/wav" }));
+  const files = places().filter(listenable).map((c) => new File([toWav(session.audio[c])], `respirAI ${day} ${title(c).replace(/[^\p{L}\p{N} -]+/gu, "")}.wav`, { type: "audio/wav" }));
   const sheet = { title: t("share.title"), text };
   if (native) {   // the phone app: Android's share sheet, with the recordings (else the summary alone)
     try {
@@ -663,12 +676,12 @@ function button(iconName, label, onClick) {
   return b;
 }
 
-// Front or back outline with its points; stateOf(code) gives each dot's class.
-function drawBody(svg, view, stateOf) {
+// Front or back outline with its points (codes: which places to mark); stateOf(code) gives each dot's class.
+function drawBody(svg, view, stateOf, codes = ORDER) {
   const [left, right] = (view === "front" ? ["body.right", "body.left"] : ["body.left", "body.right"]).map((k) => t(k));
   svg.innerHTML = `<use href="#silhouette" class="sil"/><text x="0" y="14" class="side l">${left}</text><text x="160" y="14" class="side r">${right}</text>
     <text x="80" y="187" class="view">${t(view === "front" ? "body.front" : "body.back")}</text>` +
-    ORDER.filter((c) => POINTS[c].view === view).map((c) => {
+    codes.filter((c) => POINTS[c].view === view).map((c) => {
       const { x, y } = POINTS[c], s = stateOf(c);
       return `<g class="pt ${s}"><circle class="halo" cx="${x}" cy="${y}" r="8"/><circle cx="${x}" cy="${y}" r="${s === "here" ? 8 : 6}"/></g>`;
     }).join("");
@@ -715,8 +728,13 @@ $("btnConnect").addEventListener("click", () => connect(bluetooth, $("btnConnect
 $("btnPractice").addEventListener("click", () => connect(fakeBluetooth({ battery: 87, drop: 0.005 }), $("btnPractice")));
 $("btnBegin").addEventListener("click", () => {
   if (!settled() || needDevice()) return;
-  if (!session || !remaining().length) newSession();
+  if (!session || !remaining().length || session.quick) newSession();
   runSession(remaining());
+});
+$("btnQuick").addEventListener("click", () => {   // one place, then its result
+  if (!settled() || needDevice()) return;
+  newSession(QUICK);
+  runSession(QUICK);
 });
 $("btnNow").addEventListener("click", () => { if (settled()) skip = true; });
 $("btnStop").addEventListener("click", () => { if (settled()) cancel = true; });
