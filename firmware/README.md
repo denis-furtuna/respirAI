@@ -8,12 +8,12 @@ Pin assignments are in [`docs/PLAN.md` §3](../docs/PLAN.md#3-wiring-reference).
 
 | File | What it does | Tasks |
 |---|---|---|
-| `config.h` | pins, UUIDs, commands, and the knobs you'll tune (mic gain, LED levels, trachea lead, breathing rhythm) | — |
-| `audio.cpp` | INMP441 over I²S at 16 kHz → DC removal → 3.5 kHz low-pass → every second sample = 8 kHz, 16-bit | F2, F3 |
+| `config.h` | pins, UUIDs, commands, and the one knob you'll tune (`MIC_GAIN`) | — |
+| `audio.cpp`, `dsp.h` | INMP441 over I²S at 16 kHz → DC removal → 3.5 kHz low-pass → every second sample = 8 kHz, 16-bit. The conversion is in `dsp.h`, with no Arduino in it: float arithmetic, limited before the cast, so it can flatten at full scale but never wrap around. `tests/dsp_test.cpp` proves it on a computer with the worst inputs there are | F2, F3 |
 | `respirai.ino` | Bluetooth service (audio notify, control, status), packet sizing from the negotiated MTU, start/stop, status every 2 s | F4, F5, F8 |
-| `leds.cpp` | four LEDs behind the lung panel, on hardware PWM (20 kHz) with gamma 2.2. Lungs: breathing guide (trachea leads in, lobes lead out; 4 s in, 5 s out), 1 s fade when stopped (`LED_FADE_MS`); pins at their strongest drive, so the LEDs get all the current the resistors allow. "AI": smooth blink until a phone connects, then always on; double blink on low battery, fast blink on error | F-LED1–F-LED5 |
+| — | **No LEDs.** The device in the box has none, so the LED code is gone. The app still sends its LED commands (`0x10`, `0x11`, `0x12`); the firmware accepts and ignores them. `led_test/` is kept for a build that has LEDs | — |
 
-Audio runs in its own task on core 1, so Bluetooth and the LEDs can't make it miss samples.
+Audio runs in its own task on core 1, so Bluetooth can't make it miss samples.
 
 ## Module tests: one sketch per part
 
@@ -80,23 +80,19 @@ arduino-cli upload  --fqbn esp32:esp32:XIAO_ESP32S3:USBMode=hwcdc,CDCOnBoot=defa
 
 | Step | How | Good when |
 |---|---|---|
-| Boots | Serial monitor | "Advertising as respirAI"; the "AI" LED blinks smoothly (fades on and off every 2 s). A short flicker of the trachea LED at power-on is normal: D6 also carries the boot messages |
+| Boots | Serial monitor | "respirai-fw 0.5 (no LEDs, gain 1)", then "Advertising as respirAI" |
 | Mic (F2) | Before the full firmware: flash `mic_test/` (see above). With the firmware: if it prints "ERROR: I2S microphone did not start", check the wiring | "OK: the microphone answers…", and a tap jumps the level |
-| Bluetooth (F4) | **nRF Connect** app on the S25: scan, connect to *respirAI* | serial prints the MTU; the "AI" LED stays on |
+| Bluetooth (F4) | **nRF Connect** app on the S25: scan, connect to *respirAI* | serial prints the MTU |
 | Streaming (F5) | In nRF Connect, enable notifications on `…0002…`, write `01` to `…0003…` | serial status shows ~200 packets per 2 s |
 | Full packets | Serial line "Audio subscribed: MTU …" | **162 bytes** per packet. Smaller still works, but tell the app owner |
-| LEDs (F-LED3, F-LED4) | Before the full firmware: flash `led_test/` (see above). With the firmware: write `10`, then `11`, then `12` to `…0003…` | the lungs breathe (trachea first in, lobes first out); `11`: lungs fade out; `12`: lungs fade out |
-| Guide timeout | Write `10` and wait | the lungs stop by themselves after 60 s |
+| Level | Serial monitor while recording, chest piece on the chest | the status line ends in **0 samples at the limit**. More than a few means the sound is too loud for the gain: it comes out flattened, which sounds harsh and robotic |
 | Stability (F6) | Stream 10 minutes from the web app | "lost" stays near 0, no reboot |
 | Mic in the app | App → *Settings → Microphone test* → connect | every check green; a tap reaches −20 dBFS or more |
 | Real audio | Web app → practice the full flow with the real device | lung sounds visible in the small waveform |
 
 ## Things to tune on the real hardware
 
-- **`MIC_GAIN`** in `config.h`: raise it if breathing barely moves the waveform; lower it if the AI server reports clipping (quality drops).
-- **LED brightness: resistors first, software second.** Start at 100 Ω per LED, look through a scrap of the printed panel, go toward 47 Ω if too faint or 220 Ω if too bright. **47 Ω is the brightest safe choice** (about 8 mA per LED, 17 mA on D7 for both lobes, under the pin's 40 mA); never lower. Software is already at full (`LED_LEVEL`, `AI_ON` = 1.0). Each lobe LED has its **own** resistor. Then fine-tune `LED_LEVEL` (lungs) and `AI_ON` (the "AI" while connected).
-- **`TRACHEA_LEAD`**: how far the trachea runs ahead of the lobes (0.2 = 20 % of a breath).
-- **`BREATH_IN_MS` / `BREATH_OUT_MS`** must equal `BREATH_IN` / `BREATH_OUT` in `app/app.js`. Change both together.
+- **`MIC_GAIN`** in `config.h` is **1.0**: the microphone's own level. At 4.0 a sealed chest piece was far too loud: 7.5 % of a recording sat at the limit and it sounded robotic. Limiting alone does that: broadband sound at half scale, times 4, gives hundreds of jumps from one limit straight to the other, with no wrap-around (`tests/dsp_test.cpp` shows it). Raise the gain only if breathing is tiny in the app **and** the serial status shows 0 samples at the limit. A quiet recording loses nothing: the app's waveform and *Listen* amplify by themselves.
 - **Battery level (F8)** needs a 1:2 resistor divider (two equal resistors, e.g. 2 × 100 kΩ) from BAT+ to a free analog pin; set `PIN_BATTERY` to that GPIO. Until then the device reports 255 ("unknown") and the app hides the battery.
 
 Not done yet: the ECG and pulse add-ons (F11, F12, see [`docs/ADDONS.md`](../docs/ADDONS.md)).

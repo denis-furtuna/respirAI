@@ -16,7 +16,7 @@ constexpr int PIN_MIC_SCK = 7;    // D8
 constexpr int PIN_MIC_WS  = 8;    // D9
 constexpr int PIN_MIC_SD  = 9;    // D10
 constexpr uint32_t CAPTURE_RATE = 16000;
-constexpr float MIC_GAIN = 4.0f;  // only to show what the app would get; change it in config.h, not here
+constexpr float MIC_GAIN = 1.0f;  // as config.h: only to show what the app would get; change it there, not here
 
 // ---------- the test ----------
 constexpr int WINDOW = CAPTURE_RATE / 10;   // 100 ms per reading

@@ -1,9 +1,8 @@
-// respirAI firmware for the Seeed XIAO ESP32-S3: mic -> 8 kHz audio -> Bluetooth, plus the LED breathing guide.
-// Implements contract 1 in docs/ARCHITECTURE.md (tasks F2-F5, F8, F-LED1-F-LED5). Build notes: firmware/README.md.
+// respirAI firmware for the Seeed XIAO ESP32-S3: mic -> 8 kHz audio -> Bluetooth. The device has no LEDs:
+// the app's LED commands are accepted and ignored. Implements contract 1 in docs/ARCHITECTURE.md (tasks F2-F5, F8). Build notes: firmware/README.md.
 #include <NimBLEDevice.h>
 #include "config.h"
 #include "audio.h"
-#include "leds.h"
 
 static NimBLECharacteristic* audioChr;
 static NimBLECharacteristic* statusChr;
@@ -22,7 +21,6 @@ class ServerCallbacks : public NimBLEServerCallbacks {
   void onConnect(NimBLEServer* server, NimBLEConnInfo& info) override {
     connected = true;
     server->updateConnParams(info.getConnHandle(), 12, 24, 0, 400);  // 15-30 ms interval: room for 100 packets/s
-    ledsSet(LED_IDLE);
     Serial.println("Connected");
   }
 
@@ -30,7 +28,6 @@ class ServerCallbacks : public NimBLEServerCallbacks {
     connected = false;
     subscribed = false;
     streaming = false;
-    ledsSet(LED_WAITING);
     Serial.printf("Disconnected (reason %d), advertising again\n", reason);
     NimBLEDevice::startAdvertising();
   }
@@ -59,17 +56,17 @@ class ControlCallbacks : public NimBLECharacteristicCallbacks {
     switch (v[0]) {
       case CMD_START:  streaming = true;  break;
       case CMD_STOP:   streaming = false; break;
-      case CMD_GUIDE:  ledsSet(LED_GUIDE); break;   // an optional v[1] (chest point 0-6) is ignored: the phone shows the place
-      case CMD_DONE:   ledsSet(LED_DONE);  break;
-      case CMD_IDLE:   ledsSet(LED_IDLE);  break;
+      case CMD_GUIDE:   // the breathing guide and its stops: this device has no LEDs, the phone shows the rhythm
+      case CMD_DONE:
+      case CMD_IDLE:   break;
       case CMD_STATUS: statusRequested = true; break;
       default: Serial.printf("Unknown command 0x%02x\n", v[0]); return;
     }
-    if (v[0] != CMD_STATUS) Serial.printf("Command 0x%02x\n", v[0]);   // to follow the app's start, stop and LED commands
+    if (v[0] != CMD_STATUS) Serial.printf("Command 0x%02x\n", v[0]);   // to follow the app's commands
   }
 };
 
-// ---------- audio task: runs on its own core so Bluetooth and LEDs never make it miss samples ----------
+// ---------- audio task: runs on its own core so Bluetooth never makes it miss samples ----------
 static void audioTask(void*) {
   int16_t block[BLOCK_SAMPLES];
   int16_t pending[2 * MAX_PACKET_SAMPLES];
@@ -118,23 +115,22 @@ static void sendStatus() {
     !audioOk || silent ? STATE_ERROR : streaming ? STATE_STREAMING : STATE_IDLE,
     (uint8_t)(packets & 0xff), (uint8_t)(packets >> 8),
   };
-  ledsStatus(status[1] == STATE_ERROR, status[0]);
   statusChr->setValue(status, sizeof(status));
   if (connected) statusChr->notify();
-  Serial.printf("Status: battery %u, state %u, %u packets in the last %lu ms\n", status[0], status[1], packets, STATUS_EVERY_MS);
+  const uint32_t clipped = audioClipped();
+  Serial.printf("Status: battery %u, state %u, %u packets in the last %lu ms, %lu samples at the limit%s\n", status[0], status[1], packets,
+                STATUS_EVERY_MS, (unsigned long)clipped, clipped > 160 ? " (too loud: lower MIC_GAIN)" : "");
 }
 
 // ---------- setup / loop ----------
 void setup() {
   Serial.begin(115200);
   // Never wait for the USB log: when the cable is in but nothing reads it, each print would block for 100 ms, and the
-  // LEDs (loop()) and Bluetooth (the command log) would stutter. An unread line is dropped instead.
+  // status (loop()) and Bluetooth (the command log) would stutter. An unread line is dropped instead.
   Serial.setTxTimeoutMs(0);
   Serial.println(FW_VERSION);
-  ledsBegin();
   audioOk = audioBegin();
   if (!audioOk) Serial.println("ERROR: I2S microphone did not start. Check the wiring (docs/PLAN.md §3).");
-  ledsStatus(!audioOk, batteryPercent());
 
   NimBLEDevice::init(DEVICE_NAME);
   NimBLEDevice::setMTU(MAX_PACKET_SAMPLES * 2 + 2 + 3);   // ask for room for a full packet
@@ -160,7 +156,6 @@ void setup() {
 
 void loop() {
   static uint32_t lastStatus = 0;
-  ledsUpdate();
   if (statusRequested || millis() - lastStatus >= STATUS_EVERY_MS) {
     statusRequested = false;
     lastStatus = millis();
