@@ -19,6 +19,7 @@ Wording rule: the UI never says "diagnosis". Use "finding", "screening", "possib
 | `ai/` | **the AI on the phone**: `pipeline.js` is `ai/preprocess.py`, `ai/quality.py` and the window combining of `ai/inference.py` in JavaScript; `worker.js` runs it with the model (ONNX Runtime Web) off the main thread and answers like `POST /analyze`; `local.js` is the app's side | — |
 | `model/` | the trained model for `ai/` (see its README); empty until trained: dummy answers, like the server without weights | — |
 | `native.js`, `native-bluetooth.js` | only in the Android app: the phone's own Bluetooth (behind the Web Bluetooth calls `device.js` uses), speech, wake lock, share sheet ([`phone/`](../phone/README.md)) | — |
+| `voice.js`, `voice/` | the **recorded voice** for the spoken instructions: clips made once with ElevenLabs, played from the app's own files (see *Spoken instructions* below) | — |
 | `mic-test.html`, `mic-test.js` | the team's **microphone test**: the device's mic and Bluetooth stream, live (see *Microphone test* below) | F2–F6, E3 |
 | `privacy.html` | the privacy policy (English, Română), for Google Play | — |
 
@@ -27,6 +28,21 @@ Wording rule: the UI never says "diagnosis". Use "finding", "screening", "possib
 The app opens in the phone's language when it has it (else English); the globe button on the first screens and *Settings → Language* change it, and the choice is remembered. Dates, percentages and plurals follow the language (Romanian: „15 secunde”, „20 de secunde”), and the spoken instructions use it too.
 
 All text is in `i18n/<code>.js`, one file per language, loaded only when chosen. `en.js` is the reference: a missing text falls back to English, and the tests check every language has every text with the same `{placeholders}` and all the plural forms it needs. To add a language: copy `en.js`, translate the values, add a line to `LANGUAGES` in `i18n/index.js`. The AI server's own messages are never shown; the app shows its own words, in the user's language.
+
+## Spoken instructions
+
+With *Read the instructions aloud* on, the app says where to place the chest piece, when to breathe, and the result. Everything it says is fixed text, so each sentence is recorded once per language with an [ElevenLabs](https://elevenlabs.io) voice and kept in `voice/<language>/<clip>.mp3`. The app only plays these files: it never calls ElevenLabs, so there is no API key in it, it works offline, and nothing leaves the phone.
+
+```bash
+# once, and again after changing a spoken text in i18n/ (only what changed is recorded)
+ELEVENLABS_API_KEY=... node app/dev/make_voice.mjs --voice "<name or voice id>"
+node app/dev/make_voice.mjs --list        # the voices of your ElevenLabs account, with their ids
+node app/dev/make_voice.mjs --dry-run     # what would be recorded and how many characters, no key needed
+```
+
+Then commit `app/voice/`. The key is read from the environment only: **never put it in the repository** (it is public). The voice must be among your account's voices (*My Voices*); the script remembers it in `voice/manifest.json`, so later runs need no `--voice`.
+
+`voice/manifest.json` also holds the text each clip was recorded from. The app plays a clip only while that is exactly the text on screen; for a sentence with no clip, a text changed since, or a language not recorded, it uses the phone's own voice (Android's in the phone app, the browser's otherwise), as it did before. So a missing or outdated clip is never wrong, only less pleasant. The sentences are listed in `CLIPS` in `voice.js` (15 per language).
 
 ## How a screening runs
 

@@ -5,6 +5,7 @@ import { fakeBluetooth } from "./fake-bluetooth.js";
 import { LANGUAGES, current, dateTime, detect, percent, setLanguage, t } from "./i18n/index.js";
 import { analyzeHere, healthHere } from "./ai/local.js";
 import { native } from "./native.js";   // null in a browser; the phone app's own Bluetooth, speech... (see native.js)
+import { playClip, preloadVoice, spokenText, stopClip } from "./voice.js";
 
 // n is the contract number (0-6). x/y place the dot on the front or back drawing; names are in i18n/ (point.Tc.title…).
 // Left/right are the patient's: on the front view their left is on the viewer's right.
@@ -83,19 +84,29 @@ for (const [id, parse] of [
 }
 
 // ---------- spoken instructions (for when the eyes are not on the screen, e.g. placing on the back) ----------
-// Never while recording: the stethoscope would pick it up. The phone app speaks with Android's own voice.
-function say(text) {
+// Never while recording: the stethoscope would pick it up.
+// say("point.Tc"): the recorded voice (voice.js; clips made with ElevenLabs by dev/make_voice.mjs) when this sentence
+// has a clip in this language, else the phone's own voice (Android's in the phone app, the browser's otherwise).
+function say(id) {
   if (!settings.voice) return Promise.resolve();
-  if (native) return Promise.race([native.speak(text, current().locale).catch(() => {}), sleep(8000)]);
+  const text = spokenText(id, t), lang = current();
+  return Promise.race([playClip(lang.code, id, text).then((played) => played || speak(text, lang.locale)), sleep(15000)]);
+}
+function speak(text, locale) {
+  if (native) return Promise.race([native.speak(text, locale).catch(() => {}), sleep(8000)]);
   if (!window.speechSynthesis) return Promise.resolve();
   speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(text);
-  Object.assign(u, { lang: current().locale, rate: 0.9 });
+  Object.assign(u, { lang: locale, rate: 0.9 });
   const spoken = new Promise((r) => { u.onend = u.onerror = r; });
   speechSynthesis.speak(u);
   return Promise.race([spoken, sleep(8000)]);
 }
-const hush = () => (native ? native.hush() : window.speechSynthesis?.cancel());
+function hush() {
+  stopClip();
+  if (native) native.hush();
+  else window.speechSynthesis?.cancel();
+}
 
 // ---------- device + audio ----------
 let device = null, recording = null, lastAudioAt = 0, batteryWarned = false;
@@ -296,7 +307,7 @@ async function runSession(codes) {
     lock = null;
     native?.keepAwake(false);
     send(CMD.idle);
-    hush();
+    if (!finished) hush();   // a finished check has just started saying its result: let it speak
     pointCode = null;
     if (!finished) !device ? show("sConnect") : remaining().length ? showReady() : showResults();
   }
@@ -316,7 +327,7 @@ async function recordPoint(code) {
   $("progress").innerHTML = places().map((c) => `<i class="${c === code ? "now" : session.results[c] ? "done" : ""}"></i>`).join("");
   drawBody($("body"), p.view, (c) => (c === code ? "here" : ""));
   if (settled()) enter($("pointStep"), $("pointTitle"), $("pointWhere"), $("body"));   // the next place (the first comes in with the screen)
-  say(`${title(code)}. ${t(`point.${code}.where`)}`);
+  say(`point.${code}`);
 
   // 1. Time to place the chest piece (or tap "start now").
   $("btnNow").hidden = false;
@@ -328,7 +339,7 @@ async function recordPoint(code) {
   // Continue or Record again) start recording with the first breath.
   const practice = !session.practised;
   dial(t("point.getReady"), t("point.breatheSlowly"), 0);
-  await orStop(say(t(practice ? "point.sayBreathe" : "point.sayBreatheNext")));   // finishes before the recording starts, unless stopped
+  await orStop(say(practice ? "breathe" : "breatheNext"));   // finishes before the recording starts, unless stopped
   if (cancel) return;
 
   // 2. (The practice breath, then) record the next breaths. The device's lights start with the circle and loop on
@@ -528,11 +539,12 @@ const STYLE = { warn: "warn", pending: "unclear", retry: "unclear", unclear: "un
 const SHORT = { warn: "short.warn", retry: "short.unfinished", unclear: "short.unfinished", ok: "short.ok" };   // for earlier checks
 const listenable = (code) => session.audio[code]?.length > 0 && !session.results[code]?.demo;   // a demo result was about an example, not this recording
 
+let overallKey = "ok";   // the overall answer on the results screen: warn, pending, retry, unclear or ok
 function showResults() {
   resetRestart();
   show("sResults");
   renderResults();
-  say(`${$("overallTitle").textContent}. ${$("overallText").textContent}`);
+  say(`overall.${overallKey}`);
 }
 
 function renderResults() {
@@ -542,6 +554,7 @@ function renderResults() {
   const any = (test) => all.some(test);
   const key = any((v) => v.cls === "warn") ? "warn" : any((v) => v.pending) ? "pending" : any((v) => v.retry) ? "retry"
     : any((v) => v.cls !== "ok") ? "unclear" : "ok";
+  overallKey = key;
   const cls = STYLE[key];
   $("overall").className = `overall ${cls}`;
   $("overallIcon").innerHTML = icon(MARK[cls]);
@@ -765,7 +778,10 @@ $("btnShare").addEventListener("click", share);
 $("btnVoice").addEventListener("click", () => {
   settings.voice = !settings.voice;
   saveSettings();
-  if (settings.voice) say(t("ready.voiceOn"));
+  if (settings.voice) {
+    preloadVoice(current().code);
+    say("voiceOn");
+  }
   else hush();
 });
 $("btnForget").addEventListener("click", () => {

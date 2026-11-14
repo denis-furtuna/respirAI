@@ -1,0 +1,104 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>voice test</title>
+<!-- The recorded voice (voice.js): a clip is played when its text is the one on screen, else the phone's own voice; Stop cuts it.
+     The recordings and the manifest are stand-ins made here, so this needs no ElevenLabs clips. Run with app/tests/run.py. -->
+<pre id="out">running</pre>
+<iframe id="app" style="width:390px;height:844px"></iframe>
+<script type="module">
+import { CLIPS, spokenText } from "/voice.js";
+import { LANGUAGES } from "/i18n/index.js";
+const out = [];
+const check = (name, ok, extra = "") => out.push(`${ok ? "PASS" : "FAIL"} ${name} ${extra}`);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// --- every clip is made of texts that exist, in every language, as plain text ---
+const dicts = Object.fromEntries(await Promise.all(LANGUAGES.map(async ({ code }) => [code, (await import(`/i18n/${code}.js`)).default])));
+const bad = [];
+for (const [code, dict] of Object.entries(dicts)) for (const keys of Object.values(CLIPS)) for (const key of keys) if (typeof dict[key] !== "string") bad.push(`${code}: ${key}`);
+check("every spoken sentence has a text in every language", bad.length === 0 && Object.keys(CLIPS).length === 15, bad.slice(0, 5).join("; "));
+const text = (lang, id) => spokenText(id, (key) => dicts[lang][key]);
+
+// --- the app, with a stand-in manifest, recordings and audio player ---
+localStorage.clear();
+localStorage.setItem("respirai", JSON.stringify({ server: location.origin, seconds: 5, demo: "", welcomed: true, lang: "en" }));
+const frame = document.getElementById("app");
+frame.src = "/index.html";
+await new Promise((r) => (frame.onload = r));
+const w = frame.contentWindow, d = frame.contentDocument, $ = (id) => d.getElementById(id);
+const visible = (id) => !$(id).hidden;
+
+const recorded = { en: Object.fromEntries(Object.keys(CLIPS).map((id) => [id, text("en", id)])) };
+recorded.en["point.Tc"] = "An older wording of this sentence.";   // its text has changed since it was recorded
+delete recorded.en["overall.warn"];                               // never recorded
+const fetched = [], realFetch = w.fetch.bind(w);
+w.fetch = (url, ...rest) => {
+  const path = String(url);
+  if (path === "voice/manifest.json") return Promise.resolve(new Response(JSON.stringify({ clips: recorded })));
+  if (path.startsWith("voice/")) { fetched.push(path); return Promise.resolve(new Response(new Blob(["mp3"]), { status: path.includes("breatheNext") ? 404 : 200 })); }
+  return realFetch(url, ...rest);
+};
+const urls = new Map(), realCreate = w.URL.createObjectURL.bind(w.URL);
+w.URL.createObjectURL = (blob) => { const u = realCreate(blob); urls.set(u, fetched[urls.size]); return u; };
+const played = [];   // the clips the player was asked for, in order
+let player = null, refuse = false;
+w.Audio = class {
+  play() { player = this; this.playing = true; played.push(urls.get(this.src)); return refuse ? Promise.reject(new DOMException("no", "NotAllowedError")) : Promise.resolve(); }
+  pause() { this.playing = false; this.paused = (this.paused || 0) + 1; }
+  end() { this.playing = false; this.onended?.(); }
+};
+const spoken = [];   // what the phone's own voice was asked to say
+let cancelled = 0;
+w.speechSynthesis.speak = (u) => { spoken.push(u.text); setTimeout(() => u.onend?.(), 50); };
+w.speechSynthesis.cancel = () => { cancelled++; };
+
+$("btnPractice").click(); await sleep(1000);
+$("btnVoice").click(); await sleep(300);
+check("voice on → the recorded sentence, not the phone's voice", played.join() === "voice/en/voiceOn.mp3" && spoken.length === 0 && player.playing, played.join() + " / " + spoken.join());
+check("this language's clips are fetched ahead", ["voice/en/point.Al.mp3", "voice/en/breathe.mp3", "voice/en/overall.ok.mp3"].every((f) => fetched.includes(f)) && !fetched.some((f) => !f.startsWith("voice/en/")), fetched.length + " fetched");
+player.end();
+
+// a clip whose text has changed is not played: the phone's voice says the current text
+$("btnBegin").click(); await sleep(600);
+check("text changed since the recording → the phone's voice says the new text", spoken.join() === text("en", "point.Tc") && played.length === 1, spoken.join() + " / " + played.join());
+$("btnNow").click(); await sleep(400);
+check("before the recording: the recorded breathing instruction", played.at(-1) === "voice/en/breathe.mp3" && player.playing && $("dialMain").textContent === "Get ready", played.at(-1) + " / " + $("dialMain").textContent);
+await sleep(3000);
+check("the recording waits for the sentence to end", $("dialMain").textContent === "Get ready", $("dialMain").textContent);
+const pausedBefore = player.paused || 0;
+$("btnStop").click(); await sleep(300);
+check("stop while the clip plays → back to ready at once, clip cut", visible("sReady") && !player.playing && player.paused > pausedBefore);
+
+// the whole quick test: the place's clip, then (a clip that can't be loaded) the phone's voice, then the result
+spoken.length = 0;
+await sleep(600);   // a tap right after a change of screen is ignored
+$("btnQuick").click(); await sleep(600);
+check("the place: its recorded sentence", played.at(-1) === "voice/en/point.Al.mp3" && spoken.length === 0, played.at(-1) + " / " + spoken.join());
+player.end();
+$("btnNow").click(); await sleep(400);
+check("a new check starts with the practice sentence again", played.at(-1) === "voice/en/breathe.mp3", played.at(-1));
+player.end();
+for (let i = 0; i < 300 && !visible("sResults"); i++) await sleep(300);
+await sleep(500);
+check("the result is said when the check ends; no recording of it (Al: crackles) → the phone's voice", visible("sResults") && spoken.at(-1) === text("en", "overall.warn"), spoken.join() + " / " + $("overallTitle").textContent);
+
+// the player refuses (no permission to play sound): the phone's voice instead
+spoken.length = 0; refuse = true;
+$("btnVoice").click(); await sleep(100); $("btnVoice").click(); await sleep(300);
+check("the player refuses → the phone's voice", spoken.join() === text("en", "voiceOn"), spoken.join());
+refuse = false;
+
+// another language without recordings: its texts, the phone's voice
+spoken.length = 0;
+$("btnVoice").click(); await sleep(100);
+$("btnSettings").click(); $("btnLangRow").click();
+[...d.querySelectorAll("#languageList .language")].find((b) => b.lang === "ro").click(); await sleep(500);
+$("settings").close();
+const playedBefore = played.length;
+$("btnVoice").click(); await sleep(300);
+check("a language with no recordings → the phone's voice, in that language", spoken.join() === "Instrucțiunile vorbite sunt pornite." && played.length === playedBefore, spoken.join());
+$("btnVoice").click();
+check("voice off → silence", cancelled > 0 && $("btnVoice").getAttribute("aria-pressed") === "false");
+
+document.getElementById("out").textContent = out.join("\n") + "\nDONE";
+</script>
