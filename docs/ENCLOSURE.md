@@ -1,8 +1,10 @@
-# respirAI — Enclosure Blueprint (v2, breath-only)
+# respirAI — Enclosure Blueprint (v3, breath-only, lung panel)
 
 **Purpose:** mechanical design manual for the 3D-printed housing.
 **Scope:** breathing analysis only. No ECG, no pulse oximeter. See §8 for what changes if they come back.
 
+> The layout drawing below still shows the v2 LED matrix; it gets redrawn with the re-layout.
+>
 > All dimensions below are **design intent**. Nothing gets modelled until every component has been measured with calipers and written into `cad/components.csv`.
 
 ---
@@ -11,9 +13,11 @@
 
 A rounded "puck" held in the left hand. The base rests in the palm, the index finger settles into a concave recess on the right side, and the luminous top face points at the patient's eyes. The right hand holds the stethoscope bell, which connects to the base by the rubber tube.
 
-**Target outer size: 100 × 85 × 24 mm**, corner radius 8 mm.
+**Target outer size: ~95 × 70 × 22–24 mm**, corner radius 8 mm (was 100 × 85 × 24 with the LED matrix).
 
-This is bigger than a mouse, and that's driven by two fixed parts: the LED matrix is 64 × 64 mm and the battery is 60 × 50 × 8 mm. They do not shrink, so the case doesn't either. Make it look deliberate — generous corner radii, a continuous side profile and a large glowing top face read as a designed object rather than an oversized box.
+The 64 × 64 mm LED matrix is gone (four small LEDs behind a printed panel replace it), so the battery (60 × 50 × 8 mm) is now the only part that sets the size. Reaching ~95 × 70 means moving the parts in the §2 table about 10 mm toward the front (the battery and the screw bosses now reach Y 72–77), so it is a small CAD re-layout, not just a smaller box. A full rethink could reach ~80 × 65 mm (open decision in PLAN §9).
+
+**The height does not shrink.** Even light through the panel needs 8–12 mm of air between the LEDs and the panel, more than the matrix's 3 mm. Don't add height for it: put the LEDs on standoffs above the battery, pointing up, and use the case's existing interior as the light chamber.
 
 ---
 
@@ -30,17 +34,19 @@ Positions in mm, measured from the bottom-left corner of the base as seen from a
 | LiPo 2500 mAh | 30 – 90 | 22 – 72 | walled compartment, no boards beneath |
 | Screw bosses (4×) | 8 / 92 | 8 / 77 | Ø6 mm outer, M3 |
 | Switch slot | 40 – 49 | front wall | actuator opening 6 × 3 mm |
-| LED matrix (in lid) | centred | 12 – 76 | 64 × 64 mm |
+| LEDs (4×) on standoffs | above the battery | under their zones | trachea, left lobe, right lobe, "AI"; pointing up |
+| Light chambers (in lid) | under the panel | — | white walls around each of the four zones |
 
-**Vertical stack:** base 2 mm → acoustic chamber 12 mm (its own column) → battery 8 mm → matrix 3 mm → diffuser 0.6 mm → lid 2 mm. The chamber sits beside the battery, not under it, so it does not add to the total height.
+**Vertical stack:** base 2 mm → acoustic chamber 12 mm (its own column) → battery 8 mm → LEDs on standoffs → 8–12 mm air gap (the light chamber) → top panel 1.2–1.5 mm. Total ~22–24 mm. The chamber sits beside the battery, not under it, so it does not add to the total height.
 
 ---
 
 ## 3. External features
 
 ### 3.1 Top face
-- **Diffuser window:** 64 × 64 mm opening with a 2 mm lip all round for the diffuser panel to sit on. The panel is printed separately, 0.4–0.6 mm thick, in white or natural filament.
-- **Branding recess:** 0.5 mm deep, **beside the diffuser, not under it** — a 40 × 8 mm strip along the front edge. Fill with paint or a cut sticker.
+- **One printed panel** carries the lung artwork and the wordmark, and replaces both the old diffuser and the branding recess. White or natural PLA, one material, no filament swap.
+- **Variable thickness is the whole trick:** thin PLA lets light through, thick PLA doesn't. Lungs and wordmark letters 0.4 mm; everything around them 1.2–1.5 mm.
+- **Wordmark strip ~50 × 12 mm** (was 40 × 8: 8 mm is too small for letters lit from behind). Print the whole "respirAI" thin, then paint over "respir" from the outside with opaque paint, so light escapes only through "AI".
 
 ### 3.2 Base
 - **Acoustic connection:** the barb for the stethoscope tube, centred under the acoustic chamber. See §4.1 — this part needs special attention.
@@ -62,7 +68,7 @@ Positions in mm, measured from the bottom-left corner of the base as seen from a
 A funnel from the barb narrowing to the microphone port. Two rules:
 
 1. **Keep the air volume small.** A short, narrow path preserves the high frequencies where crackles and wheezes live. Target an internal path of 15 mm or less from base to mic face.
-2. **The mic gets a sealed pocket, not just a gasket.** A flat bed sized to the INMP441 board, with walls on all four sides and a closed back. If the mic's rear is open to the case interior, it will pick up wire rattle, LED matrix buzz and every finger tap on the housing. Seal the front with a silicone O-ring or a hot-glue bead; pack the back with foam.
+2. **The mic gets a sealed pocket, not just a gasket.** A flat bed sized to the INMP441 board, with walls on all four sides and a closed back. If the mic's rear is open to the case interior, it will pick up wire rattle and every finger tap on the housing. Seal the front with a silicone O-ring or a hot-glue bead; pack the back with foam.
 
 **The barb will break if printed naively.** A barb printed standing up on the base has layer lines running perpendicular to the direction the tube gets pulled, which is the weakest possible orientation. Choose one:
 
@@ -78,7 +84,8 @@ Add a **strain-relief clamp** just inside the base — a small bridge the tube p
 |---|---|
 | XIAO | Two guide rails plus a retaining clip, so USB-C insertion force goes into the housing. Do not rely on the case lid pressing it down. |
 | Battery | Walled compartment, 1.5 mm walls, 0.5 mm clearance on each side, with a foam pad underneath. Keeps it away from sharp header pins. |
-| LED matrix | Four small posts in the lid plus a retaining lip; or double-sided tape to the lid underside if the posts prove fiddly. |
+| LEDs | Short standoffs (or a small perfboard) above the battery, LEDs pointing up into their chambers. Never glue anything to the battery. |
+| Light chambers | White walls from the panel down to just above the LEDs, one per zone: trachea, left lobe, right lobe, and a separate walled chamber for the wordmark strip, so each zone lights on its own instead of bleeding into one blob. |
 | Lid | **Four M3 screws** into the base bosses. Use M3 heat-set brass inserts if you have a soldering iron with a spare tip; otherwise self-tapping into a Ø2.5 mm pilot hole. |
 
 **Why screws, not snap-fits:** snap-fits need two or three test prints to tune the interference, and you have neither the time nor the print budget for that. Screws work on the first print.
@@ -86,7 +93,7 @@ Add a **strain-relief clamp** just inside the base — a small bridge the tube p
 ### 4.3 Cable management
 - A routing channel along the rear wall for the mic's five wires, keeping them clear of the battery.
 - Two small cable posts to loop the battery leads around, so a tug never reaches the solder joints on the XIAO's BAT pads.
-- Keep the LED matrix's power wires away from the mic wires where possible; the matrix draws current in sharp pulses.
+- The LED wires carry a few mA each; run them along the walls, clear of the battery.
 
 ---
 
@@ -103,7 +110,7 @@ Add a **strain-relief clamp** just inside the base — a small bridge the tube p
 
 **PLA, not PETG.** PETG is the right pick when you need flexible snap-fits. With screws you don't, and PLA holds finer detail and is more forgiving for a print service to get right first time.
 
-**Diffuser panel:** printed separately in white or natural PLA, 0.4–0.6 mm thick, 100 % infill, no supports, on a smooth build sheet. Print two — they're a few grams each, and one will warp.
+**Top panel:** white or natural PLA, 1.2–1.5 mm with 0.4 mm thin regions for the lungs and the wordmark (thickness chosen from the week-1 test tile), 100 % infill, no supports, outer face down on a smooth build sheet. Then paint over "respir". Print three — they're a few grams each, and you will want to compare.
 
 ---
 
@@ -111,8 +118,8 @@ Add a **strain-relief clamp** just inside the base — a small bridge the tube p
 
 At roughly 0.50 lei/gram locally, the whole case is 30–40 lei per round.
 
-1. **Week 1 — test print:** the acoustic chamber section alone, a few grams. Tests the seal and the tube fit before anything else is committed.
-2. **Week 3 — v1:** full base + lid + two diffusers.
+1. **Week 1 — test print:** the acoustic chamber section alone, a few grams. Tests the seal and the tube fit before anything else is committed. **Beside it, a test tile:** the wordmark strip and one lung lobe at 0.3, 0.4 and 0.6 mm thin-region thickness, with one LED behind each. Backlit letters are the fussiest part of this case: find out in week 1, not week 3.
+2. **Week 3 — v1:** full base + lid + three panels.
 3. **Week 4 — v2:** fixes only. Budget for this; every first enclosure has something wrong.
 
 Order v1 **at least 10 days before the demo.**
@@ -125,6 +132,7 @@ Order v1 **at least 10 days before the demo.**
 - [ ] XIAO's USB-C position measured **as mounted**, not from the datasheet
 - [ ] Battery measured including its wires and heat-shrink, not just the cell
 - [ ] Acoustic seal tested on the week-1 test print
+- [ ] Panel thin-region thickness and LED shade (blue or teal) chosen from the week-1 test tile
 - [ ] Tube outer diameter measured — the bore of a cheap stethoscope tube varies
 - [ ] Screw bosses checked against the actual M3 screws you own
 - [ ] The breadboard version still works and stays assembled as backup

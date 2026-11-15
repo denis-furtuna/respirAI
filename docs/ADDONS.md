@@ -21,8 +21,8 @@ Present them that way in the pitch and in this repo.
 
 | Signal | XIAO pin | GPIO | Notes |
 |---|---|---|---|
-| ECG output | one of D0–D3 | 1–4 | must be an **ADC1** pin; D4/D5 are reserved for I²C |
-| LO+ / LO− (lead-off) | two free digital pins | — | needed for the lead-off flag; not yet in the PLAN §3 wiring table |
+| ECG output | D0 | 1 | an **ADC1** pin |
+| LO+ (lead-off) | D2 | 3 | the last free pin. LO− stays unwired; lead-off can also be seen in the signal itself |
 
 ### Work involved
 
@@ -70,12 +70,13 @@ From [`ENCLOSURE.md` §8](ENCLOSURE.md#8-add-ons-future-extensions):
 
 ## Pin budget
 
-The core build uses 4 GPIO: D8, D9, D10 (mic) and D6 (LED matrix). The add-ons take a further 3–5 from what's left:
+The core build uses 6 GPIO: D8, D9, D10 (mic) and D3, D6, D7 (the four LEDs). The other five are planned:
 
-- ECG: one ADC1 pin from D0–D3 for the signal, plus two pins for LO+ / LO− if the lead-off flag is used
+- battery level: D1 (a 2 × 100 kΩ divider from BAT+)
+- ECG: D0 for the signal, D2 for LO+
 - MAX30102: the I²C pair D4/D5
 
-With everything fitted, 2 of the 11 GPIO remain free.
+With everything fitted, no GPIO is left, so LO− stays unwired.
 
 ## CAD
 
