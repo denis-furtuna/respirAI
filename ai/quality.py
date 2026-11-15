@@ -9,6 +9,10 @@ import numpy as np
 from preprocess import to_float
 
 SILENCE_DBFS = (-70.0, -55.0)   # below the first: silent; above the second: fine
+# The PANNs server path raises quiet recordings to the training level itself (preprocess_panns.stage0), and our
+# device at MIC_GAIN 1 records breaths at -56 to -50 dBFS, so it only needs to reject what is really silent.
+# Its own value, not SILENCE_DBFS: app/ai/pipeline.js mirrors SILENCE_DBFS and the CI checks they agree.
+SILENCE_DBFS_CALIBRATED = (-75.0, -62.0)
 CLIP_LEVEL = 0.98
 CLIP_FRAC_MAX = 0.01            # 1 % clipped samples -> score 0
 GAP_MS = 10                     # a run of exact zeros this long is a dropped BLE packet
@@ -23,7 +27,7 @@ def _ramp(x, lo, hi):
     return float(np.clip((x - lo) / (hi - lo), 0.0, 1.0))
 
 
-def quality(audio, sr):
+def quality(audio, sr, silence_dbfs=SILENCE_DBFS):
     """-> (score 0-1, dict of the individual checks)."""
     x = to_float(audio)
     if len(x) == 0:
@@ -31,7 +35,7 @@ def quality(audio, sr):
     checks = {}
 
     rms = np.sqrt(np.mean(x ** 2)) + 1e-12
-    checks["level"] = _ramp(20 * np.log10(rms), *SILENCE_DBFS)
+    checks["level"] = _ramp(20 * np.log10(rms), *silence_dbfs)
 
     clipped = np.mean(np.abs(x) >= CLIP_LEVEL)
     checks["clipping"] = 1.0 - _ramp(clipped, 0.0, CLIP_FRAC_MAX)

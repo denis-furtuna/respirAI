@@ -3,10 +3,12 @@
 server.py wraps these functions in FastAPI routes. Keeping the logic here
 means it can be tested with plain Python, no web server needed.
 
-Without a trained model in ai/weights/resp_cnn.onnx (+ resp_cnn.json, both
-downloaded from the Kaggle notebook's output) it runs in dummy mode: same
-request and response shapes, fixed answers. That lets the app be built
-before the model exists.
+Which model answers, in this order:
+1. RESPIRAI_WEIGHTS set: that ONNX ResNet (resp_cnn.onnx + .json). The CI golden tests use this.
+2. The PANNs CNN14 checkpoint + the patient RandomForest in ai/weights/ (inference_panns.py, needs
+   PyTorch and scikit-learn): normal / abnormal per point, and "Normal" / "Go see a doctor" for the session.
+3. ai/weights/resp_cnn.onnx (the Kaggle notebook's output).
+4. None: dummy mode, same request and response shapes, fixed answers.
 """
 import io
 import json
@@ -19,10 +21,13 @@ import numpy as np
 from scipy.io import wavfile
 
 from icbhi import CLASSES, POINTS
-from quality import quality
+from quality import SILENCE_DBFS, SILENCE_DBFS_CALIBRATED, quality
 
 AI_DIR = Path(__file__).resolve().parent
 WEIGHTS = Path(os.environ.get("RESPIRAI_WEIGHTS", AI_DIR / "weights" / "resp_cnn.onnx"))
+PANNS_WEIGHTS = Path(os.environ.get(
+    "RESPIRAI_PANNS", AI_DIR / "weights" / "best_panns_finetuned_mel_hop10ms_bp50_1800_spike6ms_fade20ms_top2blocks.pt"))
+PATIENT_WEIGHTS = Path(os.environ.get("RESPIRAI_PATIENT", AI_DIR / "weights" / "patient_doctor_rf_model.pkl"))
 DEMO_DIR = Path(os.environ.get("RESPIRAI_DEMO_DIR", AI_DIR / "demo_clips"))
 UNUSABLE_BELOW = 0.4      # contract: below this the app asks for a re-record
 MIN_S, MAX_S = 2.0, 60.0
@@ -40,14 +45,23 @@ class ServiceError(Exception):
 
 
 analyzer = None
-if WEIGHTS.exists():
+BACKEND = "dummy"
+if "RESPIRAI_WEIGHTS" not in os.environ and PANNS_WEIGHTS.exists() and PATIENT_WEIGHTS.exists():
+    from inference_panns import PannsAnalyzer
+    analyzer = PannsAnalyzer(PANNS_WEIGHTS, PATIENT_WEIGHTS)
+    BACKEND = "panns"
+    MODEL_VERSION = analyzer.model_version
+    log.info("Loaded model %s from %s, patient model from %s", MODEL_VERSION, PANNS_WEIGHTS, PATIENT_WEIGHTS)
+elif WEIGHTS.exists():
     from inference import Analyzer
     analyzer = Analyzer(WEIGHTS)
+    BACKEND = "onnx"
     MODEL_VERSION = analyzer.model_version
     log.info("Loaded model %s from %s", MODEL_VERSION, WEIGHTS)
 else:
     MODEL_VERSION = "dummy-0.0"
-    log.warning("No model at %s: running in DUMMY mode (fixed answers).", WEIGHTS)
+    log.warning("No model at %s or %s: running in DUMMY mode (fixed answers).", PANNS_WEIGHTS, WEIGHTS)
+SILENCE = SILENCE_DBFS_CALIBRATED if BACKEND == "panns" else SILENCE_DBFS
 
 demo_manifest = {}
 if (DEMO_DIR / "manifest.json").exists():
@@ -87,8 +101,11 @@ def _demo_clip(case, point):
 
 
 def health():
-    return {"status": "ok", "model_version": MODEL_VERSION, "dummy": analyzer is None,
-            "demo_clips": len(demo_manifest)}
+    out = {"status": "ok", "model_version": MODEL_VERSION, "dummy": analyzer is None,
+           "demo_clips": len(demo_manifest)}
+    if BACKEND == "panns":   # only then: the golden tests compare /health with the app's own answer exactly
+        out["backend"] = BACKEND
+    return out
 
 
 def analyze(point, session_id, audio_bytes=None, demo=False, demo_case=None):
@@ -106,13 +123,13 @@ def analyze(point, session_id, audio_bytes=None, demo=False, demo_case=None):
             q, result = 0.95, {"finding": demo_case, "confidence": 0.9}
         else:
             x, sr = _demo_clip(demo_case, point)
-            q, _ = quality(x, sr)
+            q, _ = quality(x, sr, SILENCE)
             result = analyzer.analyze(x, sr)
     else:
         if not audio_bytes:
             raise ServiceError(400, "Send the recording in the 'audio' field, or set demo=true.")
         x, sr = read_wav(audio_bytes)
-        q, checks = quality(x, sr)
+        q, checks = quality(x, sr, SILENCE)
         log.info("point=%s quality=%.2f %s", point, q, checks)
         if q < UNUSABLE_BELOW:
             result = {"finding": "unusable", "confidence": 0.0}
@@ -129,10 +146,22 @@ def analyze(point, session_id, audio_bytes=None, demo=False, demo_case=None):
         "model_version": MODEL_VERSION,
         "latency_ms": round((time.perf_counter() - t0) * 1000),
     }
+    if result.get("prob_abnormal") is not None:   # PANNs: the patient model needs it for the summary
+        response["prob_abnormal"] = result["prob_abnormal"]
     if demo:
         response["demo"] = True
     sessions.setdefault(session_id, {})[point] = response
     return response
+
+
+def _patient_verdict(points):
+    """PANNs: the RandomForest's verdict over the points that have a score, or None if there are none."""
+    position_sounds = {p: [r["prob_abnormal"]] for p, r in points.items()
+                       if r["finding"] != "unusable" and r.get("prob_abnormal") is not None}
+    if not position_sounds:
+        return None
+    v = analyzer.summarize_patient(position_sounds)
+    return {k: v[k] for k in ("verdict", "percentage", "display", "risk_probability")}
 
 
 def summary(session_id):
@@ -141,8 +170,15 @@ def summary(session_id):
     if not points:
         raise ServiceError(404, f"No recordings for session '{session_id}'.")
     usable = [r for r in points.values() if r["finding"] != "unusable"]
+    patient = _patient_verdict(points) if BACKEND == "panns" else None
     if not usable:
         overall, confidence = "unusable", 0.0
+    elif patient is not None:
+        overall = "abnormal" if patient["verdict"] == "Go see a doctor" else "normal"
+        confidence = round(patient["percentage"] / 100.0, 3)
+    elif any(r["finding"] == "abnormal" for r in usable):   # PANNs, demo answers without a score
+        overall = "abnormal"
+        confidence = round(float(np.mean([r["confidence"] for r in usable if r["finding"] == "abnormal"])), 2)
     else:
         crackles = any(r["finding"] in ("crackles", "both") for r in usable)
         wheezes = any(r["finding"] in ("wheezes", "both") for r in usable)
@@ -151,12 +187,16 @@ def summary(session_id):
         support = [r["confidence"] for r in usable
                    if r["finding"] == overall or (overall == "both" and r["finding"] != "normal")]
         confidence = round(float(np.mean(support)), 2)
-    return {
+    out = {
         "session_id": session_id,
         "points_recorded": len(points),
         "overall": overall,
         "confidence": confidence,
-        "per_point": [{"point": p, "finding": r["finding"], "confidence": r["confidence"]}
+        "per_point": [{"point": p, "finding": r["finding"], "confidence": r["confidence"],
+                       **({"prob_abnormal": r["prob_abnormal"]} if "prob_abnormal" in r else {})}
                       for p, r in sorted(points.items(), key=lambda kv: POINTS.index(kv[0]))],
         "disclaimer": DISCLAIMER,
     }
+    if patient is not None:
+        out.update(patient)
+    return out

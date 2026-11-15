@@ -119,8 +119,11 @@ export default {
   "finding.crackles": "Mögliche Rasselgeräusche",
   "finding.wheezes": "Mögliches Pfeifen (Giemen)",
   "finding.both": "Mögliche Rasselgeräusche und Pfeifen",
+  "finding.abnormal": "Mögliche auffällige Geräusche",
   "detail.unclear": "Der Ton war nicht klar genug.",
   "detail.confidence": "{pct} Sicherheit",
+  "patient.normal": "Insgesamt: unauffällig ({pct})",
+  "patient.doctor": "Insgesamt: mögliche auffällige Geräusche, bitte zum Arzt ({pct})",
   "detail.example": "Beispielaufnahme",
 
   "overall.warn.title": "Einige ungewöhnliche Geräusche wurden gehört",

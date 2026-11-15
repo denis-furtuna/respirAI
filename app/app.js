@@ -22,11 +22,11 @@ const POINTS = {
 const title = (code) => t(`point.${code}.title`);
 const ORDER = ["Tc", "Al", "Ar", "Ll", "Lr", "Pl", "Pr"];  // front, sides, back
 const QUICK = ["Al"];   // the quick test: one place, upper chest left, easy to reach alone
-const BREATH_IN = 2.5, BREATH_OUT = 3.5;   // seconds: one breath in 6, so the default 12 s recording is breathe in, out, in, out
+const BREATH_IN = 2.5, BREATH_OUT = 3.5;   // seconds: one breath in 6, so the default 6 s recording is one whole breath
 const BREATH = BREATH_IN + BREATH_OUT; // one breath; also the practice breath before the first recording of a check
 const MIN_QUALITY = 0.4;               // contract 2: below this, ask for a re-record
 const RING = 2 * Math.PI * 92;         // circumference of the dial's progress ring
-const FINDINGS = ["normal", "crackles", "wheezes", "both", "unusable"];
+const FINDINGS = ["normal", "crackles", "wheezes", "both", "abnormal", "unusable"];   // abnormal: the PANNs server (2 classes)
 const ICONS = {
   check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
   alert: '<path d="M12 7v6m0 3.5v.5"/>',
@@ -46,11 +46,12 @@ const bluetooth = params.has("fakebt") ? (window.fakeBt = fakeBluetooth(Object.f
 // ---------- settings (remembered on this phone, behind the icon; voice is on the "before we start" screen) ----------
 // server "": the AI runs on this phone (ai/local.js), no server or internet needed. An address: that AI server
 // instead (contract 2: ai/server.py, or app/dev/dev_server.py), e.g. the laptop's own address when it serves the app.
-const settings = { server: "", seconds: 12, demo: "", textSize: "100", theme: "auto", voice: false, agent: null, lang: "", welcomed: false, v: 2 };
+const settings = { server: "", seconds: 6, demo: "", textSize: "100", theme: "auto", voice: false, agent: null, lang: "", welcomed: false, v: 3 };
 try {
   const saved = JSON.parse(localStorage.getItem("respirai") || "{}");
-  if (!saved.v && saved.seconds === 18) delete saved.seconds;   // the old default, never chosen by hand: take the new one
-  Object.assign(settings, saved, { v: 2 });
+  if (!saved.v && saved.seconds === 18) delete saved.seconds;   // the old defaults, never chosen by hand: take the new one
+  if ((saved.v || 0) < 3 && saved.seconds === 12) delete saved.seconds;
+  Object.assign(settings, saved, { v: 3 });
 } catch (e) { /* private mode */ }
 settings.voice = false;   // spoken instructions start off every time the app opens; the switch turns them on for this visit
 settings.agent = null;    // the AI guide: asked once per visit, on its own screen after connecting (null = not asked yet)
@@ -58,7 +59,10 @@ if (native) {   // the phone app always analyses on the phone: nothing it record
   settings.server = "";
   $("server").closest("label").hidden = true;
 }
-const api = (path) => settings.server + path;
+// Served by ai/server.py itself (its port 8000, see ai/README.md): that server's AI unless another address is set.
+const servedByAi = !native && location.port === "8000";
+const server = () => settings.server || (servedByAi ? location.origin : "");
+const api = (path) => server() + path;
 
 const darkSystem = matchMedia("(prefers-color-scheme: dark)");
 function saveSettings() {
@@ -77,7 +81,7 @@ for (const [id, parse] of [
   ["textSize", (v) => v],
   ["theme", (v) => v],
   ["server", (v) => v.trim().replace(/\/+$/, "")],
-  ["seconds", (v) => Math.min(20, Math.max(5, Number(v) || 12))],   // 12 s = two whole breaths, ends at the bottom of one
+  ["seconds", (v) => Math.min(20, Math.max(5, Number(v) || 6))],   // 6 s = one whole breath, ends at the bottom of it
   ["demo", (v) => v],
 ]) {
   $(id).value = settings[id];
@@ -497,15 +501,34 @@ function analyze(code, samples) {
   const s = session, mine = { finding: "pending" };
   s.audio[code] = samples;
   s.results[code] = mine;
-  s.pending.push(request(code, samples, s.id).then((result) => {
+  s.patient = null;   // a new recording changes the overall verdict: asked again once every place has its answer
+  s.pending.push(request(code, samples, s.id).then(async (result) => {
     if (s.results[code] !== mine) return;
     s.results[code] = result;
+    await patientSummary(s);
     if (s === session && !$("sResults").hidden) renderResults();
   }));
 }
 
+// The PANNs server's verdict over the whole check ("Normal" / "Go see a doctor", contract 2 summary), once no place is
+// still being analysed. Other servers and the on-phone AI have none: then the places decide, as before.
+async function patientSummary(s) {
+  if (!server() || Object.values(s.results).some((r) => r.finding === "pending")) return;
+  const asked = Object.values(s.results);
+  try {
+    const res = await fetch(api(`/session/${encodeURIComponent(s.id)}/summary`), { signal: AbortSignal.timeout(15000) });
+    const body = await res.json();
+    const now = Object.values(s.results);
+    if (res.ok && body.verdict && now.length === asked.length && now.every((r, i) => r === asked[i])) {
+      s.patient = { doctor: body.verdict === "Go see a doctor", percentage: body.percentage };
+    }
+  } catch (e) {
+    console.warn("AI server summary:", e);
+  }
+}
+
 async function request(code, samples, sessionId) {
-  if (!settings.server) return requestHere(code, samples);
+  if (!server()) return requestHere(code, samples);
   const form = new FormData();
   form.append("point", code);
   form.append("session_id", sessionId);
@@ -622,9 +645,13 @@ function renderResults() {
   const verdicts = Object.fromEntries(codes.map((c) => [c, verdict(session.results[c])]));
   const all = Object.values(verdicts);
   const any = (test) => all.some(test);
-  const key = any((v) => v.cls === "warn") ? "warn" : any((v) => v.pending) ? "pending" : any((v) => v.retry) ? "retry"
-    : any((v) => v.cls !== "ok") ? "unclear" : "ok";
+  const patient = session.patient;   // the PANNs server's verdict, when it gave one: it decides warn or ok
+  const warn = patient ? patient.doctor : any((v) => v.cls === "warn");
+  const key = warn ? "warn" : any((v) => v.pending) ? "pending" : any((v) => v.retry) ? "retry"
+    : any((v) => v.cls !== "ok" && !(patient && v.cls === "warn")) ? "unclear" : "ok";
   overallKey = key;
+  $("patientVerdict").hidden = !patient;
+  if (patient) $("patientVerdict").textContent = t(patient.doctor ? "patient.doctor" : "patient.normal", { pct: percent(patient.percentage / 100) });
   const cls = STYLE[key];
   $("overall").className = `overall ${cls}`;
   $("overallIcon").innerHTML = icon(MARK[cls]);
@@ -888,10 +915,10 @@ $("btnTest").addEventListener("click", async () => {
   $("btnTest").disabled = true;
   $("testResult").textContent = t("settings.checking");
   try {   // the AI on this phone, or the server in the setting
-    const h = settings.server ? await (await fetch(api("/health"), { signal: AbortSignal.timeout(5000) })).json() : await healthHere();
+    const h = server() ? await (await fetch(api("/health"), { signal: AbortSignal.timeout(5000) })).json() : await healthHere();
     $("testResult").textContent = t("settings.testOk", { model: h.model_version, dummy: h.dummy ? t("settings.dummy") : "", clips: h.demo_clips });
   } catch (e) {
-    $("testResult").textContent = !settings.server ? t("error.local") : e.name === "TimeoutError" ? t("error.timeout") : t("settings.unreachable", { server: settings.server });
+    $("testResult").textContent = !server() ? t("error.local") : e.name === "TimeoutError" ? t("error.timeout") : t("settings.unreachable", { server: server() });
   } finally {
     $("btnTest").disabled = false;
   }

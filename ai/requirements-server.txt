@@ -1,7 +1,12 @@
-# Server only (laptop): no PyTorch or librosa needed.
+# Server (laptop). numpy + scipy + fastapi are always needed.
 numpy
 scipy
-onnxruntime
 fastapi
 uvicorn
 python-multipart
+# ONNX ResNet model (weights/resp_cnn.onnx) and the CI golden tests
+onnxruntime
+# PANNs CNN14 + patient RandomForest (inference_panns.py); torch CPU is enough (~0.25 s per point)
+torch
+scikit-learn
+pandas

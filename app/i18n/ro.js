@@ -124,8 +124,11 @@ export default {
   "finding.crackles": "Posibile crepitații",
   "finding.wheezes": "Posibile șuierături",
   "finding.both": "Posibile crepitații și șuierături",
+  "finding.abnormal": "Posibile sunete anormale",
   "detail.unclear": "Sunetul nu a fost destul de clar.",
   "detail.confidence": "grad de încredere {pct}",
+  "patient.normal": "Pe ansamblu: normal ({pct})",
+  "patient.doctor": "Pe ansamblu: posibile sunete anormale, mergeți la medic ({pct})",
   "detail.example": "înregistrare de exemplu",
 
   "overall.warn.title": "Am auzit câteva sunete neobișnuite",

@@ -119,8 +119,11 @@ export default {
   "finding.crackles": "Crépitants possibles",
   "finding.wheezes": "Sifflements possibles",
   "finding.both": "Crépitants et sifflements possibles",
+  "finding.abnormal": "Sons anormaux possibles",
   "detail.unclear": "Le son n'était pas assez clair.",
   "detail.confidence": "confiance : {pct}",
+  "patient.normal": "Dans l’ensemble : normal ({pct})",
+  "patient.doctor": "Dans l’ensemble : sons anormaux possibles, consultez un médecin ({pct})",
   "detail.example": "enregistrement d'exemple",
 
   "overall.warn.title": "Quelques sons inhabituels ont été entendus",

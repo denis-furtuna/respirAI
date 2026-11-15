@@ -17,6 +17,13 @@ Task list: D1–D13 in [`docs/PLAN.md` §5.3](../docs/PLAN.md#53-ai-and-data-can
 | `quality.py` | 0–1 recording quality: silence, clipping, dropped packets, handling noise | D7 |
 | `service.py` | the server's logic: `/analyze`, demo mode, session summary | D5, D6, D8 |
 | `server.py` | thin FastAPI layer over `service.py` | D5 |
+| `preprocess_panns.py` | the PANNs model's preprocessing: 8 → 4 kHz, centre 5 s, 50–1800 Hz, quiet recordings raised to the training level, the V3 repairs, log-mel 64 × 501 in dB (NumPy, no torchaudio) | — |
+| `mel_panns_model.py` | PANNs CNN14, normal / abnormal (trained in Colab: `mel_train_*.py`) | — |
+| `icbhi_patient_doctor_classifier.py` | the patient RandomForest: the places' findings → "Normal" / "Go see a doctor" | — |
+| `inference_panns.py` | both together, for the server: per place and per check; `POINT_THRESHOLD` | — |
+| `calibrate_panns.py` | picks `POINT_THRESHOLD` on healthy recordings from our device (`data/denis_*.wav`) | — |
+
+**Which model the server uses.** If `weights/` holds the PANNs checkpoint and `patient_doctor_rf_model.pkl`, those (needs PyTorch and scikit-learn; `/session/…/summary` then also returns `verdict`, `percentage`, `display`). Otherwise `weights/resp_cnn.onnx`, or dummy mode. `RESPIRAI_WEIGHTS=<file>.onnx` forces the ONNX model (the CI golden tests do).
 
 Not committed: datasets (`ai/data/`) and trained models (`ai/weights/`). Committed on purpose: `ai/demo_clips/` and `ai/results/`.
 

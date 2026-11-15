@@ -119,8 +119,11 @@ export default {
   "finding.crackles": "Possible crackles",
   "finding.wheezes": "Possible wheezes",
   "finding.both": "Possible crackles and wheezes",
+  "finding.abnormal": "Possible abnormal sounds",
   "detail.unclear": "The sound was not clear enough.",
   "detail.confidence": "{pct} confidence",
+  "patient.normal": "Across all places: normal ({pct})",
+  "patient.doctor": "Across all places: possible abnormal sounds, see a doctor ({pct})",
   "detail.example": "example recording",
 
   "overall.warn.title": "Some unusual sounds were heard",
