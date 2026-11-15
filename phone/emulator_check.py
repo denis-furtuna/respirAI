@@ -137,7 +137,7 @@ def main(apk):
     time.sleep(1)
     screenshot("welcome")
 
-    page.js("localStorage.setItem('respirai', JSON.stringify({ seconds: 5, welcomed: true, lang: 'en' })); location.reload(); true")
+    page.js("localStorage.setItem('respirai', JSON.stringify({ seconds: 5, welcomed: true, lang: 'en' })); localStorage.setItem('respirai-agent', 'off'); location.reload(); true")
     time.sleep(2)
     page.ready()
     time.sleep(2)
