@@ -20,23 +20,30 @@ const level = (x) => {   // amplitude of a steady tone, away from the ends
   return Math.sqrt(mid.reduce((s, v) => s + v * v, 0) / mid.length) * Math.SQRT2;
 };
 const gain = (hz) => level(pp.clean(tone(hz), 8000)) / 0.25;
-const g = Object.fromEntries([30, 100, 600, 1200, 1800, 3500].map((hz) => [hz, gain(hz)]));
+const g = Object.fromEntries([30, 100, 300, 600, 1000, 1800, 3500].map((hz) => [hz, gain(hz)]));
 check("8 kHz -> 4 kHz: half the samples", pp.clean(tone(600), 8000).length === 24000);
-check("pass band kept (600, 1200 Hz)", Math.abs(g[600] - 1) < 0.02 && Math.abs(g[1200] - 1) < 0.02, JSON.stringify(g));
-// Butterworth band edges: -3 dB, applied twice (forwards and backwards). At 1800 Hz the 8 -> 4 kHz resampling filter,
-// which rolls off towards 2 kHz, takes a little more (SciPy's does the same; ai.html compares the two exactly).
-check("band edges: 100 Hz at half amplitude, 1800 Hz just under", Math.abs(g[100] - 0.5) < 0.01 && g[1800] > 0.42 && g[1800] < 0.5, JSON.stringify(g));
+check("pass band kept (300, 600 Hz)", Math.abs(g[300] - 1) < 0.02 && Math.abs(g[600] - 1) < 0.02, JSON.stringify(g));
+// Butterworth band edges: -3 dB, applied twice (forwards and backwards) = half amplitude. The band is what the chest
+// piece delivers (100-1000 Hz); 1800 Hz, inside the old band, is now removed.
+check("band edges: 100 Hz and 1000 Hz at half amplitude", Math.abs(g[100] - 0.5) < 0.01 && Math.abs(g[1000] - 0.5) < 0.01, JSON.stringify(g));
+check("above the band removed (1800 Hz)", g[1800] < 0.01, JSON.stringify(g));
 check("heartbeat rumble removed (30 Hz)", g[30] < 0.01);
 check("3.5 kHz removed before halving the rate (no alias at 500 Hz)", g[3500] < 0.01);
 const win = (s) => pp.windows(pp.clean(tone(600, s), 8000)).windows.length;
 check("4 s windows, 2 s apart, tail kept: 18 s -> 8, 5 s -> 2, 3 s -> 1", win(18) === 8 && win(5) === 2 && win(3) === 1, `${win(18)} ${win(5)} ${win(3)}`);
-const spec = pp.logMel(pp.windows(pp.clean(tone(600, 4), 8000)).windows[0]);
+// Each band's own mean is taken out (BAND_NORM), so a tone shows where it is switched on, not where it never changes:
+// 600 Hz in the second half of the window only.
+const halfTone = tone(600, 4); halfTone.fill(0, 0, halfTone.length / 2);
+const spec = pp.logMel(pp.windows(pp.clean(halfTone, 8000)).windows[0]);
 const mean = spec.reduce((a, b) => a + b, 0) / spec.length, sd = Math.sqrt(spec.reduce((a, b) => a + (b - mean) ** 2, 0) / spec.length);
 check("spectrogram 64 x 251, standardised", spec.length === 64 * 251 && Math.abs(mean) < 1e-4 && Math.abs(sd - 1) < 1e-3, `${mean} ${sd}`);
 let loudest = 0;
-for (let m = 0; m < 64; m++) if (spec[m * 251 + 125] > spec[loudest * 251 + 125]) loudest = m;
-const melHz = (m) => { const mel = (f) => (f >= 1000 ? 15 + Math.log(f / 1000) / (Math.log(6.4) / 27) : f / (200 / 3)); const lo = mel(100), hi = mel(1800); const x = lo + ((m + 1) * (hi - lo)) / 65; return x >= 15 ? 1000 * Math.exp((Math.log(6.4) / 27) * (x - 15)) : (x * 200) / 3; };
+for (let m = 0; m < 64; m++) if (spec[m * 251 + 190] > spec[loudest * 251 + 190]) loudest = m;
+const melHz = (m) => { const mel = (f) => (f >= 1000 ? 15 + Math.log(f / 1000) / (Math.log(6.4) / 27) : f / (200 / 3)); const lo = mel(100), hi = mel(1000); const x = lo + ((m + 1) * (hi - lo)) / 65; return x >= 15 ? 1000 * Math.exp((Math.log(6.4) / 27) * (x - 15)) : (x * 200) / 3; };
 check("a 600 Hz tone lights up the 600 Hz mel band", Math.abs(melHz(loudest) - 600) < 40, `band ${loudest} = ${melHz(loudest).toFixed(0)} Hz`);
+const steady = pp.logMel(pp.windows(pp.clean(tone(600, 4), 8000)).windows[0]);
+check("a pick of the model's threshold: suspect at or above it, normal below", pp.finding({ normal: 0.6, crackles: 0.1, wheezes: 0.25, both: 0.05 }, 0.3).finding === "wheezes"
+  && pp.finding({ normal: 0.6, crackles: 0.1, wheezes: 0.25, both: 0.05 }, 0.5).finding === "normal" && pp.finding({ normal: 0.4, crackles: 0.45, wheezes: 0.1, both: 0.05 }).finding === "crackles" && steady.length === 64 * 251);
 
 const noise = (seconds, amp) => Int16Array.from({ length: seconds * 8000 }, () => Math.round((Math.random() * 2 - 1) * amp));
 const q = (x) => pp.quality(x, 8000);

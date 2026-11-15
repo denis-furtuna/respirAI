@@ -33,7 +33,7 @@ const load = () => (loaded ||= (async () => {
   }
   const ort = await loadOrt();
   const session = await ort.InferenceSession.create(new URL("resp_cnn.onnx", MODEL).href, { executionProviders: ["wasm"] });
-  return { ort, session, input: session.inputNames[0], output: session.outputNames[0], modelVersion: meta.model_version, demo };
+  return { ort, session, input: session.inputNames[0], output: session.outputNames[0], modelVersion: meta.model_version, threshold: meta.suspect_threshold ?? null, demo };
 })().catch((e) => { loaded = null; throw e; }));   // a failure is retried on the next request
 
 async function fetchJson(url) {   // null when the file isn't there
@@ -62,7 +62,7 @@ async function analyzeAudio(m, audio, sr) {
   const { specs, count } = recordingToSpecs(audio, sr);
   const tensor = new m.ort.Tensor("float32", specs, [count, 1, N_MELS, N_FRAMES]);
   const logits = (await m.session.run({ [m.input]: tensor }))[m.output].data;
-  return finding(combine(softmax(logits)));
+  return finding(combine(softmax(logits)), m.threshold);
 }
 
 // A demo clip: 16-bit mono PCM WAV, as the notebook writes them (ai/icbhi.py as_device) -> { samples, sr }

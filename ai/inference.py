@@ -18,6 +18,22 @@ from icbhi import CLASSES
 TOP_K = 2  # how many of the most abnormal windows decide the recording
 
 
+def pick(probs, threshold=None):
+    """Class probabilities -> (finding, confidence).
+
+    Without a threshold: the most probable class. With one (the model's JSON, "suspect_threshold"): anything at
+    least that likely to be abnormal is reported as its most probable abnormal class, so the trade between
+    missed cases and false alarms is a number chosen on real recordings, not an accident of four-way argmax.
+    """
+    if threshold is None:
+        best = max(probs, key=probs.get)
+        return best, probs[best]
+    abnormal = 1 - probs["normal"]
+    if abnormal < threshold:
+        return "normal", probs["normal"]
+    return max((k for k in probs if k != "normal"), key=probs.get), abnormal
+
+
 def combine(window_probs, top_k=TOP_K):
     """(n_windows, 4) softmax outputs -> dict class -> probability for the whole recording."""
     p = np.asarray(window_probs)
@@ -49,6 +65,7 @@ class Analyzer:
         self.input_name = self.session.get_inputs()[0].name
         self.model_version = meta["model_version"]
         self.metrics = meta.get("metrics", {})
+        self.threshold = meta.get("suspect_threshold")
 
     def window_probs(self, specs):
         x = np.asarray(specs, dtype=np.float32)[:, None, :, :]
@@ -57,6 +74,6 @@ class Analyzer:
     def analyze(self, audio, sr):
         specs, _ = pp.recording_to_specs(audio, sr)
         probs = combine(self.window_probs(specs))
-        finding = max(probs, key=probs.get)
-        return {"finding": finding, "confidence": round(probs[finding], 2),
+        finding, confidence = pick(probs, self.threshold)
+        return {"finding": finding, "confidence": round(confidence, 2),
                 "probabilities": {k: round(v, 3) for k, v in probs.items()}}

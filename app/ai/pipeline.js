@@ -7,7 +7,8 @@
 // ---------- preprocess.py ----------
 export const DEVICE_SR = 8000;
 export const TARGET_SR = 4000;
-export const BAND_HZ = [100, 1800];
+export const BAND_HZ = [100, 1000];
+export const BAND_NORM = true;   // each mel band's mean over the window is taken out
 export const WINDOW_S = 4.0;
 export const HOP_S = 2.0;
 export const N_FFT = 256;
@@ -19,7 +20,7 @@ export const N_FRAMES = Math.floor(WINDOW_SAMPLES / HOP_LENGTH) + 1;
 export const CLASSES = ["normal", "crackles", "wheezes", "both"];   // ai/icbhi.py
 
 // The settings a trained model depends on, as saved next to its weights (preprocess.params()).
-export const params = () => ({ TARGET_SR, BAND_HZ: [...BAND_HZ], WINDOW_S, N_FFT, HOP_LENGTH, N_MELS });
+export const params = () => ({ TARGET_SR, BAND_HZ: [...BAND_HZ], WINDOW_S, N_FFT, HOP_LENGTH, N_MELS, BAND_NORM });
 
 const f32 = Math.fround;
 
@@ -250,6 +251,14 @@ export function logMel(window) {
       db[m * N_FRAMES + t] = 10 * Math.log10(Math.max(e, 1e-10));
     }
   }
+  if (BAND_NORM) {
+    for (let m = 0; m < N_MELS; m++) {
+      let bandMean = 0;
+      for (let t = 0; t < N_FRAMES; t++) bandMean += db[m * N_FRAMES + t];
+      bandMean /= N_FRAMES;
+      for (let t = 0; t < N_FRAMES; t++) db[m * N_FRAMES + t] -= bandMean;
+    }
+  }
   let mean = 0;
   for (const v of db) mean += v;
   mean /= db.length;
@@ -297,10 +306,16 @@ export function combine(probs, classes = CLASSES.length) {
 
 export const round = (v, digits) => Math.round(v * 10 ** digits) / 10 ** digits;
 
-// Probabilities -> the answer, as Analyzer.analyze shapes it.
-export function finding(probs) {
-  const best = Object.keys(probs).reduce((a, b) => (probs[b] > probs[a] ? b : a));
-  return { finding: best, confidence: round(probs[best], 2),
+// Probabilities -> the answer, as Analyzer.analyze shapes it (pick() in ai/inference.py). Without a threshold: the most
+// probable class. With one ("suspect_threshold" in the model's JSON): anything at least that likely to be abnormal is
+// reported as its most probable abnormal class.
+export function finding(probs, threshold = null) {
+  const most = (keys) => keys.reduce((a, b) => (probs[b] > probs[a] ? b : a));
+  let best, confidence;
+  if (threshold === null || threshold === undefined) { best = most(Object.keys(probs)); confidence = probs[best]; }
+  else if (1 - probs.normal < threshold) { best = "normal"; confidence = probs.normal; }
+  else { best = most(Object.keys(probs).filter((k) => k !== "normal")); confidence = 1 - probs.normal; }
+  return { finding: best, confidence: round(confidence, 2),
     probabilities: Object.fromEntries(Object.entries(probs).map(([k, v]) => [k, round(v, 3)])) };
 }
 
