@@ -10,6 +10,7 @@ const out = [];
 const check = (name, ok, extra = "") => out.push(`${ok ? "PASS" : "FAIL"} ${name} ${extra}`);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 localStorage.setItem("respirai", JSON.stringify({ welcomed: true, lang: "en" }));
+localStorage.setItem("respirai-agent", "off");   // the AI guide has its own suite (guide.html)
 const frame = document.getElementById("app");
 let w, d;
 const $ = (id) => d.getElementById(id);

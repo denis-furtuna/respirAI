@@ -67,6 +67,19 @@
     <button id="btnPractice" class="btn link" data-t="connect.practice">No device? Try a practice run</button>
   </section>
 
+  <section id="sGuide" class="screen" hidden>
+    <p class="eyebrow ok-text" data-t="ready.connected">Device connected</p>
+    <h1 tabindex="-1" data-t="guideAsk.title">AI guide</h1>
+    <p class="lead" data-t="guideAsk.lead"></p>
+    <ul class="facts">
+      <li><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></svg><p data-t-html="guideAsk.data"></p></li>
+      <li><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></svg><p data-t="guideAsk.needs"></p></li>
+    </ul>
+    <div class="spacer"></div>
+    <button id="btnGuideYes" class="btn primary" data-t="guideAsk.yes">Yes, use the guide</button>
+    <button id="btnGuideNo" class="btn secondary" data-t="guideAsk.no">No, thanks</button>
+  </section>
+
   <section id="sReady" class="screen" hidden>
     <p class="eyebrow ok-text" data-t="ready.connected">Device connected</p>
     <h1 tabindex="-1" id="readyTitle">Before we start</h1>
@@ -75,11 +88,10 @@
       <li><span>2</span><p id="step2"></p></li>
       <li><span>3</span><p data-t-html="ready.step3"></p></li>
     </ol>
-    <button id="btnVoice" class="toggle" aria-pressed="false" aria-describedby="guideHint">
+    <button id="btnVoice" class="toggle" aria-pressed="false">
       <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></svg>
-      <span data-t="ready.voice">respirAI guide</span><i class="switch"></i>
+      <span data-t="ready.voice">Read the instructions aloud</span><i class="switch"></i>
     </button>
-    <p id="guideHint" class="hint" data-t="ready.guideHint" hidden></p>
     <p id="readyNote" class="note" hidden></p>
     <div class="spacer"></div>
     <button id="btnBegin" class="btn primary">Begin</button>

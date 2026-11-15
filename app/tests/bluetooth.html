@@ -10,6 +10,7 @@ const out = [];
 const check = (name, ok, extra = "") => out.push(`${ok ? "PASS" : "FAIL"} ${name} ${extra}`);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 localStorage.setItem("respirai", JSON.stringify({ server: location.origin, seconds: 5, demo: "", welcomed: true, lang: "en" }));
+localStorage.setItem("respirai-agent", "off");   // the AI guide has its own suite (guide.html)
 
 async function open(id, query) {
   const f = document.getElementById(id);
@@ -36,7 +37,7 @@ const log = (await (await fetch("/log")).json()).slice(before);
 check("7 valid ~5 s WAVs despite small packets and losses", log.length === 7 && log.every((e) => e.wav_ok && e.seconds > 4.5), JSON.stringify(log.map((e) => e.seconds)));
 
 // 2. The device drops out in the middle of a session: the app reconnects by itself. 22 s of streaming: the first place
-//    (1.5 s connected, practice breath 9 s, recording 5 s, done 1.2 s) is finished, the second one is under way.
+//    (1.5 s connected, practice breath 6 s, recording 5 s, done 1.2 s) is finished, the second one is under way.
 [d, $, w] = await open("b", "?fakebt&disconnectAfter=22");
 $("btnConnect").click(); await sleep(1500);
 $("btnBegin").click();

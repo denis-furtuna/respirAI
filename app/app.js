@@ -22,7 +22,7 @@ const POINTS = {
 const title = (code) => t(`point.${code}.title`);
 const ORDER = ["Tc", "Al", "Ar", "Ll", "Lr", "Pl", "Pr"];  // front, sides, back
 const QUICK = ["Al"];   // the quick test: one place, upper chest left, easy to reach alone
-const BREATH_IN = 4, BREATH_OUT = 5;   // seconds. Mirrored in firmware/respirai/config.h (BREATH_IN_MS, BREATH_OUT_MS): change both
+const BREATH_IN = 2.5, BREATH_OUT = 3.5;   // seconds: one breath in 6, so the default 12 s recording is breathe in, out, in, out
 const BREATH = BREATH_IN + BREATH_OUT; // one breath; also the practice breath before the first recording of a check
 const MIN_QUALITY = 0.4;               // contract 2: below this, ask for a re-record
 const RING = 2 * Math.PI * 92;         // circumference of the dial's progress ring
@@ -46,9 +46,14 @@ const bluetooth = params.has("fakebt") ? (window.fakeBt = fakeBluetooth(Object.f
 // ---------- settings (remembered on this phone, behind the icon; voice is on the "before we start" screen) ----------
 // server "": the AI runs on this phone (ai/local.js), no server or internet needed. An address: that AI server
 // instead (contract 2: ai/server.py, or app/dev/dev_server.py), e.g. the laptop's own address when it serves the app.
-const settings = { server: "", seconds: 18, demo: "", textSize: "100", theme: "auto", voice: false, lang: "", welcomed: false };
-try { Object.assign(settings, JSON.parse(localStorage.getItem("respirai") || "{}")); } catch (e) { /* private mode */ }
+const settings = { server: "", seconds: 12, demo: "", textSize: "100", theme: "auto", voice: false, agent: null, lang: "", welcomed: false, v: 2 };
+try {
+  const saved = JSON.parse(localStorage.getItem("respirai") || "{}");
+  if (!saved.v && saved.seconds === 18) delete saved.seconds;   // the old default, never chosen by hand: take the new one
+  Object.assign(settings, saved, { v: 2 });
+} catch (e) { /* private mode */ }
 settings.voice = false;   // spoken instructions start off every time the app opens; the switch turns them on for this visit
+settings.agent = null;    // the AI guide: asked once per visit, on its own screen after connecting (null = not asked yet)
 if (native) {   // the phone app always analyses on the phone: nothing it records ever leaves it (Google Play's data safety form)
   settings.server = "";
   $("server").closest("label").hidden = true;
@@ -72,7 +77,7 @@ for (const [id, parse] of [
   ["textSize", (v) => v],
   ["theme", (v) => v],
   ["server", (v) => v.trim().replace(/\/+$/, "")],
-  ["seconds", (v) => Math.min(20, Math.max(5, Number(v) || 18))],   // 18 s = two whole breaths, ends at the bottom of one
+  ["seconds", (v) => Math.min(20, Math.max(5, Number(v) || 12))],   // 12 s = two whole breaths, ends at the bottom of one
   ["demo", (v) => v],
 ]) {
   $(id).value = settings[id];
@@ -110,8 +115,9 @@ function hush() {
 }
 
 // ---------- the voice guide (guide.js) ----------
-// One switch on the ready screen, "respirAI guide" (settings.voice), is both voices. A check that starts with the
-// switch on, the phone online, an agent set up and the microphone allowed is guided by the agent (guideOn): it says
+// The AI guide is offered on its own screen right after connecting (sGuide: what it does, what data it takes; yes or
+// no, settings.agent). No: the ready screen has a switch that reads the instructions aloud (settings.voice). Yes: no
+// switch; a check that starts with the phone online and the microphone allowed is guided by the agent (guideOn): it says
 // what say() would have said (told by tellGuide), answers questions in between, and may press "start now" and
 // "stop" for the person. In every other case, and whenever the agent goes away, say() reads the instructions.
 let guideOn = false, micOk = false, byVoice = false, voiceAt = 0;
@@ -239,6 +245,7 @@ async function online(d) {
   d.send(CMD.status).catch(() => {});   // battery now, not in 2 s
   if (running) return;                  // still analysing: the results come next anyway
   if (session && !remaining().length) showResults();   // carry on where the user was
+  else if (settings.agent === null && guide.available && navigator.onLine !== false) show("sGuide");   // asked once per visit
   else showReady();
 }
 
@@ -249,7 +256,7 @@ async function lostDevice(d) {
   showBattery();
   notice("device.reconnecting");
   if (running) stopSession();
-  else if (!$("sReady").hidden) show("sConnect");   // results stay on screen if they are showing
+  else if (!$("sReady").hidden || !$("sGuide").hidden) show("sConnect");   // results stay on screen if they are showing
   for (const wait of [500, 1500, 3000, 5000]) {
     await sleep(wait);
     if (latest !== d || device) return;   // the user connected something themselves
@@ -331,7 +338,7 @@ async function runSession(codes) {
   catchBack();
   show("sPoint");
   keepAwake();
-  guideOn = settings.voice && micOk && guide.available && navigator.onLine !== false;
+  guideOn = settings.agent === true && settings.voice && micOk && guide.available && navigator.onLine !== false;
   if (guideOn) startGuide();
   try {
     for (const code of codes) if (!cancel) await recordPoint(code);
@@ -580,7 +587,7 @@ function showReady() {
   $("btnBegin").textContent = partial ? t("ready.continue", { n: left }) : t("ready.begin");
   $("step2").innerHTML = t("ready.step2", { n: settings.seconds });
   $("btnQuick").hidden = partial;   // a quick test would start over and lose the places already recorded
-  $("guideHint").hidden = !guide.available;
+  $("btnVoice").hidden = settings.agent === true;   // with the AI guide there is nothing to switch: it speaks (and reads, if it goes away)
   $("readyNote").hidden = !settings.demo;
   $("readyNote").textContent = settings.demo ? t("ready.demo", { case: t(`case.${settings.demo}`) }) : "";
   show("sReady");
@@ -844,20 +851,25 @@ $("btnVoice").addEventListener("click", () => {
   if (settings.voice) {
     preloadVoice(current().code);
     say("voiceOn");
-    // The agent needs the microphone: asked for here, at the tap, without holding the switch up. Refused: the
-    // guide still reads the instructions, it just can't be talked to.
-    if (guide.available && !micOk) {
-      guide.allow().then(() => {
-        micOk = true;
-        if (noticeShown[0] === "guide.noMic") notice();
-      }, () => { if (settings.voice) notice("guide.noMic"); });
-    }
   } else {
     guideOn = false;
     hush();
   }
 });
 $("btnGuideMic").addEventListener("click", () => guide.toggleMic());
+// The AI guide's own screen. Yes: the agent guides the checks of this visit; it needs the microphone, asked for here, at
+// the tap. Refused, or the agent away: the instructions are read aloud instead (settings.voice is on with it).
+$("btnGuideYes").addEventListener("click", () => {
+  settings.agent = settings.voice = true;
+  saveSettings();
+  preloadVoice(current().code);
+  guide.allow().then(() => { micOk = true; if (noticeShown[0] === "guide.noMic") notice(); }, () => notice("guide.noMic"));
+  showReady();
+});
+$("btnGuideNo").addEventListener("click", () => {
+  settings.agent = false;
+  showReady();
+});
 $("btnForget").addEventListener("click", () => {
   try { localStorage.removeItem("respirai-checks"); } catch (e) { /* nothing stored */ }
   $("earlier").hidden = true;

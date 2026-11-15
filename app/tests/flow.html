@@ -41,6 +41,7 @@ check("wav header", wav.byteLength === 50 && wav.getUint32(24, true) === 8000 &&
 // --- end to end ---
 localStorage.setItem("respirai-agent", "off");   // no voice-guide agent in this suite, whatever guide-config.js says
 localStorage.setItem("respirai", JSON.stringify({ server: location.origin, seconds: 5, demo: "", welcomed: true, lang: "en", voice: true }));   // voice on last time
+localStorage.setItem("respirai-agent", "off");   // the AI guide has its own suite (guide.html)
 localStorage.setItem("respirai-checks", JSON.stringify([{ id: "old", started: Date.now() - 3 * 864e5, key: "ok" }]));
 const frame = document.getElementById("app");
 frame.src = "/index.html";
@@ -73,7 +74,7 @@ check("practice breath first", /Breathe (in|out)/.test($("dialMain").textContent
 const scale = () => $("breath").style.transform;
 const s1 = scale(); await sleep(400);
 check("circle drawn every frame, no CSS easing", scale() !== s1 && frame.contentWindow.getComputedStyle($("breath")).transitionDuration === "0s", s1 + " -> " + scale());
-await sleep(9000);
+await sleep(6000);   // the practice breath (6 s)
 check("then recording: breathing guide", /Breathe (in|out)/.test($("dialMain").textContent) && /seconds left/.test($("dialSub").textContent), $("dialMain").textContent + " / " + $("dialSub").textContent);
 check("signal shown", $("signalText").textContent === "Sound is coming through");
 for (let i = 0; i < 200 && ($("btnNow").hidden || $("pointTitle").textContent === "Base of the neck"); i++) await sleep(100);

@@ -64,6 +64,7 @@ check("answer shape", JSON.stringify(pp.finding(c)) === JSON.stringify({ finding
 
 // --- 2. a whole check with the AI on the phone (no server set) ---
 localStorage.setItem("respirai", JSON.stringify({ server: "", seconds: 5, demo: "", welcomed: true, lang: "en" }));
+localStorage.setItem("respirai-agent", "off");   // the AI guide has its own suite (guide.html)
 const frame = document.getElementById("app");
 frame.src = "/index.html";
 await new Promise((r) => (frame.onload = r));

@@ -39,6 +39,7 @@ check("a missing field is refused with {error}", res.status >= 400 && res.status
 
 // --- a whole check in the app, with a real lung recording streamed by the fake device ---
 localStorage.setItem("respirai", JSON.stringify({ server: location.origin, seconds: 5, demo: "", welcomed: true, lang: "en" }));
+localStorage.setItem("respirai-agent", "off");   // the AI guide has its own suite (guide.html)
 const frame = document.getElementById("app");
 frame.src = "/index.html?fakebt&wav=crackles.wav";
 await new Promise((r) => (frame.onload = r));
