@@ -23,6 +23,7 @@ Wording rule: the UI never says "diagnosis". Use "finding", "screening", "possib
 | `guide.js`, `guide-config.js`, `guide-sdk/` | the **voice guide**: an ElevenLabs conversational agent over the guided flow, which talks the person through the check and answers questions (see *Voice guide* below); `guide-sdk/` is ElevenLabs' client library in one file | — |
 | `mic-test.html`, `mic-test.js` | the team's **microphone test**: the device's mic and Bluetooth stream, live (see *Microphone test* below) | F2–F6, E3 |
 | `privacy.html` | the privacy policy (English, Română), for Google Play | — |
+| `waitlist.html` | the **waitlist page**: borrow the device for free and help the AI learn; one standalone page, English only, not part of the app's flow. The Google Form link and the contact email are set at the bottom of the file | — |
 
 ## Languages
 
