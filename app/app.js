@@ -88,7 +88,7 @@ for (const [id, parse] of [
 // say("point.Tc"): the recorded voice (voice.js; clips made with ElevenLabs by dev/make_voice.mjs) when this sentence
 // has a clip in this language, else the phone's own voice (Android's in the phone app, the browser's otherwise).
 function say(id) {
-  if (!settings.voice && !guideOn) return Promise.resolve();   // with the voice guide on, this is what speaks when it can't
+  if (!settings.voice) return Promise.resolve();
   const text = spokenText(id, t), lang = current();
   return Promise.race([playClip(lang.code, id, text).then((played) => played || speak(text, lang.locale)), sleep(15000)]);
 }
@@ -110,10 +110,11 @@ function hush() {
 }
 
 // ---------- the voice guide (guide.js) ----------
-// Switched on on the ready screen, for the checks of this visit. A guided check opens a conversation with the agent
-// when it starts; the agent says what say() would have said (told by tellGuide), answers questions in between,
-// and may press "start now" and "stop" for the person. Whenever there is no agent, say() speaks instead.
-let guideOn = false, byVoice = false, voiceAt = 0;
+// One switch on the ready screen, "respirAI guide" (settings.voice), is both voices. A check that starts with the
+// switch on, the phone online, an agent set up and the microphone allowed is guided by the agent (guideOn): it says
+// what say() would have said (told by tellGuide), answers questions in between, and may press "start now" and
+// "stop" for the person. In every other case, and whenever the agent goes away, say() reads the instructions.
+let guideOn = false, micOk = false, byVoice = false, voiceAt = 0;
 const languageName = () => new Intl.DisplayNames(["en"], { type: "language" }).of(current().code);   // "Romanian"
 
 const guideTools = {
@@ -330,6 +331,7 @@ async function runSession(codes) {
   catchBack();
   show("sPoint");
   keepAwake();
+  guideOn = settings.voice && micOk && guide.available && navigator.onLine !== false;
   if (guideOn) startGuide();
   try {
     for (const code of codes) if (!cancel) await recordPoint(code);
@@ -578,8 +580,7 @@ function showReady() {
   $("btnBegin").textContent = partial ? t("ready.continue", { n: left }) : t("ready.begin");
   $("step2").innerHTML = t("ready.step2", { n: settings.seconds });
   $("btnQuick").hidden = partial;   // a quick test would start over and lose the places already recorded
-  $("btnGuide").hidden = $("guideHint").hidden = !guide.available;
-  $("btnGuide").setAttribute("aria-pressed", guideOn);
+  $("guideHint").hidden = !guide.available;
   $("readyNote").hidden = !settings.demo;
   $("readyNote").textContent = settings.demo ? t("ready.demo", { case: t(`case.${settings.demo}`) }) : "";
   show("sReady");
@@ -843,22 +844,18 @@ $("btnVoice").addEventListener("click", () => {
   if (settings.voice) {
     preloadVoice(current().code);
     say("voiceOn");
-  }
-  else hush();
-});
-$("btnGuide").addEventListener("click", async () => {
-  if (guideOn) {
-    guideOn = false;
-  } else {
-    try {
-      await guide.allow();   // the microphone: asked for here, at the tap, with the reason next to it
-      guideOn = true;
-      notice();
-    } catch (e) {
-      notice("guide.noMic");
+    // The agent needs the microphone: asked for here, at the tap, without holding the switch up. Refused: the
+    // guide still reads the instructions, it just can't be talked to.
+    if (guide.available && !micOk) {
+      guide.allow().then(() => {
+        micOk = true;
+        if (noticeShown[0] === "guide.noMic") notice();
+      }, () => { if (settings.voice) notice("guide.noMic"); });
     }
+  } else {
+    guideOn = false;
+    hush();
   }
-  $("btnGuide").setAttribute("aria-pressed", guideOn);
 });
 $("btnGuideMic").addEventListener("click", () => guide.toggleMic());
 $("btnForget").addEventListener("click", () => {

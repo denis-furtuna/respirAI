@@ -47,7 +47,7 @@ Then commit `app/voice/`. The key is read from the environment only: **never put
 
 ## Voice guide
 
-An optional layer over the check: an [ElevenLabs agent](https://elevenlabs.io/docs/eleven-agents/overview) the person can talk to while their hands hold the chest piece. It says where to put it, hears "ready" and starts the recording, answers questions like "where exactly?", and says the result. It is switched on per visit on the ready screen (*Voice guide (AI)*), which appears only when an agent is set in `guide-config.js` and the browser has a microphone.
+An optional layer over the check: an [ElevenLabs agent](https://elevenlabs.io/docs/eleven-agents/overview) the person can talk to while their hands hold the chest piece. It says where to put it, hears "ready" and starts the recording, answers questions like "where exactly?", and says the result. It has no switch of its own: the ready screen has one switch for both voices, *respirAI guide*. A check that starts with it on is guided by the agent when the phone is online, an agent is set in `guide-config.js` and the microphone is allowed; otherwise the same switch reads the instructions aloud (*Spoken instructions* above), which works offline.
 
 What stays in the app: the timer, the breathing circle, the device's lights, the AI, every screen and button. The agent only speaks and presses two buttons. While the stethoscope records, the phone's microphone is off and the agent is silent, so neither voice ends up in the recording. If the agent can't be reached, or goes away mid-check, the app says so once and goes on with its own spoken instructions.
 

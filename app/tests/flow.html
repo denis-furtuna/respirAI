@@ -39,6 +39,7 @@ const wav = new DataView(await toWav(new Int16Array([1, -2, 3])).arrayBuffer());
 check("wav header", wav.byteLength === 50 && wav.getUint32(24, true) === 8000 && wav.getInt16(46, true) === -2);
 
 // --- end to end ---
+localStorage.setItem("respirai-agent", "off");   // no voice-guide agent in this suite, whatever guide-config.js says
 localStorage.setItem("respirai", JSON.stringify({ server: location.origin, seconds: 5, demo: "", welcomed: true, lang: "en", voice: true }));   // voice on last time
 localStorage.setItem("respirai-checks", JSON.stringify([{ id: "old", started: Date.now() - 3 * 864e5, key: "ok" }]));
 const frame = document.getElementById("app");

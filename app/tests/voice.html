@@ -21,6 +21,7 @@ const text = (lang, id) => spokenText(id, (key) => dicts[lang][key]);
 
 // --- the app, with a stand-in manifest, recordings and audio player ---
 localStorage.clear();
+localStorage.setItem("respirai-agent", "off");   // no voice-guide agent in this suite, whatever guide-config.js says
 localStorage.setItem("respirai", JSON.stringify({ server: location.origin, seconds: 5, demo: "", welcomed: true, lang: "en" }));
 const frame = document.getElementById("app");
 frame.src = "/index.html";

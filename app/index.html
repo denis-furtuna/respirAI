@@ -75,13 +75,9 @@
       <li><span>2</span><p id="step2"></p></li>
       <li><span>3</span><p data-t-html="ready.step3"></p></li>
     </ol>
-    <button id="btnVoice" class="toggle" aria-pressed="false">
+    <button id="btnVoice" class="toggle" aria-pressed="false" aria-describedby="guideHint">
       <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></svg>
-      <span data-t="ready.voice">Read the instructions aloud</span><i class="switch"></i>
-    </button>
-    <button id="btnGuide" class="toggle" aria-pressed="false" aria-describedby="guideHint" hidden>
-      <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg>
-      <span data-t="ready.guide">Voice guide (AI)</span><i class="switch"></i>
+      <span data-t="ready.voice">respirAI guide</span><i class="switch"></i>
     </button>
     <p id="guideHint" class="hint" data-t="ready.guideHint" hidden></p>
     <p id="readyNote" class="note" hidden></p>

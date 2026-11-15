@@ -21,7 +21,8 @@ function agentId() {
   try {
     const given = new URLSearchParams(location.search).get("agent");
     if (given !== null) given ? localStorage.setItem("respirai-agent", given) : localStorage.removeItem("respirai-agent");
-    return localStorage.getItem("respirai-agent") || AGENT_ID;
+    const stored = localStorage.getItem("respirai-agent");
+    return stored === "off" ? "" : stored || AGENT_ID;   // ?agent=off: no agent on this phone (the tests' way)
   } catch (e) {
     return AGENT_ID;
   }
@@ -40,7 +41,9 @@ const changed = () => onState(state());
 function applyAudio() {
   if (!conversation) return;
   try {
-    conversation.setMicMuted(held || micOff);
+    // One voice at a time: while the agent speaks, the microphone is off. Otherwise its own voice from the speaker,
+    // or the noise of the room, counts as the person interrupting, and it stops in the middle of its sentence.
+    conversation.setMicMuted(held || micOff || mode === "speaking");
     conversation.setVolume({ volume: held ? 0 : 1 });
   } catch (e) { /* the session is closing */ }
 }
@@ -56,6 +59,7 @@ async function open(mine, lang, tools, withLanguage) {
       if (mine !== run) return;
       if (m === "speaking" && mode !== "speaking") spokeAt = performance.now();
       mode = m;
+      applyAudio();
       changed();
     },
     onMessage: ({ source }) => { if (mine === run && source === "ai") saidAt = performance.now(); },
