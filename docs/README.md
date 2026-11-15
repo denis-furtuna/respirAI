@@ -10,6 +10,7 @@ Planning and design documents. Code-level docs live next to the code.
 | [`ADDONS.md`](ADDONS.md) | ECG and pulse extension modules |
 | [`DEMO.md`](DEMO.md) | demo day: setup, 5-minute script, fallbacks, Q&A, wording check |
 | `architecture.svg`, `enclosure-layout.svg` | diagrams used by the docs above |
+| `assembly-light.gif`, `assembly-dark.gif` | the device assembling itself, for the main README (light and dark page); made from the frames of `cad/animate.py` |
 | `brand/` | logo files: `logo-lockup-light.png` / `-dark.png` for the README header, plus the original square logo and icon, and `concept-render.jpg` |
 
 If you change a contract in `ARCHITECTURE.md`, tell everyone it affects before you push.
