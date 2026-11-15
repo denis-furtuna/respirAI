@@ -5,9 +5,9 @@ export default {
 
   "welcome.title": "Le damos la bienvenida a respirAI",
   "welcome.lead": "respirAI escucha sus pulmones con el estetoscopio y le señala los sonidos que conviene consultar con un médico.",
-  "welcome.diagnosis": "<b>No es un diagnóstico.</b> Solo un médico puede decir qué significan los sonidos.",
-  "welcome.privacy": "<b>Su privacidad:</b> las grabaciones se analizan en este teléfono y nunca se envían. Solo guarda la fecha y el resultado de las revisiones anteriores.",
-  "welcome.emergency": "<b>En caso de emergencia</b>, como una gran dificultad para respirar o dolor en el pecho, llame de inmediato al 112 o a su número de emergencias local.",
+  "welcome.diagnosis": "<b>No es un diagnóstico.</b> Solo un médico puede darlo.",
+  "welcome.privacy": "<b>Su privacidad:</b> las grabaciones se quedan en este teléfono.",
+  "welcome.emergency": "<b>¿Emergencia?</b> Llame al 112.",
   "welcome.ok": "Entendido, continuar",
 
   "connect.title": "Vamos a escuchar sus pulmones",
@@ -37,10 +37,10 @@ export default {
   "ready.titleContinue": "Todo listo para continuar",
   "ready.step1": "<b>Siéntese con la espalda recta</b> y relaje los hombros.",
   "ready.step2": {
-    one: "<b>Coloque la campana del estetoscopio</b> donde le indique la pantalla. Son 7 puntos; en cada uno escuchamos {n} segundo.",
-    other: "<b>Coloque la campana del estetoscopio</b> donde le indique la pantalla. Son 7 puntos; en cada uno escuchamos {n} segundos.",
+    one: "<b>Coloque la campana</b> donde indique la pantalla: 7 puntos, {n} segundo cada uno.",
+    other: "<b>Coloque la campana</b> donde indique la pantalla: 7 puntos, {n} segundos cada uno.",
   },
-  "ready.step3": "<b>Respire despacio</b> por la boca, siguiendo el círculo.",
+  "ready.step3": "<b>Respire hondo</b> por la boca, siguiendo el círculo.",
   "ready.voice": "Leer las instrucciones en voz alta",
   "ready.voiceOn": "Las instrucciones habladas están activadas.",
   "guideAsk.title": "Guía con IA",

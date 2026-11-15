@@ -5,9 +5,9 @@ export default {
 
   "welcome.title": "Welcome to respirAI",
   "welcome.lead": "respirAI listens to your lungs through its stethoscope and points out sounds a doctor should hear.",
-  "welcome.diagnosis": "<b>It is not a diagnosis.</b> Only a doctor can say what the sounds mean.",
-  "welcome.privacy": "<b>Your privacy:</b> recordings are checked on this phone and never uploaded. It keeps just the date and result of earlier checks.",
-  "welcome.emergency": "<b>In an emergency</b>, such as severe trouble breathing or chest pain, call 112 or your local emergency number straight away.",
+  "welcome.diagnosis": "<b>It is not a diagnosis.</b> Only a doctor can give one.",
+  "welcome.privacy": "<b>Your privacy:</b> recordings stay on this phone.",
+  "welcome.emergency": "<b>Emergency?</b> Call 112.",
   "welcome.ok": "I understand, continue",
 
   "connect.title": "Let's listen to your lungs",
@@ -37,10 +37,10 @@ export default {
   "ready.titleContinue": "Ready to continue",
   "ready.step1": "<b>Sit upright</b> and relax your shoulders.",
   "ready.step2": {
-    one: "<b>Place the chest piece</b> where the screen shows you. There are 7 places; each one listens for {n} second.",
-    other: "<b>Place the chest piece</b> where the screen shows you. There are 7 places; each one listens for {n} seconds.",
+    one: "<b>Place the chest piece</b> where the screen shows: 7 places, {n} second each.",
+    other: "<b>Place the chest piece</b> where the screen shows: 7 places, {n} seconds each.",
   },
-  "ready.step3": "<b>Breathe slowly</b> through your mouth, following the circle.",
+  "ready.step3": "<b>Breathe deeply</b> through your mouth, following the circle.",
   "ready.voice": "Read the instructions aloud",
   "ready.voiceOn": "Spoken instructions are on.",
   "guideAsk.title": "AI guide",

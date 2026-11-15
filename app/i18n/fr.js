@@ -5,9 +5,9 @@ export default {
 
   "welcome.title": "Bienvenue dans respirAI",
   "welcome.lead": "respirAI écoute vos poumons grâce à son stéthoscope et vous signale les sons qu'il vaut mieux faire écouter à un médecin.",
-  "welcome.diagnosis": "<b>Ce n'est pas un diagnostic.</b> Seul un médecin peut dire ce que signifient ces sons.",
-  "welcome.privacy": "<b>Votre vie privée :</b> les enregistrements sont analysés sur ce téléphone et ne sont jamais envoyés. Il ne garde que la date et le résultat des contrôles précédents.",
-  "welcome.emergency": "<b>En cas d'urgence</b>, par exemple une forte gêne respiratoire ou une douleur dans la poitrine, appelez immédiatement le 112 ou votre numéro d'urgence local.",
+  "welcome.diagnosis": "<b>Ce n'est pas un diagnostic.</b> Seul un médecin peut en poser un.",
+  "welcome.privacy": "<b>Votre vie privée :</b> les enregistrements restent sur ce téléphone.",
+  "welcome.emergency": "<b>Urgence ?</b> Appelez le 112.",
   "welcome.ok": "J'ai compris, continuer",
 
   "connect.title": "Écoutons vos poumons",
@@ -37,10 +37,10 @@ export default {
   "ready.titleContinue": "Tout est prêt pour continuer",
   "ready.step1": "<b>Asseyez-vous le dos droit</b> et relâchez les épaules.",
   "ready.step2": {
-    one: "<b>Placez le pavillon du stéthoscope</b> là où l'écran l'indique. Il y a 7 endroits ; chacun est écouté pendant {n} seconde.",
-    other: "<b>Placez le pavillon du stéthoscope</b> là où l'écran l'indique. Il y a 7 endroits ; chacun est écouté pendant {n} secondes.",
+    one: "<b>Placez le pavillon</b> là où l'écran l'indique : 7 endroits, {n} seconde chacun.",
+    other: "<b>Placez le pavillon</b> là où l'écran l'indique : 7 endroits, {n} secondes chacun.",
   },
-  "ready.step3": "<b>Respirez lentement</b> par la bouche, en suivant le cercle.",
+  "ready.step3": "<b>Respirez profondément</b> par la bouche, en suivant le cercle.",
   "ready.voice": "Lire les instructions à voix haute",
   "ready.voiceOn": "Les instructions vocales sont activées.",
   "guideAsk.title": "Guide IA",

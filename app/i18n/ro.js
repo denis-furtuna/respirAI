@@ -5,9 +5,9 @@ export default {
 
   "welcome.title": "Bun venit la respirAI",
   "welcome.lead": "respirAI vă ascultă plămânii cu stetoscopul său și vă semnalează sunetele pe care e bine să le asculte și un medic.",
-  "welcome.diagnosis": "<b>Nu este un diagnostic.</b> Doar un medic poate spune ce înseamnă sunetele.",
-  "welcome.privacy": "<b>Confidențialitate:</b> înregistrările sunt verificate pe acest telefon și nu sunt trimise nicăieri. Telefonul păstrează numai data și rezultatul verificărilor anterioare.",
-  "welcome.emergency": "<b>În caz de urgență</b>, de exemplu dacă respirați foarte greu sau aveți dureri în piept, sunați imediat la 112.",
+  "welcome.diagnosis": "<b>Nu este un diagnostic.</b> Pe acela îl pune doar medicul.",
+  "welcome.privacy": "<b>Confidențialitate:</b> înregistrările rămân pe acest telefon.",
+  "welcome.emergency": "<b>Urgență?</b> Sunați la 112.",
   "welcome.ok": "Am înțeles, continuăm",
 
   "connect.title": "Să vă ascultăm plămânii",
@@ -37,11 +37,11 @@ export default {
   "ready.titleContinue": "Putem continua",
   "ready.step1": "<b>Stați drept</b> și relaxați umerii.",
   "ready.step2": {
-    one: "<b>Așezați capsula stetoscopului</b> unde vă arată ecranul. Sunt 7 locuri; la fiecare ascultăm {n} secundă.",
-    few: "<b>Așezați capsula stetoscopului</b> unde vă arată ecranul. Sunt 7 locuri; la fiecare ascultăm {n} secunde.",
-    other: "<b>Așezați capsula stetoscopului</b> unde vă arată ecranul. Sunt 7 locuri; la fiecare ascultăm {n} de secunde.",
+    one: "<b>Așezați capsula</b> unde arată ecranul: 7 locuri, {n} secundă fiecare.",
+    few: "<b>Așezați capsula</b> unde arată ecranul: 7 locuri, {n} secunde fiecare.",
+    other: "<b>Așezați capsula</b> unde arată ecranul: 7 locuri, {n} de secunde fiecare.",
   },
-  "ready.step3": "<b>Respirați încet</b> pe gură, urmând cercul de pe ecran.",
+  "ready.step3": "<b>Respirați adânc</b> pe gură, după cercul de pe ecran.",
   "ready.voice": "Citește instrucțiunile cu voce tare",
   "ready.voiceOn": "Instrucțiunile vorbite sunt pornite.",
   "guideAsk.title": "Ghid AI",

@@ -5,9 +5,9 @@ export default {
 
   "welcome.title": "Willkommen bei respirAI",
   "welcome.lead": "respirAI hört mit seinem Stethoskop Ihre Lunge ab und zeigt Ihnen Geräusche, die Sie ärztlich abklären lassen sollten.",
-  "welcome.diagnosis": "<b>Das ist keine Diagnose.</b> Nur eine Ärztin oder ein Arzt kann sagen, was die Geräusche bedeuten.",
-  "welcome.privacy": "<b>Ihre Privatsphäre:</b> Aufnahmen werden auf diesem Telefon ausgewertet und nie hochgeladen. Es speichert nur Datum und Ergebnis früherer Checks.",
-  "welcome.emergency": "<b>Im Notfall</b>, etwa bei starker Atemnot oder Brustschmerzen, rufen Sie sofort die 112 oder Ihre örtliche Notrufnummer an.",
+  "welcome.diagnosis": "<b>Das ist keine Diagnose.</b> Die stellt nur eine Ärztin oder ein Arzt.",
+  "welcome.privacy": "<b>Ihre Privatsphäre:</b> Aufnahmen bleiben auf diesem Telefon.",
+  "welcome.emergency": "<b>Notfall?</b> Rufen Sie die 112 an.",
   "welcome.ok": "Verstanden, weiter",
 
   "connect.title": "Hören wir Ihre Lunge ab",
@@ -37,10 +37,10 @@ export default {
   "ready.titleContinue": "Bereit zum Fortfahren",
   "ready.step1": "<b>Setzen Sie sich aufrecht hin</b> und entspannen Sie die Schultern.",
   "ready.step2": {
-    one: "<b>Setzen Sie das Bruststück</b> dort auf, wo der Bildschirm es zeigt. Es gibt 7 Stellen; jede wird {n} Sekunde lang abgehört.",
-    other: "<b>Setzen Sie das Bruststück</b> dort auf, wo der Bildschirm es zeigt. Es gibt 7 Stellen; jede wird {n} Sekunden lang abgehört.",
+    one: "<b>Setzen Sie das Bruststück</b> dort auf, wo der Bildschirm es zeigt: 7 Stellen, je {n} Sekunde.",
+    other: "<b>Setzen Sie das Bruststück</b> dort auf, wo der Bildschirm es zeigt: 7 Stellen, je {n} Sekunden.",
   },
-  "ready.step3": "<b>Atmen Sie langsam</b> durch den Mund und folgen Sie dem Kreis.",
+  "ready.step3": "<b>Atmen Sie tief</b> durch den Mund und folgen Sie dem Kreis.",
   "ready.voice": "Anweisungen vorlesen",
   "ready.voiceOn": "Die gesprochene Anleitung ist eingeschaltet.",
   "guideAsk.title": "KI-Assistent",
