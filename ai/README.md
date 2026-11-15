@@ -9,7 +9,8 @@ Task list: D1–D13 in [`docs/PLAN.md` §5.3](../docs/PLAN.md#53-ai-and-data-can
 | File | What it does | Task |
 |---|---|---|
 | [`notebooks/train_icbhi.ipynb`](notebooks/train_icbhi.ipynb) | Kaggle notebook: explore, split, train, test, export, pick demo clips | D1–D6 |
-| `preprocess.py` | 4 kHz → band-pass 100–1800 Hz → 4 s windows → log-mel. **Imported by both training and the server.** NumPy/SciPy only. | D2 |
+| `preprocess.py` | 4 kHz → band-pass 100–1000 Hz → 4 s windows → log-mel, each band's mean taken out. **Imported by both training and the server.** NumPy/SciPy only. | D2 |
+| `train_local.py` | trains on this computer's GPU instead of Kaggle: by patient, with one stethoscope left out, or the model to ship; counts false alarms on our own device's recordings | D4, D6 |
 | `icbhi.py` | reads ICBHI files and cycle labels, labels windows, splits by patient | D1, D3 |
 | `model.py` | ResNet18 with 1 input channel and 4 classes; ONNX export (PyTorch, training only) | D4 |
 | `inference.py` | whole recording → one finding, using the ONNX model | D5 |
@@ -28,6 +29,37 @@ Not committed: datasets (`ai/data/`) and trained models (`ai/weights/`). Committ
 5. Download `respirai_export.zip` from *Output*, then put the files where the notebook's last cell says.
 
 The notebook clones this repo from GitHub to get the code, so **push your changes before running it**.
+
+## Train on this computer
+
+```bash
+py -3.12 -m venv .venv
+.venv/Scripts/python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
+.venv/Scripts/python -m pip install numpy scipy pandas scikit-learn soundfile onnx onnxruntime av kagglehub
+cd ai
+python train_local.py split --data <ICBHI folder>     # train / val / test by patient
+python train_local.py lodo  --data <ICBHI folder>     # each stethoscope left out in turn
+python train_local.py final --data <ICBHI folder> --noise data/own_noise --own data/own_healthy   # writes weights/resp_cnn.onnx + .json
+```
+
+`--noise` is a folder of background recordings from our device, mixed into the training sound. `--own` is a folder of healthy people recorded with our device, one sub-folder per person; it is only used to count false alarms.
+
+### What was measured (15 November 2026, one run each, ResNet18)
+
+Scores are per 4 s window; patients never shared between train and test. "Score" is the ICBHI score, (normal recognised + abnormal given its exact class) / 2; AUC is normal against abnormal.
+
+| | Old preprocessing (100–1800 Hz) | New (100–1000 Hz, band means out, our device's noise mixed in) |
+|---|---|---|
+| New patients, same stethoscopes | score 50.7 %, AUC 0.68 | score 49.7 %, AUC 0.67 |
+| AKG C417L left out | 45.0 %, 0.62 | 48.7 %, 0.65 |
+| Littmann 3200 left out | 30.8 %, 0.52 | 35.8 %, 0.53 |
+| Littmann Classic II SE left out | 56.5 %, 0.78 | 62.4 %, 0.87 |
+| Meditron left out | 40.5 %, 0.60 | 39.6 %, 0.57 |
+| Our device, one healthy person, 12 windows called not normal | 67–100 % | 25–67 % |
+
+The model does not carry well to a stethoscope it has not heard, ours included. The new preprocessing helps a little there and clearly on our own recordings, which is why it is now the default. The numbers are in `results/`.
+
+**Threshold.** The model's JSON can carry `"suspect_threshold"`: a recording at least that likely to be abnormal is reported as abnormal (`pick()` in `inference.py`, `finding()` in the app). Without it the most probable of the four classes wins. It has to be chosen on healthy people recorded with our device; that is not done yet.
 
 ## Run the server
 

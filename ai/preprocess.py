@@ -3,8 +3,9 @@
 Training (the Kaggle notebook) and the FastAPI server both import this file,
 so the model always sees audio prepared in exactly the same way.
 
-Pipeline: any sample rate -> 4 kHz -> band-pass 100-1800 Hz -> fixed 4 s
-windows -> log-mel spectrogram (64 mel bands x 251 frames).
+Pipeline: any sample rate -> 4 kHz -> band-pass 100-1000 Hz -> fixed 4 s
+windows -> log-mel spectrogram (64 mel bands x 251 frames), each band
+with its own mean taken out.
 
 Only NumPy and SciPy, on purpose: the server has to run on a laptop where
 heavier libraries (librosa/numba, PyTorch) may not be allowed to load.
@@ -16,7 +17,8 @@ from scipy.signal import butter, get_window, resample_poly, sosfiltfilt
 
 DEVICE_SR = 8000          # what the respirAI device sends (contract 1)
 TARGET_SR = 4000          # what the model works at
-BAND_HZ = (100, 1800)     # lung sounds live here; cuts heartbeat rumble and hiss
+BAND_HZ = (100, 1000)     # what our chest piece delivers: under 100 Hz is heartbeat and hand rumble, over 1 kHz only hiss
+BAND_NORM = True          # take each mel band's mean over the window out: removes the fixed colour of the stethoscope
 WINDOW_S = 4.0            # one model input; about one to two breathing cycles
 HOP_S = 2.0               # windows overlap by half when scanning a recording
 N_FFT = 256               # 64 ms at 4 kHz
@@ -104,13 +106,15 @@ def log_mel(window):
     idx = np.arange(N_FFT)[None, :] + HOP_LENGTH * np.arange(N_FRAMES)[:, None]
     power = np.abs(np.fft.rfft(padded[idx] * _HANN, axis=1)) ** 2   # (frames, bins)
     db = 10.0 * np.log10(np.maximum(_MEL_FB @ power.T, 1e-10))       # (mels, frames)
+    if BAND_NORM:
+        db = db - db.mean(axis=1, keepdims=True)
     return ((db - db.mean()) / (db.std() + 1e-6)).astype(np.float32)
 
 
 def params():
     """The settings a trained model depends on; saved next to the weights and checked on load."""
     return {"TARGET_SR": TARGET_SR, "BAND_HZ": list(BAND_HZ), "WINDOW_S": WINDOW_S,
-            "N_FFT": N_FFT, "HOP_LENGTH": HOP_LENGTH, "N_MELS": N_MELS}
+            "N_FFT": N_FFT, "HOP_LENGTH": HOP_LENGTH, "N_MELS": N_MELS, "BAND_NORM": BAND_NORM}
 
 
 def recording_to_specs(audio, sr):

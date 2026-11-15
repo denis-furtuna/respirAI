@@ -1,0 +1,69 @@
+{
+ "band": [
+  100.0,
+  1800.0
+ ],
+ "band_norm": false,
+ "noise": false,
+ "epochs": 12,
+ "AKGC417L": {
+  "n": 5768,
+  "specificity": 0.6815,
+  "sensitivity": 0.2185,
+  "icbhi_score": 0.45,
+  "auc_abnormal": 0.623,
+  "own_healthy": {
+   "windows": 12,
+   "p_abnormal_mean": 0.967,
+   "windows_not_normal": 1.0,
+   "per_person": {
+    "denis": 1.0
+   }
+  }
+ },
+ "Litt3200": {
+  "n": 558,
+  "specificity": 0.0598,
+  "sensitivity": 0.5564,
+  "icbhi_score": 0.3081,
+  "auc_abnormal": 0.5236,
+  "own_healthy": {
+   "windows": 12,
+   "p_abnormal_mean": 0.768,
+   "windows_not_normal": 0.667,
+   "per_person": {
+    "denis": 0.667
+   }
+  }
+ },
+ "LittC2SE": {
+  "n": 783,
+  "specificity": 0.7193,
+  "sensitivity": 0.4108,
+  "icbhi_score": 0.565,
+  "auc_abnormal": 0.7788,
+  "own_healthy": {
+   "windows": 12,
+   "p_abnormal_mean": 0.767,
+   "windows_not_normal": 0.75,
+   "per_person": {
+    "denis": 0.75
+   }
+  }
+ },
+ "Meditron": {
+  "n": 1849,
+  "specificity": 0.4042,
+  "sensitivity": 0.4064,
+  "icbhi_score": 0.4053,
+  "auc_abnormal": 0.6044,
+  "own_healthy": {
+   "windows": 12,
+   "p_abnormal_mean": 0.833,
+   "windows_not_normal": 0.833,
+   "per_person": {
+    "denis": 0.833
+   }
+  }
+ }
+}
