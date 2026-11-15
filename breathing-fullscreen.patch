@@ -1,0 +1,129 @@
+diff --git a/app/app.js b/app/app.js
+index 7cbde09..b98e2f6 100644
+--- a/app/app.js
++++ b/app/app.js
+@@ -348,6 +348,7 @@ async function runSession(codes) {
+     send(CMD.idle);
+     if (!finished) hush();   // a finished check has just started saying its result: let it speak
+     pointCode = null;
++    $("sPoint").classList.remove("breathing");
+     if (!finished) !device ? show("sConnect") : remaining().length ? showReady() : showResults();
+   }
+ }
+@@ -362,6 +363,7 @@ function pointTexts(code) {
+ async function recordPoint(code) {
+   const p = POINTS[code];
+   pointCode = code;
++  $("sPoint").classList.remove("breathing");
+   pointTexts(code);
+   $("progress").innerHTML = places().map((c) => `<i class="${c === code ? "now" : session.results[c] ? "done" : ""}"></i>`).join("");
+   drawBody($("body"), p.view, (c) => (c === code ? "here" : ""));
+@@ -380,6 +382,7 @@ async function recordPoint(code) {
+   // One practice breath per check, before its first recording: once the rhythm is known, later places (and a
+   // Continue or Record again) start recording with the first breath.
+   const practice = !session.practised;
++  $("sPoint").classList.add("breathing");   // from here to the end of the recording the circle has the whole screen
+   dial(t("point.getReady"), t("point.breatheSlowly"), 0);
+   // The breathing instruction finishes before the recording starts, unless stopped. The agent says it when it is
+   // there (it has just been told to, if it started the recording itself); then it is silent and the phone's
+diff --git a/app/dev/dev_server.py b/app/dev/dev_server.py
+index cbf9685..fd6c1d2 100644
+--- a/app/dev/dev_server.py
++++ b/app/dev/dev_server.py
+@@ -95,6 +95,12 @@ class Handler(SimpleHTTPRequestHandler):
+         target = (root / rest.lstrip("/\\")).resolve()
+         return str(target) if target.is_relative_to(root.resolve()) else str(APP / "not-found")
+ 
++    def end_headers(self):
++        # Always ask before reusing a copy: without this the browser keeps an old app file for a while after a change
++        # (it guesses from the file's age), and a new screen shows next to old code or old texts.
++        self.send_header("Cache-Control", "no-cache")
++        super().end_headers()
++
+     def send_json(self, status, body):
+         data = json.dumps(body).encode()
+         self.send_response(status)
+diff --git a/app/i18n/de.js b/app/i18n/de.js
+index 367ca17..16f6a5c 100644
+--- a/app/i18n/de.js
++++ b/app/i18n/de.js
+@@ -44,7 +44,7 @@ export default {
+   "ready.voice": "Anleitung vorlesen",
+   "ready.voiceOn": "Die gesprochene Anleitung ist eingeschaltet.",
+   "ready.guide": "Sprachassistent (KI)",
+-  "ready.guideHint": "Führt Sie durch die Untersuchung und beantwortet Ihre Fragen. Braucht Internet: Was Sie sagen sowie die Anleitung und das Ergebnis auf dem Bildschirm gehen an ElevenLabs. Die Aufnahmen des Stethoskops werden nicht dorthin gesendet.",
++  "ready.guideHint": "Führt Sie per Stimme und beantwortet Fragen, sobald die Untersuchung beginnt. Braucht Internet: Was Sie sagen, geht an ElevenLabs, die Aufnahmen des Stethoskops nicht.",
+   "guide.connecting": "Sprachassistent: verbindet…",
+   "guide.listening": "Der Assistent hört zu. Sagen Sie „fertig“, wenn das Bruststück sitzt.",
+   "guide.speaking": "Der Assistent spricht…",
+diff --git a/app/i18n/en.js b/app/i18n/en.js
+index dfef0e3..aa73ae7 100644
+--- a/app/i18n/en.js
++++ b/app/i18n/en.js
+@@ -44,7 +44,7 @@ export default {
+   "ready.voice": "Read the instructions aloud",
+   "ready.voiceOn": "Spoken instructions are on.",
+   "ready.guide": "Voice guide (AI)",
+-  "ready.guideHint": "Talks you through the check and answers your questions. Needs internet: what you say, and the instructions and result on screen, go to ElevenLabs. The stethoscope's recordings are not sent to it.",
++  "ready.guideHint": "Guides you by voice and answers questions once the check begins. Needs internet: what you say goes to ElevenLabs, the stethoscope's recordings don't.",
+   "guide.connecting": "Voice guide: connecting…",
+   "guide.listening": "The guide is listening. Say “ready” when it's in place.",
+   "guide.speaking": "The guide is speaking…",
+diff --git a/app/i18n/es.js b/app/i18n/es.js
+index 0eb9f29..757bb90 100644
+--- a/app/i18n/es.js
++++ b/app/i18n/es.js
+@@ -44,7 +44,7 @@ export default {
+   "ready.voice": "Leer las instrucciones en voz alta",
+   "ready.voiceOn": "Las instrucciones habladas están activadas.",
+   "ready.guide": "Guía por voz (IA)",
+-  "ready.guideHint": "Le acompaña durante la revisión y responde a sus preguntas. Necesita internet: lo que usted dice, y las instrucciones y el resultado de la pantalla, se envían a ElevenLabs. Las grabaciones del estetoscopio no se le envían.",
++  "ready.guideHint": "Le guía por voz y responde a sus preguntas cuando empieza la revisión. Necesita internet: lo que usted dice se envía a ElevenLabs; las grabaciones del estetoscopio, no.",
+   "guide.connecting": "Guía por voz: conectando…",
+   "guide.listening": "La guía escucha. Diga «listo» cuando esté colocado.",
+   "guide.speaking": "La guía está hablando…",
+diff --git a/app/i18n/fr.js b/app/i18n/fr.js
+index d32645d..02f4601 100644
+--- a/app/i18n/fr.js
++++ b/app/i18n/fr.js
+@@ -44,7 +44,7 @@ export default {
+   "ready.voice": "Lire les instructions à voix haute",
+   "ready.voiceOn": "Les instructions vocales sont activées.",
+   "ready.guide": "Guide vocal (IA)",
+-  "ready.guideHint": "Vous accompagne pendant le contrôle et répond à vos questions. Nécessite internet : ce que vous dites, ainsi que les instructions et le résultat affichés, sont envoyés à ElevenLabs. Les enregistrements du stéthoscope ne lui sont pas envoyés.",
++  "ready.guideHint": "Vous guide à la voix et répond à vos questions dès que le contrôle commence. Nécessite internet : ce que vous dites est envoyé à ElevenLabs, pas les enregistrements du stéthoscope.",
+   "guide.connecting": "Guide vocal : connexion…",
+   "guide.listening": "Le guide écoute. Dites « prêt » quand la pièce est en place.",
+   "guide.speaking": "Le guide parle…",
+diff --git a/app/i18n/ro.js b/app/i18n/ro.js
+index 25a9a44..f062bc9 100644
+--- a/app/i18n/ro.js
++++ b/app/i18n/ro.js
+@@ -45,7 +45,7 @@ export default {
+   "ready.voice": "Instrucțiuni citite cu voce tare",
+   "ready.voiceOn": "Instrucțiunile vorbite sunt pornite.",
+   "ready.guide": "Ghid vocal (AI)",
+-  "ready.guideHint": "Vă conduce prin verificare și vă răspunde la întrebări. Are nevoie de internet: ce spuneți, împreună cu instrucțiunile și rezultatul de pe ecran, ajunge la ElevenLabs. Înregistrările stetoscopului nu îi sunt trimise.",
++  "ready.guideHint": "Vă ghidează cu voce și vă răspunde la întrebări după ce începe verificarea. Are nevoie de internet: ce spuneți ajunge la ElevenLabs, înregistrările stetoscopului nu.",
+   "guide.connecting": "Ghid vocal: se conectează…",
+   "guide.listening": "Ghidul ascultă. Spuneți „gata” când piesa e la locul ei.",
+   "guide.speaking": "Ghidul vorbește…",
+diff --git a/app/style.css b/app/style.css
+index f121995..461ed92 100644
+--- a/app/style.css
++++ b/app/style.css
+@@ -151,6 +151,14 @@ main { max-width: 520px; margin: 0 auto; padding: 12px 20px 28px; }
+ @keyframes halo { from { transform: scale(1); opacity: 0.9; } to { transform: scale(2.4); opacity: 0; } }
+ 
+ .dial { position: relative; aspect-ratio: 1; width: 100%; }
++/* Once the chest piece is in place, only the breathing circle matters: it takes the whole screen until the recording is done. */
++#sPoint.breathing > .progress, #sPoint.breathing > .eyebrow, #sPoint.breathing > h1, #sPoint.breathing > .lead,
++#sPoint.breathing > .spacer, #sPoint.breathing .body { display: none; }
++#sPoint.breathing .stage { flex: 1; grid-template-columns: 1fr; justify-items: center; background: none; box-shadow: none; padding: 0; }
++#sPoint.breathing .dial { width: min(100%, 60dvh); }
++#sPoint.breathing #dialMain { font-size: 4.5rem; }
++#sPoint.breathing #dialMain.word { font-size: 2.2rem; }
++#sPoint.breathing #dialSub { font-size: 1.1rem; margin-top: 10px; }
+ .dial svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+ .dial circle { fill: none; stroke-width: 8; }
+ .dial .track { stroke: var(--primary-soft); }

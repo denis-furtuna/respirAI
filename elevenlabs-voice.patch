@@ -1,0 +1,531 @@
+diff --git a/app/README.md b/app/README.md
+index 353c03b..d83537e 100644
+--- a/app/README.md
++++ b/app/README.md
+@@ -19,6 +19,7 @@ Wording rule: the UI never says "diagnosis". Use "finding", "screening", "possib
+ | `ai/` | **the AI on the phone**: `pipeline.js` is `ai/preprocess.py`, `ai/quality.py` and the window combining of `ai/inference.py` in JavaScript; `worker.js` runs it with the model (ONNX Runtime Web) off the main thread and answers like `POST /analyze`; `local.js` is the app's side | — |
+ | `model/` | the trained model for `ai/` (see its README); empty until trained: dummy answers, like the server without weights | — |
+ | `native.js`, `native-bluetooth.js` | only in the Android app: the phone's own Bluetooth (behind the Web Bluetooth calls `device.js` uses), speech, wake lock, share sheet ([`phone/`](../phone/README.md)) | — |
++| `voice.js`, `voice/` | the **recorded voice** for the spoken instructions: clips made once with ElevenLabs, played from the app's own files (see *Spoken instructions* below) | — |
+ | `mic-test.html`, `mic-test.js` | the team's **microphone test**: the device's mic and Bluetooth stream, live (see *Microphone test* below) | F2–F6, E3 |
+ | `privacy.html` | the privacy policy (English, Română), for Google Play | — |
+ 
+@@ -28,6 +29,21 @@ The app opens in the phone's language when it has it (else English); the globe b
+ 
+ All text is in `i18n/<code>.js`, one file per language, loaded only when chosen. `en.js` is the reference: a missing text falls back to English, and the tests check every language has every text with the same `{placeholders}` and all the plural forms it needs. To add a language: copy `en.js`, translate the values, add a line to `LANGUAGES` in `i18n/index.js`. The AI server's own messages are never shown; the app shows its own words, in the user's language.
+ 
++## Spoken instructions
++
++With *Read the instructions aloud* on, the app says where to place the chest piece, when to breathe, and the result. Everything it says is fixed text, so each sentence is recorded once per language with an [ElevenLabs](https://elevenlabs.io) voice and kept in `voice/<language>/<clip>.mp3`. The app only plays these files: it never calls ElevenLabs, so there is no API key in it, it works offline, and nothing leaves the phone.
++
++```bash
++# once, and again after changing a spoken text in i18n/ (only what changed is recorded)
++ELEVENLABS_API_KEY=... node app/dev/make_voice.mjs --voice "<name or voice id>"
++node app/dev/make_voice.mjs --list        # the voices of your ElevenLabs account, with their ids
++node app/dev/make_voice.mjs --dry-run     # what would be recorded and how many characters, no key needed
++```
++
++Then commit `app/voice/`. The key is read from the environment only: **never put it in the repository** (it is public). The voice must be among your account's voices (*My Voices*); the script remembers it in `voice/manifest.json`, so later runs need no `--voice`.
++
++`voice/manifest.json` also holds the text each clip was recorded from. The app plays a clip only while that is exactly the text on screen; for a sentence with no clip, a text changed since, or a language not recorded, it uses the phone's own voice (Android's in the phone app, the browser's otherwise), as it did before. So a missing or outdated clip is never wrong, only less pleasant. The sentences are listed in `CLIPS` in `voice.js` (15 per language).
++
+ ## How a screening runs
+ 
+ Designed so an elderly person can follow it: one screen at a time, large text and buttons, plain words.
+diff --git a/app/app.js b/app/app.js
+index b0b869f..f9a66ad 100644
+--- a/app/app.js
++++ b/app/app.js
+@@ -5,6 +5,7 @@ import { fakeBluetooth } from "./fake-bluetooth.js";
+ import { LANGUAGES, current, dateTime, detect, percent, setLanguage, t } from "./i18n/index.js";
+ import { analyzeHere, healthHere } from "./ai/local.js";
+ import { native } from "./native.js";   // null in a browser; the phone app's own Bluetooth, speech... (see native.js)
++import { playClip, preloadVoice, spokenText, stopClip } from "./voice.js";
+ 
+ // n is the contract number (0-6). x/y place the dot on the front or back drawing; names are in i18n/ (point.Tc.title…).
+ // Left/right are the patient's: on the front view their left is on the viewer's right.
+@@ -83,19 +84,29 @@ for (const [id, parse] of [
+ }
+ 
+ // ---------- spoken instructions (for when the eyes are not on the screen, e.g. placing on the back) ----------
+-// Never while recording: the stethoscope would pick it up. The phone app speaks with Android's own voice.
+-function say(text) {
++// Never while recording: the stethoscope would pick it up.
++// say("point.Tc"): the recorded voice (voice.js; clips made with ElevenLabs by dev/make_voice.mjs) when this sentence
++// has a clip in this language, else the phone's own voice (Android's in the phone app, the browser's otherwise).
++function say(id) {
+   if (!settings.voice) return Promise.resolve();
+-  if (native) return Promise.race([native.speak(text, current().locale).catch(() => {}), sleep(8000)]);
++  const text = spokenText(id, t), lang = current();
++  return Promise.race([playClip(lang.code, id, text).then((played) => played || speak(text, lang.locale)), sleep(15000)]);
++}
++function speak(text, locale) {
++  if (native) return Promise.race([native.speak(text, locale).catch(() => {}), sleep(8000)]);
+   if (!window.speechSynthesis) return Promise.resolve();
+   speechSynthesis.cancel();
+   const u = new SpeechSynthesisUtterance(text);
+-  Object.assign(u, { lang: current().locale, rate: 0.9 });
++  Object.assign(u, { lang: locale, rate: 0.9 });
+   const spoken = new Promise((r) => { u.onend = u.onerror = r; });
+   speechSynthesis.speak(u);
+   return Promise.race([spoken, sleep(8000)]);
+ }
+-const hush = () => (native ? native.hush() : window.speechSynthesis?.cancel());
++function hush() {
++  stopClip();
++  if (native) native.hush();
++  else window.speechSynthesis?.cancel();
++}
+ 
+ // ---------- device + audio ----------
+ let device = null, recording = null, lastAudioAt = 0, batteryWarned = false;
+@@ -296,7 +307,7 @@ async function runSession(codes) {
+     lock = null;
+     native?.keepAwake(false);
+     send(CMD.idle);
+-    hush();
++    if (!finished) hush();   // a finished check has just started saying its result: let it speak
+     pointCode = null;
+     if (!finished) !device ? show("sConnect") : remaining().length ? showReady() : showResults();
+   }
+@@ -316,7 +327,7 @@ async function recordPoint(code) {
+   $("progress").innerHTML = places().map((c) => `<i class="${c === code ? "now" : session.results[c] ? "done" : ""}"></i>`).join("");
+   drawBody($("body"), p.view, (c) => (c === code ? "here" : ""));
+   if (settled()) enter($("pointStep"), $("pointTitle"), $("pointWhere"), $("body"));   // the next place (the first comes in with the screen)
+-  say(`${title(code)}. ${t(`point.${code}.where`)}`);
++  say(`point.${code}`);
+ 
+   // 1. Time to place the chest piece (or tap "start now").
+   $("btnNow").hidden = false;
+@@ -328,7 +339,7 @@ async function recordPoint(code) {
+   // Continue or Record again) start recording with the first breath.
+   const practice = !session.practised;
+   dial(t("point.getReady"), t("point.breatheSlowly"), 0);
+-  await orStop(say(t(practice ? "point.sayBreathe" : "point.sayBreatheNext")));   // finishes before the recording starts, unless stopped
++  await orStop(say(practice ? "breathe" : "breatheNext"));   // finishes before the recording starts, unless stopped
+   if (cancel) return;
+ 
+   // 2. (The practice breath, then) record the next breaths. The device's lights start with the circle and loop on
+@@ -528,11 +539,12 @@ const STYLE = { warn: "warn", pending: "unclear", retry: "unclear", unclear: "un
+ const SHORT = { warn: "short.warn", retry: "short.unfinished", unclear: "short.unfinished", ok: "short.ok" };   // for earlier checks
+ const listenable = (code) => session.audio[code]?.length > 0 && !session.results[code]?.demo;   // a demo result was about an example, not this recording
+ 
++let overallKey = "ok";   // the overall answer on the results screen: warn, pending, retry, unclear or ok
+ function showResults() {
+   resetRestart();
+   show("sResults");
+   renderResults();
+-  say(`${$("overallTitle").textContent}. ${$("overallText").textContent}`);
++  say(`overall.${overallKey}`);
+ }
+ 
+ function renderResults() {
+@@ -542,6 +554,7 @@ function renderResults() {
+   const any = (test) => all.some(test);
+   const key = any((v) => v.cls === "warn") ? "warn" : any((v) => v.pending) ? "pending" : any((v) => v.retry) ? "retry"
+     : any((v) => v.cls !== "ok") ? "unclear" : "ok";
++  overallKey = key;
+   const cls = STYLE[key];
+   $("overall").className = `overall ${cls}`;
+   $("overallIcon").innerHTML = icon(MARK[cls]);
+@@ -765,7 +778,10 @@ $("btnShare").addEventListener("click", share);
+ $("btnVoice").addEventListener("click", () => {
+   settings.voice = !settings.voice;
+   saveSettings();
+-  if (settings.voice) say(t("ready.voiceOn"));
++  if (settings.voice) {
++    preloadVoice(current().code);
++    say("voiceOn");
++  }
+   else hush();
+ });
+ $("btnForget").addEventListener("click", () => {
+diff --git a/app/dev/make_voice.mjs b/app/dev/make_voice.mjs
+new file mode 100644
+index 0000000..880c477
+--- /dev/null
++++ b/app/dev/make_voice.mjs
+@@ -0,0 +1,157 @@
++// Records the app's spoken instructions with an ElevenLabs voice: app/voice/<language>/<clip>.mp3 + manifest.json.
++//
++//   ELEVENLABS_API_KEY=... node app/dev/make_voice.mjs --voice <name or voice id>
++//
++//   --voice X      the voice: a voice id, or a name / search word among the voices of your ElevenLabs account
++//                  (default: the voice the clips were made with last time)
++//   --list [X]     only list your account's voices (matching X) with their ids
++//   --lang ro en   only these languages (default: every language in app/i18n/)
++//   --model M      default eleven_multilingual_v2 (it speaks all five of the app's languages)
++//   --force        record everything again, also what has not changed
++//   --dry-run      show what would be recorded and how many characters it costs; needs no key
++//
++// Only what is new is recorded: a clip is made again when its text changed in app/i18n/, or the voice or model
++// changed. Clips of sentences the app no longer says are deleted. Commit app/voice/ afterwards: the app plays the
++// files and never calls ElevenLabs itself, so the key stays on your computer (never put it in the repository).
++// Needs Node 18 or newer, nothing to install.
++import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
++import { dirname, join } from "node:path";
++import { fileURLToPath } from "node:url";
++
++const APP = join(dirname(fileURLToPath(import.meta.url)), "..");
++const OUT = join(APP, "voice");
++const MANIFEST = join(OUT, "manifest.json");
++const API = process.env.ELEVENLABS_API_URL || "https://api.elevenlabs.io";   // e.g. https://api.eu.residency.elevenlabs.io for an EU-residency account
++const FORMAT = "mp3_44100_64";   // speech only: half the size of the default, no audible loss on a phone
++
++// The app's own modules, read as text so this runs whatever Node thinks of .js files (they import nothing).
++const load = (path) => import("data:text/javascript;charset=utf-8," + encodeURIComponent(readFileSync(join(APP, path), "utf8")));
++
++function options(argv) {
++  const opt = { lang: [] };
++  for (let i = 0; i < argv.length; i++) {
++    const a = argv[i], value = () => (argv[i + 1] && !argv[i + 1].startsWith("--") ? argv[++i] : undefined);
++    if (a === "--voice") opt.voice = value();
++    else if (a === "--model") opt.model = value();
++    else if (a === "--list") { opt.list = true; opt.search = value(); }
++    else if (a === "--lang") { let v; while ((v = value())) opt.lang.push(v); }
++    else if (a === "--force") opt.force = true;
++    else if (a === "--dry-run") opt.dry = true;
++    else stop(`Unknown option ${a}. The options are at the top of app/dev/make_voice.mjs.`);
++  }
++  return opt;
++}
++
++function stop(message) {
++  console.error(message);
++  process.exit(1);
++}
++
++async function api(path, init = {}) {
++  const key = process.env.ELEVENLABS_API_KEY;
++  if (!key) stop("Set ELEVENLABS_API_KEY first (elevenlabs.io → Developers → API keys). It is read from the environment only.");
++  const res = await fetch(API + path, { ...init, headers: { "xi-api-key": key, ...init.headers } });
++  if (!res.ok) {
++    const body = (await res.text()).slice(0, 400);
++    stop(`ElevenLabs answered ${res.status} for ${path.split("?")[0]}: ${body}` + (res.status === 401 ? "\nIs the API key right, and may it use text to speech and read voices?" : ""));
++  }
++  return res;
++}
++
++const describe = (v) => `${v.voice_id}  ${v.name}` + (v.labels?.use_case ? `  [${v.labels.use_case}]` : "") + (v.category ? `  (${v.category})` : "");
++
++async function voices(search) {
++  const query = new URLSearchParams({ page_size: "100", ...(search ? { search } : {}) });
++  return (await (await api(`/v2/voices?${query}`)).json()).voices || [];
++}
++
++// A voice id is used as it is; anything else is looked up among the account's voices and must match exactly one.
++async function findVoice(wanted) {
++  if (wanted === old.voice?.id) return { voice_id: old.voice.id, name: old.voice.name };
++  if (/^[A-Za-z0-9]{20}$/.test(wanted)) return { voice_id: wanted, name: wanted };
++  const found = await voices(wanted);
++  const exact = found.filter((v) => v.name.toLowerCase() === wanted.toLowerCase());
++  const pick = exact.length === 1 ? exact : found;
++  if (pick.length === 1) return pick[0];
++  if (!pick.length) stop(`No voice matching "${wanted}" in your ElevenLabs account. Add it to "My Voices" first, or see: node app/dev/make_voice.mjs --list`);
++  stop(`"${wanted}" matches ${pick.length} voices. Run again with the id of the one you mean:\n` + pick.map((v) => "  " + describe(v)).join("\n"));
++}
++
++const opt = options(process.argv.slice(2));
++if (opt.list) {
++  for (const v of await voices(opt.search)) console.log(describe(v));
++  process.exit(0);
++}
++
++const { CLIPS, spokenText } = await load("voice.js");
++const en = (await load("i18n/en.js")).default;
++const all = readdirSync(join(APP, "i18n")).filter((f) => /^[a-z]{2}\.js$/.test(f)).map((f) => f.slice(0, 2)).sort();
++for (const code of opt.lang) if (!all.includes(code)) stop(`No app/i18n/${code}.js. Languages: ${all.join(", ")}.`);
++const languages = opt.lang.length ? opt.lang : all;
++
++const old = existsSync(MANIFEST) ? JSON.parse(readFileSync(MANIFEST, "utf8")) : {};
++const model = opt.model || old.model || "eleven_multilingual_v2";
++const wanted = opt.voice || old.voice?.id;
++if (!wanted) stop("Which voice? Pass --voice <name or voice id>. To see your account's voices: node app/dev/make_voice.mjs --list");
++const same = old.model === model && (wanted === old.voice?.id || wanted.toLowerCase() === old.voice?.name?.toLowerCase());
++const kept = same ? old.clips || {} : {};   // another voice or model: every clip is recorded again
++if (!same && old.clips && opt.lang.length) stop("Another voice or model than the clips were made with: run without --lang, so every language is in the same voice.");
++
++// What to say, per language (a text a language lacks is said in English, as the app shows it).
++const todo = [], clips = {};
++for (const lang of all) {
++  const dict = (await load(`i18n/${lang}.js`)).default;
++  const t = (key) => {
++    const text = dict[key] ?? en[key];
++    if (typeof text !== "string") stop(`"${key}" (${lang}) must be a plain text to be spoken.`);
++    return text;
++  };
++  clips[lang] = {};
++  for (const id of Object.keys(CLIPS)) {
++    const text = spokenText(id, t), file = join(OUT, lang, `${id}.mp3`);
++    const again = opt.force && languages.includes(lang);
++    if (!again && kept[lang]?.[id] === text && existsSync(file)) clips[lang][id] = text;       // up to date
++    else if (languages.includes(lang)) todo.push({ lang, id, text, file });                    // record it
++    else if (old.clips?.[lang]?.[id] && existsSync(file) && same) clips[lang][id] = old.clips[lang][id];   // not asked for now: stays as it is (the app won't play it if its text changed)
++  }
++}
++
++const characters = todo.reduce((n, c) => n + c.text.length, 0);
++console.log(`${todo.length} clips to record (${characters} characters), ${Object.values(clips).reduce((n, c) => n + Object.keys(c).length, 0)} up to date.`);
++if (opt.dry) {
++  for (const c of todo) console.log(`  ${c.lang}/${c.id}: ${c.text}`);
++  process.exit(0);
++}
++
++const voice = todo.length || !old.voice ? await findVoice(wanted) : { voice_id: old.voice.id, name: old.voice.name };
++const save = () => {
++  mkdirSync(OUT, { recursive: true });
++  writeFileSync(MANIFEST, JSON.stringify({ voice: { id: voice.voice_id, name: voice.name }, model, format: FORMAT, clips }, null, 2) + "\n");
++};
++if (todo.length) console.log(`Voice: ${voice.name} (${voice.voice_id}), model ${model}`);
++
++for (const c of todo) {
++  // eleven_multilingual_v2 works the language out from the text and takes no language_code; the newer models do.
++  const body = { text: c.text, model_id: model, ...(model === "eleven_multilingual_v2" ? {} : { language_code: c.lang }) };
++  const res = await api(`/v1/text-to-speech/${voice.voice_id}?output_format=${FORMAT}`,
++    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
++  mkdirSync(dirname(c.file), { recursive: true });
++  writeFileSync(c.file, Buffer.from(await res.arrayBuffer()));
++  clips[c.lang][c.id] = c.text;
++  save();   // after every clip: a run that stops halfway keeps what it made
++  console.log(`  ${c.lang}/${c.id}.mp3`);
++}
++save();
++
++// Clips of sentences the app no longer says, or of languages it no longer has.
++if (existsSync(OUT)) {
++  for (const lang of readdirSync(OUT, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name)) {
++    for (const file of readdirSync(join(OUT, lang)).filter((f) => f.endsWith(".mp3"))) {
++      if (!clips[lang]?.[file.slice(0, -4)]) {
++        rmSync(join(OUT, lang, file));
++        console.log(`  removed ${lang}/${file}`);
++      }
++    }
++  }
++}
++console.log(`Done: app/voice/ has ${Object.values(clips).reduce((n, c) => n + Object.keys(c).length, 0)} clips. Listen to a few, then commit app/voice/.`);
+diff --git a/app/sw.js b/app/sw.js
+index a3452eb..4560c95 100644
+--- a/app/sw.js
++++ b/app/sw.js
+@@ -3,7 +3,7 @@
+ // Network first: a change to the app shows at once; the copy is only used when the network fails.
+ const CACHE = "respirai";
+ const APP = ["./", "index.html", "style.css", "app.js", "audio.js", "device.js", "fake-bluetooth.js", "manifest.webmanifest",
+-  "native.js", "native-bluetooth.js", "ai/local.js", "ai/worker.js", "ai/pipeline.js", "mic-test.html", "mic-test.js",
++  "native.js", "native-bluetooth.js", "voice.js", "ai/local.js", "ai/worker.js", "ai/pipeline.js", "mic-test.html", "mic-test.js",
+   "i18n/index.js", "i18n/en.js", "i18n/ro.js", "i18n/es.js", "i18n/fr.js", "i18n/de.js",
+   "img/logo.png", "img/logo-dark.png", "img/lungs.png", "img/lungs-dark.png", "img/favicon.png", "img/icon-192.png"];
+ 
+diff --git a/app/tests/run.py b/app/tests/run.py
+index 9820f44..bd83187 100644
+--- a/app/tests/run.py
++++ b/app/tests/run.py
+@@ -23,7 +23,7 @@ from pathlib import Path
+ import stub_server
+ 
+ HERE = Path(__file__).resolve().parent
+-SUITES = ["flow", "bluetooth", "no-audio", "mic-test", "languages", "on-phone", "native", "ai"]   # against the stub; real-server.html needs --real
++SUITES = ["flow", "bluetooth", "no-audio", "mic-test", "languages", "voice", "on-phone", "native", "ai"]   # against the stub; real-server.html needs --real
+ # ai.html needs files made on GitHub (make_golden.py needs NumPy, SciPy, ONNX; ONNX Runtime Web comes from npm):
+ AI_FILES = [HERE / "golden" / "golden.json", HERE.parent / "vendor" / "onnxruntime-web" / "ort.wasm.min.mjs"]
+ CHROMES = [
+diff --git a/app/tests/voice.html b/app/tests/voice.html
+new file mode 100644
+index 0000000..bd06976
+--- /dev/null
++++ b/app/tests/voice.html
+@@ -0,0 +1,104 @@
++<!doctype html>
++<meta charset="utf-8">
++<title>voice test</title>
++<!-- The recorded voice (voice.js): a clip is played when its text is the one on screen, else the phone's own voice; Stop cuts it.
++     The recordings and the manifest are stand-ins made here, so this needs no ElevenLabs clips. Run with app/tests/run.py. -->
++<pre id="out">running</pre>
++<iframe id="app" style="width:390px;height:844px"></iframe>
++<script type="module">
++import { CLIPS, spokenText } from "/voice.js";
++import { LANGUAGES } from "/i18n/index.js";
++const out = [];
++const check = (name, ok, extra = "") => out.push(`${ok ? "PASS" : "FAIL"} ${name} ${extra}`);
++const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++
++// --- every clip is made of texts that exist, in every language, as plain text ---
++const dicts = Object.fromEntries(await Promise.all(LANGUAGES.map(async ({ code }) => [code, (await import(`/i18n/${code}.js`)).default])));
++const bad = [];
++for (const [code, dict] of Object.entries(dicts)) for (const keys of Object.values(CLIPS)) for (const key of keys) if (typeof dict[key] !== "string") bad.push(`${code}: ${key}`);
++check("every spoken sentence has a text in every language", bad.length === 0 && Object.keys(CLIPS).length === 15, bad.slice(0, 5).join("; "));
++const text = (lang, id) => spokenText(id, (key) => dicts[lang][key]);
++
++// --- the app, with a stand-in manifest, recordings and audio player ---
++localStorage.clear();
++localStorage.setItem("respirai", JSON.stringify({ server: location.origin, seconds: 5, demo: "", welcomed: true, lang: "en" }));
++const frame = document.getElementById("app");
++frame.src = "/index.html";
++await new Promise((r) => (frame.onload = r));
++const w = frame.contentWindow, d = frame.contentDocument, $ = (id) => d.getElementById(id);
++const visible = (id) => !$(id).hidden;
++
++const recorded = { en: Object.fromEntries(Object.keys(CLIPS).map((id) => [id, text("en", id)])) };
++recorded.en["point.Tc"] = "An older wording of this sentence.";   // its text has changed since it was recorded
++delete recorded.en["overall.warn"];                               // never recorded
++const fetched = [], realFetch = w.fetch.bind(w);
++w.fetch = (url, ...rest) => {
++  const path = String(url);
++  if (path === "voice/manifest.json") return Promise.resolve(new Response(JSON.stringify({ clips: recorded })));
++  if (path.startsWith("voice/")) { fetched.push(path); return Promise.resolve(new Response(new Blob(["mp3"]), { status: path.includes("breatheNext") ? 404 : 200 })); }
++  return realFetch(url, ...rest);
++};
++const urls = new Map(), realCreate = w.URL.createObjectURL.bind(w.URL);
++w.URL.createObjectURL = (blob) => { const u = realCreate(blob); urls.set(u, fetched[urls.size]); return u; };
++const played = [];   // the clips the player was asked for, in order
++let player = null, refuse = false;
++w.Audio = class {
++  play() { player = this; this.playing = true; played.push(urls.get(this.src)); return refuse ? Promise.reject(new DOMException("no", "NotAllowedError")) : Promise.resolve(); }
++  pause() { this.playing = false; this.paused = (this.paused || 0) + 1; }
++  end() { this.playing = false; this.onended?.(); }
++};
++const spoken = [];   // what the phone's own voice was asked to say
++let cancelled = 0;
++w.speechSynthesis.speak = (u) => { spoken.push(u.text); setTimeout(() => u.onend?.(), 50); };
++w.speechSynthesis.cancel = () => { cancelled++; };
++
++$("btnPractice").click(); await sleep(1000);
++$("btnVoice").click(); await sleep(300);
++check("voice on → the recorded sentence, not the phone's voice", played.join() === "voice/en/voiceOn.mp3" && spoken.length === 0 && player.playing, played.join() + " / " + spoken.join());
++check("this language's clips are fetched ahead", ["voice/en/point.Al.mp3", "voice/en/breathe.mp3", "voice/en/overall.ok.mp3"].every((f) => fetched.includes(f)) && !fetched.some((f) => !f.startsWith("voice/en/")), fetched.length + " fetched");
++player.end();
++
++// a clip whose text has changed is not played: the phone's voice says the current text
++$("btnBegin").click(); await sleep(600);
++check("text changed since the recording → the phone's voice says the new text", spoken.join() === text("en", "point.Tc") && played.length === 1, spoken.join() + " / " + played.join());
++$("btnNow").click(); await sleep(400);
++check("before the recording: the recorded breathing instruction", played.at(-1) === "voice/en/breathe.mp3" && player.playing && $("dialMain").textContent === "Get ready", played.at(-1) + " / " + $("dialMain").textContent);
++await sleep(3000);
++check("the recording waits for the sentence to end", $("dialMain").textContent === "Get ready", $("dialMain").textContent);
++const pausedBefore = player.paused || 0;
++$("btnStop").click(); await sleep(300);
++check("stop while the clip plays → back to ready at once, clip cut", visible("sReady") && !player.playing && player.paused > pausedBefore);
++
++// the whole quick test: the place's clip, then (a clip that can't be loaded) the phone's voice, then the result
++spoken.length = 0;
++await sleep(600);   // a tap right after a change of screen is ignored
++$("btnQuick").click(); await sleep(600);
++check("the place: its recorded sentence", played.at(-1) === "voice/en/point.Al.mp3" && spoken.length === 0, played.at(-1) + " / " + spoken.join());
++player.end();
++$("btnNow").click(); await sleep(400);
++check("a new check starts with the practice sentence again", played.at(-1) === "voice/en/breathe.mp3", played.at(-1));
++player.end();
++for (let i = 0; i < 300 && !visible("sResults"); i++) await sleep(300);
++await sleep(500);
++check("the result is said when the check ends; no recording of it (Al: crackles) → the phone's voice", visible("sResults") && spoken.at(-1) === text("en", "overall.warn"), spoken.join() + " / " + $("overallTitle").textContent);
++
++// the player refuses (no permission to play sound): the phone's voice instead
++spoken.length = 0; refuse = true;
++$("btnVoice").click(); await sleep(100); $("btnVoice").click(); await sleep(300);
++check("the player refuses → the phone's voice", spoken.join() === text("en", "voiceOn"), spoken.join());
++refuse = false;
++
++// another language without recordings: its texts, the phone's voice
++spoken.length = 0;
++$("btnVoice").click(); await sleep(100);
++$("btnSettings").click(); $("btnLangRow").click();
++[...d.querySelectorAll("#languageList .language")].find((b) => b.lang === "ro").click(); await sleep(500);
++$("settings").close();
++const playedBefore = played.length;
++$("btnVoice").click(); await sleep(300);
++check("a language with no recordings → the phone's voice, in that language", spoken.join() === "Instrucțiunile vorbite sunt pornite." && played.length === playedBefore, spoken.join());
++$("btnVoice").click();
++check("voice off → silence", cancelled > 0 && $("btnVoice").getAttribute("aria-pressed") === "false");
++
++document.getElementById("out").textContent = out.join("\n") + "\nDONE";
++</script>
+diff --git a/app/voice.js b/app/voice.js
+new file mode 100644
+index 0000000..c122313
+--- /dev/null
++++ b/app/voice.js
+@@ -0,0 +1,84 @@
++// The recorded voice for the spoken instructions (an ElevenLabs voice), with the phone's own voice behind it.
++//
++// Everything the app says is fixed text, so each sentence is recorded once per language by app/dev/make_voice.mjs
++// and shipped with the app as voice/<language>/<clip>.mp3. The phone never talks to ElevenLabs: no key in the app,
++// no internet needed, and nothing leaves the phone.
++//
++// voice/manifest.json holds the exact text each clip was recorded from. A clip is played only while that is still
++// the text on the screen; a changed text, a clip not recorded yet or a file that can't be loaded all mean "not
++// played", and app.js then says it with the phone's own voice, as before.
++
++// clip → the texts (i18n keys) it says, one after another. Shared with make_voice.mjs: keep it free of imports.
++export const CLIPS = Object.fromEntries([
++  ["voiceOn", ["ready.voiceOn"]],
++  ...["Tc", "Al", "Ar", "Pl", "Pr", "Ll", "Lr"].map((code) => [`point.${code}`, [`point.${code}.title`, `point.${code}.where`]]),
++  ["breathe", ["point.sayBreathe"]],
++  ["breatheNext", ["point.sayBreatheNext"]],
++  ...["warn", "pending", "retry", "unclear", "ok"].map((key) => [`overall.${key}`, [`overall.${key}.title`, `overall.${key}.text`]]),
++]);
++export const spokenText = (id, t) => CLIPS[id].map((key) => t(key)).join(". ");
++
++let recorded = null;        // promise of { language: { clip: text } }, from voice/manifest.json
++const loaded = new Map();   // clip address → promise of an object URL (null: could not be loaded)
++let audio = null, finish = null, turn = 0;
++
++function manifest() {
++  recorded = recorded || fetch("voice/manifest.json")
++    .then((res) => (res.ok ? res.json() : {}))   // no manifest: nothing has been recorded
++    .then((m) => m.clips || {})
++    .catch(() => { recorded = null; return {}; });   // offline just now: ask again next time
++  return recorded;
++}
++
++function load(lang, id) {
++  const url = `voice/${lang}/${id}.mp3`;
++  if (!loaded.has(url)) {
++    loaded.set(url, fetch(url)
++      .then((res) => { if (!res.ok) throw new Error(res.status); return res.blob(); })
++      .then((blob) => URL.createObjectURL(blob))
++      .catch(() => { loaded.delete(url); return null; }));
++  }
++  return loaded.get(url);
++}
++
++// Fetches this language's clips ahead of time (when spoken instructions are switched on), so the first sentence
++// doesn't wait for a download and the service worker has them for offline use.
++export function preloadVoice(lang) {
++  manifest().then((all) => { for (const id of Object.keys(all[lang] || {})) if (id in CLIPS) load(lang, id); });
++}
++
++// Plays the recorded clip for this text. Resolves true when it has been said (or was cut by stopClip or by the
++// next sentence), false when there is no usable clip: the caller then speaks the text itself.
++export async function playClip(lang, id, text) {
++  stopClip();
++  const mine = turn;
++  const all = await manifest();
++  if (mine !== turn) return true;
++  if (all[lang]?.[id] !== text) return false;
++  const src = await load(lang, id);
++  if (mine !== turn) return true;
++  if (!src) return false;
++  audio = audio || new Audio();
++  audio.src = src;
++  const said = new Promise((resolve) => {
++    finish = resolve;
++    audio.onended = () => resolve(true);
++    audio.onerror = () => resolve(false);
++  });
++  try {
++    await audio.play();
++  } catch (e) {   // cut before it started, or the browser refused to play
++    return mine !== turn;
++  }
++  return said;
++}
++
++export function stopClip() {
++  turn++;
++  if (audio) {
++    audio.onended = audio.onerror = null;
++    audio.pause();
++  }
++  finish?.(true);
++  finish = null;
++}

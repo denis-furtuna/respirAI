@@ -1,0 +1,198 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>voice guide test</title>
+<!-- The voice guide (guide.js) over the normal flow, with a stand-in for the ElevenLabs agent: what the app tells it, what its
+     tools do, silence and a muted microphone while recording, and the check going on without it. Run with app/tests/run.py. -->
+<pre id="out">running</pre>
+<iframe id="app" style="width:390px;height:844px"></iframe>
+<script type="module">
+const out = [];
+const check = (name, ok, extra = "") => out.push(`${ok ? "PASS" : "FAIL"} ${name} ${extra}`);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const frame = document.getElementById("app");
+let w, d, $, visible, spoken, Agent;
+
+// The stand-in agent: answers every message from the app (and every tool result) by "speaking" for a moment.
+function standIn() {
+  return class Fake {
+    static calls = [];
+    static refuse = () => false;   // (options) → true: startSession fails
+    static async startSession(options) {
+      Fake.calls.push(options);
+      if (Fake.refuse(options)) throw new Error("refused");
+      return (Fake.last = new Fake(options));
+    }
+    constructor(options) { Object.assign(this, { options, messages: [], muted: false, volume: 1, ended: false, sound: 0 }); }
+    speak(ms = 700, after = 50) {
+      setTimeout(() => { if (this.ended) return; this.sound++; this.options.onMessage?.({ source: "ai", message: "…" }); this.options.onModeChange({ mode: "speaking" }); }, after);
+      setTimeout(() => { if (this.ended) return; this.sound--; this.options.onModeChange({ mode: "listening" }); }, after + ms);
+    }
+    getOutputVolume() { return this.sound > 0 ? 0.5 : 0; }
+    sendUserMessage(text) { this.messages.push(text); this.speak(); }
+    setMicMuted(muted) { this.muted = muted; }
+    setVolume({ volume }) { this.volume = volume; }
+    async endSession() { this.ended = true; this.options.onDisconnect?.({ reason: "user" }); }
+    drop() { this.ended = true; this.options.onDisconnect({ reason: "error" }); }
+    async tool(name) { const answer = await this.options.clientTools[name]({}); this.speak(1500); return answer; }
+    // As real agents do: a word first ("Great!"), the tool call while it is still being said, a pause, then the answer.
+    async chattyTool(name) { this.speak(600, 0); await new Promise((r) => setTimeout(r, 200)); const answer = await this.options.clientTools[name]({}); this.speak(2000, 1900); return answer; }
+  };
+}
+
+async function open(query = "") {
+  frame.src = "/index.html" + query;
+  await new Promise((r) => (frame.onload = r));
+  w = frame.contentWindow; d = frame.contentDocument; $ = (id) => d.getElementById(id);
+  visible = (id) => !$(id).hidden;
+  spoken = [];
+  w.speechSynthesis.speak = (u) => { spoken.push(u.text); setTimeout(() => u.onend?.(), 50); };
+  w.speechSynthesis.cancel = () => {};
+  w.navigator.mediaDevices.getUserMedia = async () => ({ getTracks: () => [] });
+  const realFetch = w.fetch.bind(w);   // no recorded clips here: what the guide doesn't say, the phone's own voice says
+  w.fetch = (url, ...rest) => (String(url) === "voice/manifest.json" ? Promise.resolve(new Response("{}")) : realFetch(url, ...rest));
+  Agent = w.respiraiGuideSdk = { Conversation: standIn() };
+  Agent = Agent.Conversation;
+  await sleep(300);
+  $("btnPractice").click(); await sleep(1100);
+}
+const until = async (test, ms = 60000) => { for (let t0 = Date.now(); !test() && Date.now() - t0 < ms;) await sleep(100); return test(); };
+
+localStorage.clear();
+localStorage.setItem("respirai", JSON.stringify({ server: location.origin, seconds: 5, demo: "", welcomed: true, lang: "en" }));
+
+// The AI guide is asked for on its own screen after connecting. yes(): take it; readAloud(): the switch on the ready
+// screen that reads the instructions. The stand-in agent's or the app's own voice is counted from there.
+const yes = async () => { $("btnGuideYes").click(); await sleep(700); spoken.length = 0; };
+const readAloud = async () => { $("btnVoice").click(); await sleep(700); spoken.length = 0; };
+
+// --- no agent set up: straight to the ready screen, the switch reads the instructions, nothing about an agent shows ---
+await open("?agent=off");
+check("no agent set up → no question; ready screen with the read-aloud switch", visible("sReady") && !visible("sGuide") && visible("btnVoice") && $("btnVoice").textContent.trim() === "Read the instructions aloud");
+await readAloud();
+$("btnQuick").click(); await sleep(900);
+check("…and it reads the instructions itself", Agent.calls.length === 0 && spoken.length === 1 && spoken[0].includes($("pointTitle").textContent) && !visible("btnGuideMic"), spoken.join());
+$("btnStop").click(); await sleep(300);
+
+// --- an agent: asked on its own screen; "no" leads to the ready screen with the read-aloud switch ---
+await open("?agent=agent_test");
+check("an agent → its own screen after connecting: what it does, what data it takes", visible("sGuide") && !visible("sReady") && /ElevenLabs/.test($("sGuide").textContent) && /microphone/.test($("sGuide").textContent) && /stay on this phone/.test($("sGuide").textContent), $("sGuide").textContent);
+$("btnGuideNo").click(); await sleep(400);
+check("no → ready screen, with the read-aloud switch, off", visible("sReady") && !visible("sGuide") && visible("btnVoice") && $("btnVoice").getAttribute("aria-pressed") === "false");
+await readAloud();
+$("btnQuick").click(); await sleep(900);
+check("…read aloud by the app, no agent although one is set up and online", Agent.calls.length === 0 && spoken.length === 1 && spoken[0].includes($("pointTitle").textContent) && !visible("btnGuideMic"), spoken.join());
+$("btnStop").click(); await sleep(600);
+check("not asked again in the same visit", visible("sReady") && !visible("sGuide"));
+
+// --- yes, but the microphone refused: the guide reads, it can't be talked to ---
+await open("?agent=agent_test");
+w.navigator.mediaDevices.getUserMedia = async () => { throw new w.DOMException("no", "NotAllowedError"); };
+await yes();
+check("yes → the same ready screen without the read-aloud switch", visible("sReady") && !visible("sGuide") && !visible("btnVoice"));
+check("microphone refused → says what that means", /microphone/.test($("notice").textContent), $("notice").textContent);
+$("btnQuick").click(); await sleep(900);
+check("…the check is read aloud, no agent", Agent.calls.length === 0 && spoken.length === 1 && spoken[0].includes($("pointTitle").textContent), spoken.join());
+$("btnStop").click(); await sleep(600);
+
+// --- yes, microphone allowed, but offline when the check starts: the instructions are read aloud ---
+await open("?agent=agent_test");
+await yes();
+check("microphone allowed → no message", !visible("notice") && Agent.calls.length === 0);
+Object.defineProperty(w.navigator, "onLine", { configurable: true, get: () => false });
+$("btnQuick").click(); await sleep(900);
+check("offline → the instructions are read aloud, no agent", Agent.calls.length === 0 && spoken.length === 1 && spoken[0].includes($("pointTitle").textContent) && !visible("notice"), spoken.join());
+$("btnStop").click(); await sleep(600);
+Object.defineProperty(w.navigator, "onLine", { configurable: true, get: () => true });
+spoken.length = 0;
+
+// --- online, an agent, the microphone: a guided quick test from start to result ---
+await sleep(400);
+$("btnQuick").click(); await sleep(700);
+let a = Agent.last;
+const first = Agent.calls[0];
+check("a guided check opens the conversation: agent, language, the two tools", first.agentId === "agent_test" && first.overrides.agent.language === "en" && Object.keys(first.clientTools).sort().join() === "start_recording,stop_check");
+check("the agent is told the place, with the words on screen", a.messages.length === 1 && a.messages[0].startsWith("[APP] (Speak English, and only English.) Place 1 of 1") && a.messages[0].includes($("pointTitle").textContent) && a.messages[0].includes($("pointWhere").textContent), a.messages[0]);
+check("the app's own voice stays silent", spoken.length === 0);
+await sleep(900);
+check("while placing: the guide listens, and no clock runs", $("btnGuideMic").textContent.includes("listening") && !a.muted && $("dialMain").textContent === "Ready?", $("btnGuideMic").textContent + " / " + $("dialMain").textContent);
+$("btnGuideMic").click();
+check("the chip switches the microphone off…", a.muted && $("btnGuideMic").textContent.includes("Microphone off"), $("btnGuideMic").textContent);
+$("btnGuideMic").click();
+check("…and on again", !a.muted && $("btnGuideMic").textContent.includes("listening"));
+
+const answer = await a.chattyTool("start_recording");   // the person said "ready"; the agent says a word, calls the tool, then answers
+check("the agent's start_recording: told what to say, in which language", answer.includes("practice") && answer.includes("in English"), answer);
+await sleep(1500);   // its first word is over, its real sentence hasn't begun
+check("a word before the tool call is not taken for the sentence", $("dialMain").textContent === "Get ready" && !a.muted && a.volume === 1, $("dialMain").textContent);
+check("(between two things it says, the microphone is open)", !a.muted);
+await sleep(1700);   // in the middle of the sentence
+check("the recording waits for the agent's whole sentence", $("dialMain").textContent === "Get ready" && a.volume === 1 && a.messages.length === 1, $("dialMain").textContent);
+check("while the agent speaks the microphone is off, so nothing interrupts it", a.muted && a.sound > 0);
+await sleep(2400);
+check("while the stethoscope records: microphone off, agent silent", a.muted && a.volume === 0 && $("btnGuideMic").disabled && /Breathe/.test($("dialMain").textContent), $("dialMain").textContent + " / " + $("btnGuideMic").textContent);
+check("start_recording a second time does nothing", /Not possible/.test(await a.options.clientTools.start_recording({})));
+await until(() => visible("sResults"));
+check("after the recording: microphone and voice back", !a.muted && a.volume === 1);
+await sleep(600);
+check("the agent is told the result, with the words on screen", a.messages.length === 2 && a.messages[1].includes($("overallTitle").textContent) && a.messages[1].includes("do not name any illness"), a.messages.at(-1));
+await until(() => a.ended, 5000);
+check("result said → the conversation ends; the app's own voice never spoke", a.ended && spoken.length === 0, spoken.join());
+
+// --- start now by button: the app asks the agent to say the breathing sentence; then the agent's stop_check ---
+await open("?agent=agent_test");
+await yes();
+$("btnQuick").click(); await sleep(700);
+a = Agent.last;
+$("btnNow").click(); await sleep(400);
+check("start now by button → the agent is asked to say the breathing sentence", a.messages.length === 2 && a.messages[1].includes(") The recording starts now") && a.messages[1].includes("practice"), a.messages.at(-1));
+await sleep(1200);
+check("…and is not cut off: a second of silence first", a.volume === 1 && $("dialMain").textContent === "Get ready");
+await sleep(1400);
+check("…then held quiet", a.muted && a.volume === 0);
+check("the agent's stop_check", /stopped/.test(await a.options.clientTools.stop_check({})));
+await sleep(500);
+check("stop_check → back to ready, conversation ended, no complaint", visible("sReady") && a.ended && !visible("notice"));
+
+// --- the agent refuses the language override: connected without it ---
+Agent.calls.length = 0;
+Agent.refuse = (options) => !!options.overrides;
+await sleep(500);
+$("btnQuick").click(); await sleep(900);
+check("language override refused → connected without it", Agent.calls.length === 2 && !Agent.calls[1].overrides && Agent.last.messages.length === 1 && !visible("notice"), Agent.calls.length + " calls");
+
+// --- the agent goes away in the middle: the check goes on with the app's own voice ---
+a = Agent.last;
+a.drop(); await sleep(300);
+check("agent gone mid-check → said once, the check goes on", visible("sPoint") && /voice guide/.test($("notice").textContent) && !visible("btnGuideMic"), $("notice").textContent);
+$("btnNow").click(); await sleep(500);
+check("…with the app's own voice for the next sentence", spoken.length === 1 && spoken[0].includes("practice"), spoken.join());
+await until(() => visible("sResults"));
+await sleep(500);
+check("…and for the result", spoken.length === 2 && spoken[1].includes($("overallTitle").textContent), spoken.join(" | "));
+
+// --- another language: the conversation and every message ask for it ---
+await open("?agent=agent_test");
+$("btnSettings").click(); $("btnLangRow").click();
+[...d.querySelectorAll("#languageList .language")].find((b) => b.lang === "ro").click(); await sleep(500);
+$("settings").close();
+Agent.calls.length = 0;
+await yes();
+$("btnQuick").click(); await sleep(900);
+a = Agent.last;
+check("Romanian → the conversation is opened in Romanian and the agent told to speak it", Agent.calls[0].overrides.agent.language === "ro" && a.messages[0].startsWith("[APP] (Speak Romanian, and only Romanian.)") && a.messages[0].includes($("pointTitle").textContent), a.messages[0]);
+check("…also by its tool", (await a.options.clientTools.start_recording({})).includes("in Romanian"));
+$("btnStop").click(); await sleep(600);
+localStorage.setItem("respirai", JSON.stringify({ server: location.origin, seconds: 5, demo: "", welcomed: true, lang: "en" }));
+
+// --- no connection at all ---
+await open("?agent=agent_test");
+Agent.refuse = () => true;
+await yes();
+$("btnQuick").click(); await sleep(900);
+check("the agent can't be reached → said once, the place is read by the app's own voice", /voice guide/.test($("notice").textContent) && spoken.length === 1 && spoken[0].includes($("pointTitle").textContent), spoken.join());
+check("…and the place still waits for the tap", $("dialMain").textContent === "Ready?" && !$("btnNow").hidden, $("dialMain").textContent);
+$("btnStop").click();
+localStorage.removeItem("respirai-agent");
+
+document.getElementById("out").textContent = out.join("\n") + "\nDONE";
+</script>

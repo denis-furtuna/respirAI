@@ -61,6 +61,12 @@ The model does not carry well to a stethoscope it has not heard, ours included. 
 
 **Threshold.** The model's JSON can carry `"suspect_threshold"`: a recording at least that likely to be abnormal is reported as abnormal (`pick()` in `inference.py`, `finding()` in the app). Without it the most probable of the four classes wins. It has to be chosen on healthy people recorded with our device; that is not done yet.
 
+## On the phone
+
+The app runs this same AI on the phone, with no server: [`app/ai/pipeline.js`](../app/ai/pipeline.js) is `preprocess.py`, `quality.py` and `combine()` in JavaScript, and the model runs with ONNX Runtime Web. To give the phone the trained model, copy `resp_cnn.onnx` and `resp_cnn.json` (and `demo_clips/`, if any) into [`app/model/`](../app/model/README.md) and push.
+
+**Change the preprocessing or the quality check here, and `pipeline.js` must change the same way.** GitHub checks it on every push: [`app/tests/make_golden.py`](../app/tests/make_golden.py) runs these Python files on a set of recordings, and `app/tests/ai.html` fails if the JavaScript gives different numbers anywhere. The app also refuses a model whose `resp_cnn.json` preprocessing settings differ from its own.
+
 ## Run the server
 
 ```bash
