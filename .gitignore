@@ -52,3 +52,9 @@ Thumbs.db
 desktop.ini
 *.swp
 .idea/
+
+# --- PCB: build output and KiCad local state (fab/ is committed on purpose) ---
+pcb/build/
+*.kicad_prl
+fp-info-cache
+*-backups/
