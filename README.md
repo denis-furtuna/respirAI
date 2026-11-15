@@ -11,7 +11,7 @@
 ![Web Bluetooth](https://img.shields.io/badge/app-Web%20Bluetooth-0F4C75?style=flat-square)
 ![Dataset: ICBHI 2017](https://img.shields.io/badge/dataset-ICBHI%202017-0F4C75?style=flat-square)
 
-[Project plan](docs/PLAN.md) · [Architecture](docs/ARCHITECTURE.md) · [Enclosure](docs/ENCLOSURE.md) · [Add-ons](docs/ADDONS.md)
+[Project plan](docs/PLAN.md) · [Architecture](docs/ARCHITECTURE.md) · [Enclosure](docs/ENCLOSURE.md) · [Add-ons](docs/ADDONS.md) · [Waitlist](https://denis-furtuna.github.io/respirAI/waitlist.html)
 
 > [!IMPORTANT]
 > respirAI is a student hackathon project, **not a medical device**. It does not diagnose and must not be used to make health decisions. If you are unwell, see a doctor.

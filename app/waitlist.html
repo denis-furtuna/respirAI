@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>respirAI waitlist: borrow the device, help the AI learn</title>
+  <meta name="description" content="respirAI is a student-built digital stethoscope. Borrow one for free for a limited time and help its AI learn what lungs sound like.">
+  <link rel="icon" href="img/favicon.png">
+  <style>
+    :root { --bg: #f3f6f9; --surface: #fff; --ink: #0e2233; --muted: #4b5f6f; --primary: #004565; --on-primary: #fff; --line: #dbe3ea; --soft: #e2eef3; --warn: #8f5500; --warn-soft: #fdf0db; }
+    @media (prefers-color-scheme: dark) { :root { --bg: #0b1620; --surface: #12212e; --ink: #e8f0f6; --muted: #a6b8c6; --primary: #5cc3dc; --on-primary: #04222d; --line: #24394a; --soft: #17303d; --warn: #f2b45a; --warn-soft: #33260f; } }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font: 400 1.08rem/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    main { max-width: 720px; margin: 0 auto; padding: 24px 16px 56px; }
+    header img { height: 44px; width: auto; display: block; }
+    h1 { font-size: clamp(1.9rem, 7vw, 2.7rem); line-height: 1.12; margin: 28px 0 12px; letter-spacing: -0.02em; text-wrap: balance; }
+    h2 { font-size: 1.25rem; margin: 0 0 8px; }
+    p, li { margin: 8px 0; }
+    ul, ol { padding-left: 1.25em; margin: 0; }
+    .lead { font-size: 1.2rem; color: var(--muted); }
+    .card { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 20px 22px; margin-top: 18px; }
+    .cta { display: block; width: 100%; text-align: center; text-decoration: none; background: var(--primary); color: var(--on-primary); font-weight: 700; font-size: 1.2rem; padding: 16px 20px; border-radius: 16px; margin-top: 22px; }
+    .cta[aria-disabled="true"] { opacity: .6; pointer-events: none; }
+    .hint { color: var(--muted); font-size: .95rem; text-align: center; margin-top: 8px; }
+    .steps li { margin: 12px 0; }
+    .steps b { display: block; }
+    .honest { background: var(--warn-soft); border-color: transparent; }
+    .honest h2 { color: var(--warn); }
+    .two { display: grid; gap: 18px; }
+    @media (min-width: 640px) { .two { grid-template-columns: 1fr 1fr; } .two .card { margin-top: 0; } }
+    .two { margin-top: 18px; }
+    details { border-top: 1px solid var(--line); padding: 12px 0; }
+    details:first-of-type { border-top: 0; }
+    summary { font-weight: 600; cursor: pointer; }
+    footer { color: var(--muted); font-size: .95rem; margin-top: 28px; }
+    a { color: var(--primary); }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <picture><source media="(prefers-color-scheme: dark)" srcset="img/logo-dark.png"><img src="img/logo.png" alt="respirAI" width="482" height="120"></picture>
+  </header>
+
+  <h1>Our AI needs more lungs. Lend it yours.</h1>
+  <p class="lead">We are students who built a digital stethoscope around a €5 pharmacy one. We lend it to you for free, for a limited time. You breathe for two minutes a day. It learns.</p>
+
+  <a class="cta" id="join" href="#" aria-disabled="true">Join the waitlist</a>
+  <p class="hint" id="join-hint">The form opens soon.</p>
+
+  <section class="card">
+    <h2>How it works</h2>
+    <ol class="steps">
+      <li><b>You leave your email.</b> That is the whole form. Joining commits you to nothing.</li>
+      <li><b>We contact you when a device is free.</b> The first batch is small, so not everyone gets one at once.</li>
+      <li><b>You borrow it for a fixed period.</b> We tell you the exact dates, and what we ask of you, before you accept.</li>
+      <li><b>You do a short check each day.</b> The app shows you where to hold the chest piece, and a voice guide talks you through it.</li>
+      <li><b>You send it back.</b> The next person on the list gets it.</li>
+    </ol>
+  </section>
+
+  <section class="card honest">
+    <h2>What it is, honestly</h2>
+    <p>respirAI is an early prototype made for a hackathon. Its AI learned from 126 patients recorded with other stethoscopes, and on our own device it is not reliable yet. That is why we need recordings from it.</p>
+    <p><b>It is not a medical device and it does not diagnose.</b> Do not use its results to make health decisions. If you are unwell, see a doctor. In an emergency, call 112.</p>
+  </section>
+
+  <div class="two">
+    <section class="card">
+      <h2>For you, at home</h2>
+      <ul>
+        <li>The device is free to borrow.</li>
+        <li>You need an Android phone with Chrome. It does not work on iPhone yet.</li>
+        <li>About two minutes a day.</li>
+      </ul>
+    </section>
+    <section class="card">
+      <h2>For family doctors</h2>
+      <ul>
+        <li>A free pilot with a few devices for your patients.</li>
+        <li>Recordings between visits, with each patient's written consent.</li>
+        <li>You tell us what would make it useful in practice.</li>
+      </ul>
+    </section>
+  </div>
+
+  <section class="card">
+    <h2>Your data</h2>
+    <details open><summary>What do you keep from the waitlist form?</summary><p>Your email, and whether you are joining for yourself or as a clinician. Nothing else. We use it to contact you about the waitlist, and we delete it if you ask.</p></details>
+    <details><summary>Do my lung recordings leave my phone?</summary><p>Not by default. The app runs its AI on your phone and keeps recordings there (<a href="privacy.html">privacy policy</a>). Sharing recordings with us to train the AI is a separate, explicit choice, which we ask for in writing before the loan starts. You can say no.</p></details>
+    <details><summary>If I agree to share, what happens to the recordings?</summary><p>We store them without your name, use them only to train and test respirAI, and delete them if you ask.</p></details>
+  </section>
+
+  <a class="cta" id="join2" href="#" aria-disabled="true">Join the waitlist</a>
+
+  <footer>
+    <p>respirAI is a student project from Timișoara, built for UniHack. Code and design are open: <a href="https://github.com/denis-furtuna/respirAI">github.com/denis-furtuna/respirAI</a>.</p>
+    <p id="contact" hidden>Questions, or want your data deleted? Write to <a id="mail" href="#"></a>.</p>
+  </footer>
+</main>
+<script>
+  // Paste the Google Form link and a contact email here. Until then the button stays off.
+  const FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSfEWTw99_wbV3yoP9vHAyoleCWjRCPTA7Oq91wygVUgmw1NXg/viewform";
+  const CONTACT_EMAIL = "furtunadenis09@gmail.com";
+  if (FORM_URL) {
+    for (const id of ["join", "join2"]) { const a = document.getElementById(id); a.href = FORM_URL; a.removeAttribute("aria-disabled"); }
+    document.getElementById("join-hint").textContent = "Just your email. No commitment.";
+  }
+  if (CONTACT_EMAIL) {
+    const m = document.getElementById("mail"); m.href = "mailto:" + CONTACT_EMAIL; m.textContent = CONTACT_EMAIL;
+    document.getElementById("contact").hidden = false;
+  }
+</script>
+</body>
+</html>
