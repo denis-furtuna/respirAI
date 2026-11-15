@@ -76,27 +76,75 @@ The app runs this same AI on the phone, with no server: [`app/ai/pipeline.js`](.
 
 ## Run the server
 
+The server runs the PANNs CNN14 per chest place and the patient RandomForest over the whole check, and serves the web app itself, so a demo is one laptop, one phone and one command. Only Chrome on the phone uses it: the Android app and GitHub Pages always analyse on the phone with the ONNX model.
+
+### 1. Set up the laptop (once)
+
 ```bash
-cd ai
-pip install -r requirements-server.txt
-uvicorn server:app --host 0.0.0.0 --port 8000
+git clone https://github.com/denis-furtuna/respirAI && cd respirAI/ai
+python -m venv .venv
+.venv/bin/pip install -r requirements-server.txt      # Windows: .venv\Scripts\pip
 ```
 
-**With the PANNs model and the patient classifier.** The weights are not in git: copy these two files (from the team's Drive) into `ai/weights/`, then start the server as above.
+The weights are not in git. Copy these two files (from the team's Drive) into `ai/weights/`:
 
 ```
 ai/weights/best_panns_finetuned_mel_hop10ms_bp50_1800_spike6ms_fade20ms_top2blocks.pt
 ai/weights/patient_doctor_rf_model.pkl
 ```
 
-`/health` then says `"backend": "panns"`. Open the app from the server itself (`http://<laptop>:8000`, see `app/README.md` → *On a phone*): served from port 8000, the app sends its recordings to that server and shows the patient verdict ("Normal" / "Go see a doctor") under the overall answer. The Android app and GitHub Pages always use the on-phone ONNX model.
+Without them the server falls back to `weights/resp_cnn.onnx`, or to **dummy mode** (same request and response shapes, fixed answers).
 
-Check it at `http://localhost:8000/health`. Once the web app (`app/`) is in the same checkout, the server also serves it at `http://localhost:8000`, so the demo needs only this one command. With no model in `ai/weights/`, it runs in **dummy mode**: same request and response shapes, fixed answers. That's enough for the app to be built against it today.
+### 2. Network
+
+1. Turn on the **phone's hotspot**, with a password, and connect the laptop to it. Not the venue Wi-Fi: there anyone could reach the server.
+2. Find the laptop's address on the hotspot: `hostname -I` (Linux), `ipconfig getifaddr en0` (macOS), `ipconfig` → *IPv4 Address* (Windows). Below: `10.39.40.62`.
+3. If a firewall is on, allow port 8000 (`sudo ufw allow 8000` on Ubuntu).
+
+### 3. Chrome on the phone (once)
+
+Web Bluetooth only works on secure pages, and the laptop serves plain http. Open `chrome://flags/#unsafely-treat-insecure-origin-as-secure`, type `http://10.39.40.62:8000` (your address), set it to **Enabled**, tap **Relaunch**. If the laptop's address changes, change it here too.
+
+### 4. Start the server
 
 ```bash
-curl -F point=Al -F session_id=test -F audio=@recording.wav http://localhost:8000/analyze
-curl -F point=Al -F session_id=test -F demo=true -F demo_case=crackles http://localhost:8000/analyze
-curl http://localhost:8000/session/test/summary
+cd ai
+.venv/bin/python -m uvicorn server:app --host 0.0.0.0 --port 8000
 ```
 
-The server needs no PyTorch: the model runs with ONNX Runtime. On managed laptops where application control blocks some Python packages, check that `fastapi`, `pydantic` and `onnxruntime` import before demo day.
+Check `http://10.39.40.62:8000/health` from the phone: it must say `"backend":"panns"`. `"dummy":true` means the weights are missing.
+
+### 5. Run the check
+
+1. Switch the device on.
+2. On the phone, in Chrome: `http://10.39.40.62:8000`. Served from port 8000, the app sends its recordings to this server by itself; leave *Settings → AI server address* empty.
+3. **Connect the device** → pick `respirAI`.
+4. Begin (all places) or the quick test. At each place: put the chest piece on, **Start now**; one practice breath before the first place, then 6 s are recorded, one breath (in 2.5 s, out 3.5 s).
+5. The results screen shows each place and, under the overall answer, the patient verdict: *Across all places: normal (99.8 %)* or *… see a doctor (99.9 %)*.
+
+**Rehearse without the device:** `http://10.39.40.62:8000/?fakebt&wav=wheeze.wav` (or `http://localhost:8000/?fakebt` on the laptop) streams a real recording through a fake device.
+
+### When something is wrong
+
+| What you see | Why |
+|---|---|
+| *Connect the device* does nothing | the Chrome flag is missing, or it has another address |
+| No patient verdict under the result | the page isn't opened from port 8000, or `/health` doesn't say `panns` |
+| *Please record again* | too quiet or too much handling noise: press the chest piece firmly on the skin |
+| The phone can't reach the server | the laptop is not on the hotspot, or the firewall blocks port 8000 |
+
+### What to know before the pitch
+
+- `POINT_THRESHOLD` (0.87, in `inference_panns.py`) was chosen by `calibrate_panns.py` on one healthy person recorded with our device: both checks read *Normal*. Record more healthy people and run it again.
+- A real wheeze (`app/dev/recordings/wheeze.wav`) is found. A real pneumonia crackle (`crackles.wav`) is **not**: on our device the model scores it like a healthy chest.
+- Demo mode needs `ai/demo_clips/`, which doesn't exist yet: it answers 404.
+
+### The API by hand
+
+```bash
+curl http://localhost:8000/health
+curl -F point=Al -F session_id=test -F audio=@recording.wav http://localhost:8000/analyze
+curl http://localhost:8000/session/test/summary      # with PANNs: also verdict, percentage, display
+```
+
+The PANNs path needs PyTorch (CPU is enough, about 0.25 s per place) and scikit-learn; the ONNX path only ONNX Runtime. On managed laptops where application control blocks some Python packages, check that `fastapi`, `torch`, `sklearn` and `onnxruntime` import before demo day.
