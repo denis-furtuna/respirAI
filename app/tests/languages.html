@@ -61,8 +61,7 @@ $("btnWelcome").click(); await sleep(500);
 check("Romanian: connect screen", visible("sConnect") && $("btnConnect").textContent === "Conectați dispozitivul" && $("btnPractice").textContent === "Nu aveți dispozitivul? Faceți o probă");
 $("btnPractice").click(); await sleep(1200);
 check("Romanian: ready screen, plural 'secunde' for 15, language button hidden",
-  visible("sReady") && $("btnBegin").textContent === "Începeți" && $("step2").textContent.includes("15 secunde") && !visible("btnLang")
-  && /^Baterie 87\s?%$/.test($("battery").textContent), $("step2").textContent + " / " + $("battery").textContent);
+  visible("sReady") && $("btnBegin").textContent === "Începeți" && $("step2").textContent.includes("15 secunde") && !visible("btnLang"), $("step2").textContent);
 $("seconds").value = "20"; $("seconds").dispatchEvent(new Event("change"));
 check("Romanian plural for 20: '20 de secunde'", $("step2").textContent.includes("20 de secunde"), $("step2").textContent);
 $("seconds").value = "5"; $("seconds").dispatchEvent(new Event("change"));

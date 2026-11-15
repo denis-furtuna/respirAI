@@ -59,7 +59,7 @@ check("opens on the connect screen", visible("sConnect") && !visible("sReady"));
 check("logo and lungs images load", [...d.querySelectorAll("img")].every((i) => i.complete && i.naturalWidth > 0) && d.querySelector("header .logo").alt === "respirAI", d.querySelectorAll("img").length + " images");
 $("btnPractice").click();
 await sleep(1000);
-check("practice device → ready screen + battery", visible("sReady") && !$("battery").hidden, $("battery").textContent);
+check("practice device → ready screen, no battery level (the device cannot measure it)", visible("sReady") && $("battery").hidden, $("battery").textContent);
 check("spoken instructions start off, even if they were on last time", $("btnVoice").getAttribute("aria-pressed") === "false" && visible("btnQuick"));
 $("btnBegin").click(); $("btnStop").click();   // a double-tap must not also press Stop, which sits where Begin was
 await sleep(500);

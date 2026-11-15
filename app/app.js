@@ -817,7 +817,7 @@ setInterval(showStats, 1000);
 
 // ---------- buttons ----------
 $("btnConnect").addEventListener("click", () => connect(bluetooth, $("btnConnect")));
-$("btnPractice").addEventListener("click", () => connect(fakeBluetooth({ battery: 87, drop: 0.005 }), $("btnPractice")));
+$("btnPractice").addEventListener("click", () => connect(fakeBluetooth({ battery: 255, drop: 0.005 }), $("btnPractice")));   // 255: like the real device, which has no battery sense, so no battery shows
 $("btnBegin").addEventListener("click", () => {
   if (!settled() || needDevice()) return;
   if (!session || !remaining().length || session.quick) newSession();
