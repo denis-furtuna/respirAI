@@ -86,7 +86,7 @@ python -m venv .venv
 .venv/bin/pip install -r requirements-server.txt      # Windows: .venv\Scripts\pip
 ```
 
-The weights are not in git. Copy these two files (from the team's Drive) into `ai/weights/`:
+The weights are not in git. Download these two files from the [team's Drive folder](https://drive.google.com/drive/folders/1GwzR0muWKryWnfBBQeXl7zeF77iwO2L0) into `ai/weights/`:
 
 ```
 ai/weights/best_panns_finetuned_mel_hop10ms_bp50_1800_spike6ms_fade20ms_top2blocks.pt
