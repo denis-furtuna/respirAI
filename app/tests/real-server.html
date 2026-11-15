@@ -9,7 +9,7 @@
 const out = [];
 const check = (name, ok, extra = "") => out.push(`${ok ? "PASS" : "FAIL"} ${name} ${extra}`);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const FINDINGS = ["normal", "crackles", "wheezes", "both", "unusable"];
+const FINDINGS = ["normal", "crackles", "wheezes", "both", "abnormal", "unusable"];   // abnormal: the PANNs server
 const num01 = (x) => typeof x === "number" && x >= 0 && x <= 1;
 
 // --- the server itself ---
@@ -75,6 +75,14 @@ const session = answers[0] && answers[0].session;
 const summary = await (await fetch(`/session/${session}/summary`)).json();
 check("GET /session/{id}/summary", summary.session_id === session && summary.points_recorded === 7 && summary.per_point.length === 7
   && typeof summary.overall === "string", `overall=${summary.overall} confidence=${summary.confidence}`);
+if (summary.verdict) {   // the PANNs server: a verdict for the whole check, shown under the overall answer
+  const doctor = summary.verdict === "Go see a doctor";
+  check("patient verdict: in the summary and on screen, the overall answer follows it",
+    ["Normal", "Go see a doctor"].includes(summary.verdict) && summary.percentage > 50 && summary.percentage < 100
+    && !$("patientVerdict").hidden && $("patientVerdict").textContent.includes(doctor ? "see a doctor" : "normal")
+    && $("overall").classList.contains(doctor ? "warn" : "ok"),
+    `${summary.display} / "${$("patientVerdict").textContent}" / ${$("overall").className}`);
+}
 
 // demo mode: an example instead of the recording
 $("demo").value = "crackles"; $("demo").dispatchEvent(new Event("change"));

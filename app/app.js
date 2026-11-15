@@ -511,10 +511,11 @@ function analyze(code, samples) {
 }
 
 // The PANNs server's verdict over the whole check ("Normal" / "Go see a doctor", contract 2 summary), once no place is
-// still being analysed. Other servers and the on-phone AI have none: then the places decide, as before.
+// still being analysed. Only that server sends prob_abnormal, so only it is asked; with other servers and the
+// on-phone AI the places decide, as before.
 async function patientSummary(s) {
-  if (!server() || Object.values(s.results).some((r) => r.finding === "pending")) return;
   const asked = Object.values(s.results);
+  if (!server() || asked.some((r) => r.finding === "pending") || !asked.some((r) => Number.isFinite(r.prob_abnormal))) return;
   try {
     const res = await fetch(api(`/session/${encodeURIComponent(s.id)}/summary`), { signal: AbortSignal.timeout(15000) });
     const body = await res.json();

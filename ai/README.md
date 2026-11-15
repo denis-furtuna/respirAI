@@ -82,6 +82,15 @@ pip install -r requirements-server.txt
 uvicorn server:app --host 0.0.0.0 --port 8000
 ```
 
+**With the PANNs model and the patient classifier.** The weights are not in git: copy these two files (from the team's Drive) into `ai/weights/`, then start the server as above.
+
+```
+ai/weights/best_panns_finetuned_mel_hop10ms_bp50_1800_spike6ms_fade20ms_top2blocks.pt
+ai/weights/patient_doctor_rf_model.pkl
+```
+
+`/health` then says `"backend": "panns"`. Open the app from the server itself (`http://<laptop>:8000`, see `app/README.md` → *On a phone*): served from port 8000, the app sends its recordings to that server and shows the patient verdict ("Normal" / "Go see a doctor") under the overall answer. The Android app and GitHub Pages always use the on-phone ONNX model.
+
 Check it at `http://localhost:8000/health`. Once the web app (`app/`) is in the same checkout, the server also serves it at `http://localhost:8000`, so the demo needs only this one command. With no model in `ai/weights/`, it runs in **dummy mode**: same request and response shapes, fixed answers. That's enough for the app to be built against it today.
 
 ```bash
