@@ -5,7 +5,9 @@ const waiting = new Map();   // id -> { resolve, reject }
 
 function call(message, transfer = []) {
   if (!worker) {
-    worker = new Worker(new URL("./worker.js", import.meta.url), { type: "module" });
+    // ?model=<folder> on the page goes on to the worker: the tests use it to run without the model that ships (dummy mode).
+    const model = new URLSearchParams(location.search).get("model");
+    worker = new Worker(new URL(`./worker.js${model ? `?model=${encodeURIComponent(model)}` : ""}`, import.meta.url), { type: "module" });
     worker.onmessage = ({ data }) => {
       const w = waiting.get(data.id);
       waiting.delete(data.id);

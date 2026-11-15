@@ -65,8 +65,9 @@ check("answer shape", JSON.stringify(pp.finding(c)) === JSON.stringify({ finding
 // --- 2. a whole check with the AI on the phone (no server set) ---
 localStorage.setItem("respirai", JSON.stringify({ server: "", seconds: 5, demo: "", welcomed: true, lang: "en" }));
 localStorage.setItem("respirai-agent", "off");   // the AI guide has its own suite (guide.html)
+const NO_MODEL = "?model=/tests/no-model/";       // a folder that does not exist: dummy mode, whatever model app/model/ ships
 const frame = document.getElementById("app");
-frame.src = "/index.html";
+frame.src = "/index.html" + NO_MODEL;
 await new Promise((r) => (frame.onload = r));
 await sleep(300);
 const d = frame.contentDocument, $ = (id) => d.getElementById(id), visible = (id) => !$(id).hidden;
@@ -75,7 +76,7 @@ $("btnTest").click();
 // The test browser fast-forwards timers, but the AI worker runs in real time: wait with real round trips.
 const realWait = () => fetch("/health");
 for (let i = 0; i < 300 && /Checking|^$/.test($("testResult").textContent); i++) await realWait();
-check("Test: the on-phone AI answers (dummy mode until a model is added)", $("testResult").textContent === "OK · model dummy-0.0 (dummy answers) · 0 demo clips", $("testResult").textContent);
+check("Test: the on-phone AI answers (dummy mode without a model)", $("testResult").textContent === "OK · model dummy-0.0 (dummy answers) · 0 demo clips", $("testResult").textContent);
 async function untilResults() {
   for (let i = 0; i < 600 && !visible("sResults"); i++) {
     if (visible("sPoint") && !$("btnNow").hidden) $("btnNow").click();

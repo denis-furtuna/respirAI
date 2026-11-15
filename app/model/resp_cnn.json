@@ -1,0 +1,49 @@
+{
+  "model_version": "respirai-v2-own-background",
+  "classes": [
+    "normal",
+    "crackles",
+    "wheezes",
+    "both"
+  ],
+  "input_shape": [
+    1,
+    64,
+    251
+  ],
+  "preprocess": {
+    "TARGET_SR": 4000,
+    "BAND_HZ": [
+      100,
+      1000
+    ],
+    "WINDOW_S": 4.0,
+    "N_FFT": 256,
+    "HOP_LENGTH": 64,
+    "N_MELS": 64,
+    "BAND_NORM": true
+  },
+  "metrics": {
+    "band": [
+      100,
+      1000
+    ],
+    "band_norm": true,
+    "noise": true,
+    "epochs": 20,
+    "own_train": {
+      "windows": 25,
+      "repeated": 24
+    },
+    "val": {
+      "n": 1409,
+      "specificity": 0.6199,
+      "sensitivity": 0.4953,
+      "icbhi_score": 0.5576,
+      "auc_abnormal": 0.7524
+    }
+  },
+  "suspect_threshold": 0.7,
+  "threshold_note": "PROVISIONAL (15 Nov 2026). On ICBHI validation recordings: at 0.70, 83 % of the recordings with crackles or wheezes are flagged and 42 % of the clear ones are left alone; one healthy person on our device: 1 of 5 unseen recordings flagged. 0.37 = no abnormal validation recording missed, but nearly every healthy one flagged.",
+  "provisional": true
+}

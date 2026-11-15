@@ -144,7 +144,8 @@ def main(apk):
     page.js("true")   # collects the events that arrived meanwhile
     page.js("document.getElementById('btnTest').click(); true")
     test = page.until("(t => /Checking|^$/.test(t) ? null : t)(document.getElementById('testResult').textContent)", 30)
-    check("Test: the AI on the phone answers", test == "OK · model dummy-0.0 (dummy answers) · 0 demo clips", repr(test))
+    # With a model in app/model/ its version shows; without one, dummy-0.0. Either way the AI on the phone has answered.
+    check("Test: the AI on the phone answers", isinstance(test, str) and test.startswith("OK · model "), repr(test))
 
     page.js("document.getElementById('btnPractice').click(); true")
     check("practice device connects -> ready screen", bool(page.until("!document.getElementById('sReady').hidden", 20)))
@@ -158,7 +159,8 @@ def main(apk):
                " return !$('sResults').hidden && !document.querySelector('#resultList li.todo'); })()")
     check("a whole practice check reaches the results", bool(page.until(clicker, 300, step=1)))
     rows = page.js("[...document.querySelectorAll('#resultList li')].map(li => li.className + ':' + li.querySelector('.chip').textContent).join(' | ')")
-    check("7 places, all analysed on the phone", rows is not None and rows.count("ok:Clear") == 7, rows)
+    # What the model finds in the practice device's made-up breathing is not the point here: 7 places, each with an answer.
+    check("7 places, all analysed on the phone", rows is not None and len(rows.split(" | ")) == 7 and "todo" not in rows, rows)
     time.sleep(2)   # let the WebView paint the results before the picture
     screenshot("results")
 
