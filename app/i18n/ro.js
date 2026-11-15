@@ -4,7 +4,7 @@ export default {
   "language": "Limba",
 
   "welcome.title": "Bun venit la respirAI",
-  "welcome.lead": "respirAI vă ascultă plămânii cu stetoscopul său și vă semnalează sunetele pe care e bine să le asculte și un medic.",
+  "welcome.lead": "respirAI vă ascultă plămânii acasă, în câteva minute, și vă spune dacă ar fi indicat să mergeți la medic.",
   "welcome.diagnosis": "<b>Nu este un diagnostic.</b> Pe acela îl pune doar medicul.",
   "welcome.privacy": "<b>Confidențialitate:</b> înregistrările rămân pe acest telefon.",
   "welcome.emergency": "<b>Urgență?</b> Sunați la 112.",

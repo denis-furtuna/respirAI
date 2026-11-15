@@ -4,7 +4,7 @@ export default {
   "language": "Sprache",
 
   "welcome.title": "Willkommen bei respirAI",
-  "welcome.lead": "respirAI hört mit seinem Stethoskop Ihre Lunge ab und zeigt Ihnen Geräusche, die Sie ärztlich abklären lassen sollten.",
+  "welcome.lead": "respirAI hört Ihre Lunge zu Hause in wenigen Minuten ab und sagt Ihnen, ob ein Arztbesuch ratsam wäre.",
   "welcome.diagnosis": "<b>Das ist keine Diagnose.</b> Die stellt nur eine Ärztin oder ein Arzt.",
   "welcome.privacy": "<b>Ihre Privatsphäre:</b> Aufnahmen bleiben auf diesem Telefon.",
   "welcome.emergency": "<b>Notfall?</b> Rufen Sie die 112 an.",

@@ -4,7 +4,7 @@ export default {
   "language": "Langue",
 
   "welcome.title": "Bienvenue dans respirAI",
-  "welcome.lead": "respirAI écoute vos poumons grâce à son stéthoscope et vous signale les sons qu'il vaut mieux faire écouter à un médecin.",
+  "welcome.lead": "respirAI écoute vos poumons chez vous, en quelques minutes, et vous dit s'il serait conseillé de consulter un médecin.",
   "welcome.diagnosis": "<b>Ce n'est pas un diagnostic.</b> Seul un médecin peut en poser un.",
   "welcome.privacy": "<b>Votre vie privée :</b> les enregistrements restent sur ce téléphone.",
   "welcome.emergency": "<b>Urgence ?</b> Appelez le 112.",

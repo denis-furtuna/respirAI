@@ -4,7 +4,7 @@ export default {
   "language": "Language",
 
   "welcome.title": "Welcome to respirAI",
-  "welcome.lead": "respirAI listens to your lungs through its stethoscope and points out sounds a doctor should hear.",
+  "welcome.lead": "respirAI listens to your lungs at home, in a few minutes, and tells you if seeing a doctor would be advisable.",
   "welcome.diagnosis": "<b>It is not a diagnosis.</b> Only a doctor can give one.",
   "welcome.privacy": "<b>Your privacy:</b> recordings stay on this phone.",
   "welcome.emergency": "<b>Emergency?</b> Call 112.",
