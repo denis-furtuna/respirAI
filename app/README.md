@@ -20,6 +20,7 @@ Wording rule: the UI never says "diagnosis". Use "finding", "screening", "possib
 | `model/` | the trained model for `ai/` (see its README); empty until trained: dummy answers, like the server without weights | — |
 | `native.js`, `native-bluetooth.js` | only in the Android app: the phone's own Bluetooth (behind the Web Bluetooth calls `device.js` uses), speech, wake lock, share sheet ([`phone/`](../phone/README.md)) | — |
 | `voice.js`, `voice/` | the **recorded voice** for the spoken instructions: clips made once with ElevenLabs, played from the app's own files (see *Spoken instructions* below) | — |
+| `guide.js`, `guide-config.js`, `guide-sdk/` | the **voice guide**: an ElevenLabs conversational agent over the guided flow, which talks the person through the check and answers questions (see *Voice guide* below); `guide-sdk/` is ElevenLabs' client library in one file | — |
 | `mic-test.html`, `mic-test.js` | the team's **microphone test**: the device's mic and Bluetooth stream, live (see *Microphone test* below) | F2–F6, E3 |
 | `privacy.html` | the privacy policy (English, Română), for Google Play | — |
 
@@ -44,6 +45,28 @@ Then commit `app/voice/`. The key is read from the environment only: **never put
 
 `voice/manifest.json` also holds the text each clip was recorded from. The app plays a clip only while that is exactly the text on screen; for a sentence with no clip, a text changed since, or a language not recorded, it uses the phone's own voice (Android's in the phone app, the browser's otherwise), as it did before. So a missing or outdated clip is never wrong, only less pleasant. The sentences are listed in `CLIPS` in `voice.js` (15 per language).
 
+## Voice guide
+
+An optional layer over the check: an [ElevenLabs agent](https://elevenlabs.io/docs/eleven-agents/overview) the person can talk to while their hands hold the chest piece. It says where to put it, hears "ready" and starts the recording, answers questions like "where exactly?", and says the result. It is switched on per visit on the ready screen (*Voice guide (AI)*), which appears only when an agent is set in `guide-config.js` and the browser has a microphone.
+
+What stays in the app: the timer, the breathing circle, the device's lights, the AI, every screen and button. The agent only speaks and presses two buttons. While the stethoscope records, the phone's microphone is off and the agent is silent, so neither voice ends up in the recording. If the agent can't be reached, or goes away mid-check, the app says so once and goes on with its own spoken instructions.
+
+Unlike the rest of the app, it needs internet, and what the person says goes to ElevenLabs, together with the place and result texts the agent is told (`privacy.html` says so). The stethoscope's recordings never go to it.
+
+**Setting up the agent** (once, in ElevenLabs → Agents → new blank agent):
+
+1. **System prompt**: paste [`dev/voice-guide-agent.md`](dev/voice-guide-agent.md). **First message**: leave empty, so the agent waits for the app.
+2. **Voice**: the one the clips in `voice/` were made with, so both sound the same. **Languages**: add every language the app has (English, Romanian, Spanish, French, German).
+3. **Tools → Add tool → Client**, twice, both without parameters and with **Wait for response** on:
+   - `start_recording`: "The person says the chest piece is in place. Starts the recording. The answer says what to tell the person."
+   - `stop_check`: "The person wants to stop or cancel the check."
+4. **Security → Overrides**: allow **Agent language** (the app asks for the person's language; without this the agent uses its default language). Leave authentication off: the app connects with the agent id alone.
+5. Copy the **agent id** into `guide-config.js`, or try it first with `?agent=<id>` on the web app.
+
+How the app talks to the agent: messages starting with `[APP]` (`tellGuide` in `app.js`) name the language to speak and carry the on-screen texts in that language, and the prompt tells the agent these come from the app. The agent's tools are `guideTools` in `app.js`; their names must match the ones in ElevenLabs.
+
+In the Android app the guide needs the microphone permission (`phone/android_setup.py` adds it), which Android asks for at the first use.
+
 ## How a screening runs
 
 Designed so an elderly person can follow it: one screen at a time, large text and buttons, plain words.
@@ -51,7 +74,7 @@ Designed so an elderly person can follow it: one screen at a time, large text an
 0. **Welcome** (first time only): the language, what the app is and isn't (not a diagnosis), privacy in one line, and what to do in an emergency (112).
 1. **Connect:** one button. "Try a practice run" connects to the fake device instead.
 2. **Before we start:** three short instructions, a switch to **read the instructions aloud** (spoken only before each recording, never during it, so the stethoscope doesn't pick it up; off every time the app opens), then *Begin*, or **Quick test: one place**, which records only the upper chest, left, and shows its result alone (marked as a quick test on the results, in the shared summary and under earlier checks). The device streams all the time from here, so the app can tell when no sound is arriving.
-3. **Each of the 7 places** (front → sides → back): the body drawing and plain words say where. There are 8 s to place the chest piece (or tap *It's in place, start now*), then 18 s of recording (two whole breaths, so it ends at the bottom of a breath) while a circle paces the breathing: 4 s in, 5 s out. The first place starts with one practice breath, so the rhythm is known; later places (and *Continue* or *Record again*) record from the first breath. The app sends `0x10 n` when the breathing circle starts and the device's lungs light up in the same rhythm and curve ([contract 1, breathing sync](../docs/ARCHITECTURE.md)). The circle is drawn every frame from that curve, never with CSS easing, and only the recording itself is uploaded.
+3. **Each of the 7 places** (front → sides → back): the body drawing and plain words say where. There is no clock for placing the chest piece: the recording starts at *It's in place, start now* (or when the voice guide hears that it is in place), then 18 s of recording (two whole breaths, so it ends at the bottom of a breath) while a circle paces the breathing: 4 s in, 5 s out. The first place starts with one practice breath, so the rhythm is known; later places (and *Continue* or *Record again*) record from the first breath. The app sends `0x10 n` when the breathing circle starts and the device's lungs light up in the same rhythm and curve ([contract 1, breathing sync](../docs/ARCHITECTURE.md)). The circle is drawn every frame from that curve, never with CSS easing, and only the recording itself is uploaded.
 4. Each recording is analysed in the background while the next place is recorded: on the phone, or uploaded as a WAV when an AI server is set. A short *Done* (and a buzz) marks the end of each place.
 5. **Results:** one sentence at the top with the date, a coloured body map, and one row per place with its waveform, *Listen* (tap again to stop; one at a time; the waveform shows how far it has played) and *Record again*. Quality below 0.4, a rejected recording, or no sound from the device asks for a re-record. If the analysis failed (on the phone, or the AI server couldn't be reached: timeout, 5xx), the row offers *Try again*, which analyses the same recording again.
 

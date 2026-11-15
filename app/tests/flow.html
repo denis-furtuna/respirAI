@@ -63,7 +63,9 @@ $("btnBegin").click(); $("btnStop").click();   // a double-tap must not also pre
 await sleep(500);
 check("double-tap on Begin doesn't stop", visible("sPoint"));
 check("first place: base of the neck, one red dot", visible("sPoint") && $("pointTitle").textContent === "Base of the neck" && d.querySelectorAll("#body .pt.here").length === 1);
-check("placement countdown", $("dialSub").textContent === "Recording starts in", $("dialMain").textContent);
+check("placing: no clock, it asks", $("dialMain").textContent === "Ready?" && $("dialSub").textContent === "Start when the chest piece is in place", $("dialMain").textContent);
+await sleep(12000);
+check("…and waits for the tap, however long", visible("sPoint") && !$("btnNow").hidden && $("dialMain").textContent === "Ready?" && !$("sPoint").classList.contains("breathing"));
 $("btnNow").click();
 await sleep(1500);
 check("practice breath first", /Breathe (in|out)/.test($("dialMain").textContent) && $("dialSub").textContent === "Practice breath", $("dialMain").textContent + " / " + $("dialSub").textContent);

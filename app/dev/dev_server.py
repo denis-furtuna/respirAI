@@ -95,6 +95,12 @@ class Handler(SimpleHTTPRequestHandler):
         target = (root / rest.lstrip("/\\")).resolve()
         return str(target) if target.is_relative_to(root.resolve()) else str(APP / "not-found")
 
+    def end_headers(self):
+        # Always ask before reusing a copy: without this the browser keeps an old app file for a while after a change
+        # (it guesses from the file's age), and a new screen shows next to old code or old texts.
+        self.send_header("Cache-Control", "no-cache")
+        super().end_headers()
+
     def send_json(self, status, body):
         data = json.dumps(body).encode()
         self.send_response(status)

@@ -68,7 +68,7 @@ $("seconds").value = "5"; $("seconds").dispatchEvent(new Event("change"));
 
 // a whole check in Romanian
 $("btnBegin").click(); await sleep(600);
-check("Romanian: recording screen", $("pointTitle").textContent === "Baza gâtului" && $("pointStep").textContent === "Locul 1 din 7" && $("dialSub").textContent === "Înregistrarea începe în",
+check("Romanian: recording screen", $("pointTitle").textContent === "Baza gâtului" && $("pointStep").textContent === "Locul 1 din 7" && $("dialSub").textContent === "Porniți când piesa e la locul ei",
   $("pointTitle").textContent + " / " + $("dialSub").textContent);
 $("btnNow").click(); await sleep(1500);
 check("Romanian: practice breath", /^(Inspirați|Expirați)$/.test($("dialMain").textContent) && $("dialSub").textContent === "Respirație de probă", $("dialMain").textContent + " / " + $("dialSub").textContent);

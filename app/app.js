@@ -6,6 +6,7 @@ import { LANGUAGES, current, dateTime, detect, percent, setLanguage, t } from ".
 import { analyzeHere, healthHere } from "./ai/local.js";
 import { native } from "./native.js";   // null in a browser; the phone app's own Bluetooth, speech... (see native.js)
 import { playClip, preloadVoice, spokenText, stopClip } from "./voice.js";
+import { guide } from "./guide.js";   // the voice guide: an ElevenLabs agent over this flow, when switched on and online
 
 // n is the contract number (0-6). x/y place the dot on the front or back drawing; names are in i18n/ (point.Tc.title…).
 // Left/right are the patient's: on the front view their left is on the viewer's right.
@@ -21,7 +22,6 @@ const POINTS = {
 const title = (code) => t(`point.${code}.title`);
 const ORDER = ["Tc", "Al", "Ar", "Ll", "Lr", "Pl", "Pr"];  // front, sides, back
 const QUICK = ["Al"];   // the quick test: one place, upper chest left, easy to reach alone
-const PLACE_SECONDS = 8;
 const BREATH_IN = 4, BREATH_OUT = 5;   // seconds. Mirrored in firmware/respirai/config.h (BREATH_IN_MS, BREATH_OUT_MS): change both
 const BREATH = BREATH_IN + BREATH_OUT; // one breath; also the practice breath before the first recording of a check
 const MIN_QUALITY = 0.4;               // contract 2: below this, ask for a re-record
@@ -88,7 +88,7 @@ for (const [id, parse] of [
 // say("point.Tc"): the recorded voice (voice.js; clips made with ElevenLabs by dev/make_voice.mjs) when this sentence
 // has a clip in this language, else the phone's own voice (Android's in the phone app, the browser's otherwise).
 function say(id) {
-  if (!settings.voice) return Promise.resolve();
+  if (!settings.voice && !guideOn) return Promise.resolve();   // with the voice guide on, this is what speaks when it can't
   const text = spokenText(id, t), lang = current();
   return Promise.race([playClip(lang.code, id, text).then((played) => played || speak(text, lang.locale)), sleep(15000)]);
 }
@@ -103,10 +103,48 @@ function speak(text, locale) {
   return Promise.race([spoken, sleep(8000)]);
 }
 function hush() {
+  guide.stop();
   stopClip();
   if (native) native.hush();
   else window.speechSynthesis?.cancel();
 }
+
+// ---------- the voice guide (guide.js) ----------
+// Switched on on the ready screen, for the checks of this visit. A guided check opens a conversation with the agent
+// when it starts; the agent says what say() would have said (told by tellGuide), answers questions in between,
+// and may press "start now" and "stop" for the person. Whenever there is no agent, say() speaks instead.
+let guideOn = false, byVoice = false, voiceAt = 0;
+const languageName = () => new Intl.DisplayNames(["en"], { type: "language" }).of(current().code);   // "Romanian"
+
+const guideTools = {
+  start_recording: () => {   // "it's in place": the same as the start-now button
+    if ($("sPoint").hidden || $("btnNow").hidden) return "Not possible now: the app is not waiting for the chest piece to be placed.";
+    skip = byVoice = true;
+    voiceAt = performance.now();
+    return `The recording starts as soon as you stop talking. Say this to the person in ${languageName()}, briefly, and nothing else: "${t(session.practised ? "point.sayBreatheNext" : "point.sayBreathe")}"`;
+  },
+  stop_check: () => {
+    if (!running) return "No check is running.";
+    setTimeout(stopSession, 0);
+    return "The check is stopped.";
+  },
+};
+
+function startGuide() {
+  guide.start({ lang: current().code, name: languageName(), tools: guideTools, onChange: showGuide });
+}
+
+function showGuide(state) {
+  const chip = $("btnGuideMic");
+  chip.hidden = state === "off";
+  if (state !== "off") chip.textContent = t(`guide.${state}`);
+  chip.disabled = state === "connecting" || state === "held";
+  // Gone in the middle of a check (no internet, or it never connected): say so once; the check goes on without it.
+  if (state === "off" && running && !cancel && !$("sPoint").hidden) notice("guide.down");
+}
+
+// What say(id) says, said by the agent instead (how: the instruction around the text). false: no agent now.
+const tellGuide = (message) => (guideOn ? guide.tell(message) : Promise.resolve(false));
 
 // ---------- device + audio ----------
 let device = null, recording = null, lastAudioAt = 0, batteryWarned = false;
@@ -292,6 +330,7 @@ async function runSession(codes) {
   catchBack();
   show("sPoint");
   keepAwake();
+  if (guideOn) startGuide();
   try {
     for (const code of codes) if (!cancel) await recordPoint(code);
     if (!cancel) {
@@ -309,6 +348,7 @@ async function runSession(codes) {
     send(CMD.idle);
     if (!finished) hush();   // a finished check has just started saying its result: let it speak
     pointCode = null;
+    $("sPoint").classList.remove("breathing");
     if (!finished) !device ? show("sConnect") : remaining().length ? showReady() : showResults();
   }
 }
@@ -323,24 +363,40 @@ function pointTexts(code) {
 async function recordPoint(code) {
   const p = POINTS[code];
   pointCode = code;
+  $("sPoint").classList.remove("breathing");
   pointTexts(code);
   $("progress").innerHTML = places().map((c) => `<i class="${c === code ? "now" : session.results[c] ? "done" : ""}"></i>`).join("");
   drawBody($("body"), p.view, (c) => (c === code ? "here" : ""));
   if (settled()) enter($("pointStep"), $("pointTitle"), $("pointWhere"), $("body"));   // the next place (the first comes in with the screen)
-  say(`point.${code}`);
+  tellGuide(`Place ${places().indexOf(code) + 1} of ${places().length}: "${title(code)}". Where: "${t(`point.${code}.where`)}" `
+    + "Tell the person where to put the chest piece, then ask them to say when it is in place.")
+    .then((told) => told || cancel || pointCode !== code || say(`point.${code}`));
 
-  // 1. Time to place the chest piece (or tap "start now").
+  // 1. The chest piece is placed. No clock: it waits for "start now", or for the voice guide to hear it's in place.
   $("btnNow").hidden = false;
   $("breath").style.transform = "scale(0.62)";
-  const placed = await countdown(PLACE_SECONDS, (s, total) => dial(Math.ceil(total - s), t("point.startsIn"), s / total), true);
+  byVoice = false;
+  const placed = await countdown(Infinity, () => dial(t("point.ready"), t("point.readySub"), 0), true);
   $("btnNow").hidden = true;
   if (!placed) return;
   // One practice breath per check, before its first recording: once the rhythm is known, later places (and a
   // Continue or Record again) start recording with the first breath.
   const practice = !session.practised;
+  $("sPoint").classList.add("breathing");   // from here to the end of the recording the circle has the whole screen
   dial(t("point.getReady"), t("point.breatheSlowly"), 0);
-  await orStop(say(practice ? "breathe" : "breatheNext"));   // finishes before the recording starts, unless stopped
+  // The breathing instruction finishes before the recording starts, unless stopped. The agent says it when it is
+  // there (it has just been told to, if it started the recording itself); then it is silent and the phone's
+  // microphone is off until the recording ends, or the stethoscope would pick the voices up.
+  const cue = practice ? "point.sayBreathe" : "point.sayBreatheNext";
+  if (guide.connected) {
+    const asked = byVoice ? voiceAt : performance.now();
+    if (!byVoice) await guide.tell(`The recording starts now. Say this to the person, briefly, and nothing else: "${t(cue)}"`, 0);
+    await orStop(guide.spoken(asked));   // to the end of its sentence: the recording never cuts the agent off
+  } else {
+    await orStop(say(practice ? "breathe" : "breatheNext"));
+  }
   if (cancel) return;
+  guide.hold(true);
 
   // 2. (The practice breath, then) record the next breaths. The device's lights start with the circle and loop on
   //    their own clock (contract 4.1), so the recording starts at the bottom of a breath, in step with them.
@@ -361,6 +417,7 @@ async function recordPoint(code) {
     recording = null;
   } finally {
     breathe(false);
+    guide.hold(false);
   }
   if (!recorded) return;
   send(CMD.done);
@@ -401,7 +458,8 @@ function breathe(on = true) {
   return breathStart;
 }
 
-// Runs onTick about 20 times a second; resolves false if the session was stopped.
+// Runs onTick about 20 times a second; resolves false if the session was stopped. seconds can be Infinity:
+// a wait that only a tap (skippable) or Stop ends.
 async function countdown(seconds, onTick, skippable = false) {
   const start = performance.now();
   skip = false;
@@ -520,6 +578,8 @@ function showReady() {
   $("btnBegin").textContent = partial ? t("ready.continue", { n: left }) : t("ready.begin");
   $("step2").innerHTML = t("ready.step2", { n: settings.seconds });
   $("btnQuick").hidden = partial;   // a quick test would start over and lose the places already recorded
+  $("btnGuide").hidden = $("guideHint").hidden = !guide.available;
+  $("btnGuide").setAttribute("aria-pressed", guideOn);
   $("readyNote").hidden = !settings.demo;
   $("readyNote").textContent = settings.demo ? t("ready.demo", { case: t(`case.${settings.demo}`) }) : "";
   show("sReady");
@@ -544,7 +604,9 @@ function showResults() {
   resetRestart();
   show("sResults");
   renderResults();
-  say(`overall.${overallKey}`);
+  (guideOn && guide.connected
+    ? guide.finish(`The check is finished. Tell the person the result: say exactly this and nothing more, do not interpret it and do not name any illness: "${t(`overall.${overallKey}.title`)}. ${t(`overall.${overallKey}.text`)}"`)
+    : Promise.resolve(false)).then((told) => told || $("sResults").hidden || say(`overall.${overallKey}`));
 }
 
 function renderResults() {
@@ -784,6 +846,21 @@ $("btnVoice").addEventListener("click", () => {
   }
   else hush();
 });
+$("btnGuide").addEventListener("click", async () => {
+  if (guideOn) {
+    guideOn = false;
+  } else {
+    try {
+      await guide.allow();   // the microphone: asked for here, at the tap, with the reason next to it
+      guideOn = true;
+      notice();
+    } catch (e) {
+      notice("guide.noMic");
+    }
+  }
+  $("btnGuide").setAttribute("aria-pressed", guideOn);
+});
+$("btnGuideMic").addEventListener("click", () => guide.toggleMic());
 $("btnForget").addEventListener("click", () => {
   try { localStorage.removeItem("respirai-checks"); } catch (e) { /* nothing stored */ }
   $("earlier").hidden = true;
