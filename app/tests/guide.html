@@ -132,7 +132,10 @@ await sleep(2400);
 check("while the stethoscope records: microphone off, agent silent", a.muted && a.volume === 0 && $("btnGuideMic").disabled && /Breathe/.test($("dialMain").textContent), $("dialMain").textContent + " / " + $("btnGuideMic").textContent);
 check("start_recording a second time does nothing", /Not possible/.test(await a.options.clientTools.start_recording({})));
 await until(() => visible("sResults"));
-check("after the recording: microphone and voice back", !a.muted && a.volume === 1);
+// Results shown: the app has just asked the agent to say them, and while it speaks its microphone is off on purpose
+// (50 ms after the request here, sooner than until() looks). What must be back is the hold: voice on, and the
+// microphone off only because the agent is speaking.
+check("after the recording: microphone and voice back", a.volume === 1 && (!a.muted || a.sound > 0), `muted=${a.muted} volume=${a.volume} speaking=${a.sound > 0}`);
 await sleep(600);
 check("the agent is told the result, with the words on screen", a.messages.length === 2 && a.messages[1].includes($("overallTitle").textContent) && a.messages[1].includes("do not name any illness"), a.messages.at(-1));
 await until(() => a.ended, 5000);
